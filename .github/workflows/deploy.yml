@@ -1,0 +1,69 @@
+name: Deploy a GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# solo un despliegue a la vez; los intermedios se descartan
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # los tests son la puerta: si fallan, no se publica
+      - name: Tests
+        run: npm test
+
+      - name: Calcular la ruta base
+        run: |
+          REPO="${GITHUB_REPOSITORY#*/}"
+          if [ -f public/CNAME ] || [ -f CNAME ] || [ "${REPO}" = "${GITHUB_REPOSITORY_OWNER}.github.io" ]; then
+            # dominio propio o pagina de usuario: la app vive en la raiz
+            echo "VITE_BASE=/" >> "$GITHUB_ENV"
+          else
+            echo "VITE_BASE=/${REPO}/" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build
+        run: npm run build
+
+      - name: Copiar index.html como 404.html
+        # GitHub Pages sirve 404.html en rutas desconocidas; asi la app
+        # tambien abre si alguien entra por un enlace profundo
+        run: cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Publicar
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
