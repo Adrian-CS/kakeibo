@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Kakeibo">
+  <rect width="64" height="64" rx="14" fill="#f9f9f7"/>
+  <rect x="12" y="34" width="7" height="16" rx="3" fill="#2a78d6"/>
+  <rect x="23" y="24" width="7" height="26" rx="3" fill="#eb6834"/>
+  <rect x="34" y="29" width="7" height="21" rx="3" fill="#1baf7a"/>
+  <rect x="45" y="16" width="7" height="34" rx="3" fill="#eda100"/>
+  <rect x="12" y="52" width="40" height="2" rx="1" fill="#c3c2b7"/>
+</svg>
