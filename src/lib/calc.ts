@@ -1,0 +1,432 @@
+import type { AppData, Category, Expense, MonthData, Snapshot } from './types'
+
+/* ------------------------------------------------------------------ *
+ * Utilidades basicas
+ * ------------------------------------------------------------------ */
+
+export function sum(xs: number[]): number {
+  let t = 0
+  for (const x of xs) t += x
+  return t
+}
+
+export function median(xs: number[]): number {
+  if (xs.length === 0) return 0
+  const s = [...xs].sort((a, b) => a - b)
+  const mid = Math.floor(s.length / 2)
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2
+}
+
+/** Numero de dias del mes 'YYYY-MM'. */
+export function daysInMonth(monthId: string): number {
+  const [y, m] = monthId.split('-').map(Number)
+  return new Date(y, m, 0).getDate()
+}
+
+/** Desplaza un 'YYYY-MM' n meses (n puede ser negativo). */
+export function shiftMonth(monthId: string, n: number): string {
+  const [y, m] = monthId.split('-').map(Number)
+  const d = new Date(y, m - 1 + n, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+export function isValidMonthId(id: string): boolean {
+  if (!/^\d{4}-\d{2}$/.test(id)) return false
+  const m = Number(id.slice(5, 7))
+  return m >= 1 && m <= 12
+}
+
+/** Lista continua de meses entre dos 'YYYY-MM' (ambos incluidos). */
+export function monthRange(from: string, to: string): string[] {
+  const out: string[] = []
+  let cur = from
+  // tope de seguridad: 100 anos
+  for (let i = 0; i < 1200 && cur <= to; i++) {
+    out.push(cur)
+    cur = shiftMonth(cur, 1)
+  }
+  return out
+}
+
+/* ------------------------------------------------------------------ *
+ * Totales de un mes (replica de las formulas del Excel)
+ * ------------------------------------------------------------------ */
+
+export interface MonthTotals {
+  monthId: string
+  /** suma por categoria, en yenes */
+  byCategory: Record<string, number>
+  /** suma de todas las filas de categoria */
+  itemsJpy: number
+  rentJpy: number
+  extrasJpy: number
+  /** 合計 = filas + alquiler + extras */
+  totalJpy: number
+  /** 一日生活の費消 = categorias del bucket "daily" */
+  dailyLifeJpy: number
+  /** 毎月ある費消 = gastos marcados como recurrentes + alquiler + extras */
+  fixedJpy: number
+  /** 別の費消 = total - fijos */
+  otherJpy: number
+  /** gastos marcados como extraordinarios (informativo) */
+  extraordinaryJpy: number
+  /** 上限 */
+  limitJpy: number
+  /** balance = limite - total */
+  balanceJpy: number
+  /** porcentaje del limite consumido (0-Infinity) */
+  usedRatio: number
+  fxRate: number
+  /** numero de filas de gasto del mes */
+  count: number
+  /** media por dia del mes */
+  perDayJpy: number
+}
+
+export function toSecondary(jpy: number, fxRate: number): number {
+  return jpy * fxRate
+}
+
+export function expensesOfMonth(data: AppData, monthId: string): Expense[] {
+  return data.expenses.filter((e) => e.monthId === monthId)
+}
+
+export function getMonth(data: AppData, monthId: string): MonthData | undefined {
+  return data.months.find((m) => m.id === monthId)
+}
+
+/**
+ * Calcula todos los indicadores de un mes.
+ * Equivalencias con el Excel:
+ *   A2 -> totalJpy     A3 -> totalJpy * fxRate
+ *   A8 -> dailyLifeJpy A11 -> fixedJpy
+ *   A17 -> otherJpy    A21 -> balanceJpy
+ */
+export function monthTotals(data: AppData, monthId: string): MonthTotals {
+  const month = getMonth(data, monthId)
+  const rentJpy = month?.rentJpy ?? 0
+  const extrasJpy = sum((month?.extras ?? []).map((x) => x.amount))
+  const fxRate = month?.fxRate ?? data.settings.defaultFxRate
+  const limitJpy = month?.limitJpy ?? data.settings.defaultLimitJpy
+
+  const items = expensesOfMonth(data, monthId)
+  const byCategory: Record<string, number> = {}
+  for (const c of data.categories) byCategory[c.id] = 0
+  for (const e of items) {
+    byCategory[e.categoryId] = (byCategory[e.categoryId] ?? 0) + e.amount
+  }
+
+  const dailyIds = new Set(data.categories.filter((c) => c.bucket === 'daily').map((c) => c.id))
+
+  const itemsJpy = sum(items.map((e) => e.amount))
+  const totalJpy = itemsJpy + rentJpy + extrasJpy
+  const dailyLifeJpy = sum(items.filter((e) => dailyIds.has(e.categoryId)).map((e) => e.amount))
+  const recurringJpy = sum(items.filter((e) => e.kind === 'recurring').map((e) => e.amount))
+  const fixedJpy = recurringJpy + rentJpy + extrasJpy
+  const extraordinaryJpy = sum(items.filter((e) => e.kind === 'extraordinary').map((e) => e.amount))
+
+  return {
+    monthId,
+    byCategory,
+    itemsJpy,
+    rentJpy,
+    extrasJpy,
+    totalJpy,
+    dailyLifeJpy,
+    fixedJpy,
+    otherJpy: totalJpy - fixedJpy,
+    extraordinaryJpy,
+    limitJpy,
+    balanceJpy: limitJpy - totalJpy,
+    usedRatio: limitJpy > 0 ? totalJpy / limitJpy : 0,
+    fxRate,
+    count: items.length,
+    perDayJpy: totalJpy / daysInMonth(monthId),
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Estadisticas entre meses
+ * ------------------------------------------------------------------ */
+
+/** Meses con datos (gastos, alquiler, extras o limite), ordenados. */
+export function monthsWithData(data: AppData): string[] {
+  const ids = new Set<string>()
+  for (const e of data.expenses) ids.add(e.monthId)
+  for (const m of data.months) {
+    if (m.rentJpy || m.extras.length || m.limitJpy) ids.add(m.id)
+  }
+  return [...ids].filter(isValidMonthId).sort()
+}
+
+export interface StatsOptions {
+  /** ultimos N meses; 0 o undefined = todos */
+  lastMonths?: number
+  /** excluir gastos marcados como extraordinarios */
+  excludeExtraordinary?: boolean
+  /** mes de referencia (por defecto el ultimo con datos) */
+  upTo?: string
+}
+
+export interface MonthPoint {
+  monthId: string
+  totalJpy: number
+  byCategory: Record<string, number>
+  dailyLifeJpy: number
+  fixedJpy: number
+  otherJpy: number
+  limitJpy: number
+  perDayJpy: number
+  fxRate: number
+  count: number
+}
+
+export interface Stats {
+  months: MonthPoint[]
+  /** total del ultimo mes del rango */
+  currentJpy: number
+  previousJpy: number
+  /** variacion relativa frente al mes anterior (0 si no hay anterior) */
+  momRatio: number
+  averageJpy: number
+  medianJpy: number
+  maxMonth?: MonthPoint
+  minMonth?: MonthPoint
+  /** total por categoria en todo el rango */
+  byCategory: Record<string, number>
+  /** media mensual por categoria */
+  avgByCategory: Record<string, number>
+  totalJpy: number
+  /** media de gasto por dia en todo el rango */
+  perDayJpy: number
+}
+
+/** Filtra los gastos segun las opciones y devuelve una copia de los datos. */
+function filtered(data: AppData, opts: StatsOptions): AppData {
+  if (!opts.excludeExtraordinary) return data
+  return { ...data, expenses: data.expenses.filter((e) => e.kind !== 'extraordinary') }
+}
+
+export function computeStats(data: AppData, opts: StatsOptions = {}): Stats {
+  const src = filtered(data, opts)
+  let ids = monthsWithData(src)
+  if (opts.upTo) ids = ids.filter((id) => id <= opts.upTo!)
+  if (opts.lastMonths && opts.lastMonths > 0) ids = ids.slice(-opts.lastMonths)
+
+  const months: MonthPoint[] = ids.map((id) => {
+    const t = monthTotals(src, id)
+    return {
+      monthId: id,
+      totalJpy: t.totalJpy,
+      byCategory: t.byCategory,
+      dailyLifeJpy: t.dailyLifeJpy,
+      fixedJpy: t.fixedJpy,
+      otherJpy: t.otherJpy,
+      limitJpy: t.limitJpy,
+      perDayJpy: t.perDayJpy,
+      fxRate: t.fxRate,
+      count: t.count,
+    }
+  })
+
+  const totals = months.map((m) => m.totalJpy)
+  const current = months.at(-1)
+  const previous = months.at(-2)
+
+  const byCategory: Record<string, number> = {}
+  for (const c of src.categories) byCategory[c.id] = 0
+  for (const m of months) {
+    for (const [k, v] of Object.entries(m.byCategory)) byCategory[k] = (byCategory[k] ?? 0) + v
+  }
+  const avgByCategory: Record<string, number> = {}
+  for (const [k, v] of Object.entries(byCategory)) {
+    avgByCategory[k] = months.length ? v / months.length : 0
+  }
+
+  const totalJpy = sum(totals)
+  const days = sum(ids.map(daysInMonth))
+
+  return {
+    months,
+    currentJpy: current?.totalJpy ?? 0,
+    previousJpy: previous?.totalJpy ?? 0,
+    momRatio: previous && previous.totalJpy > 0 && current
+      ? current.totalJpy / previous.totalJpy - 1
+      : 0,
+    averageJpy: months.length ? totalJpy / months.length : 0,
+    medianJpy: median(totals),
+    maxMonth: months.length ? months.reduce((a, b) => (b.totalJpy > a.totalJpy ? b : a)) : undefined,
+    minMonth: months.length ? months.reduce((a, b) => (b.totalJpy < a.totalJpy ? b : a)) : undefined,
+    byCategory,
+    avgByCategory,
+    totalJpy,
+    perDayJpy: days ? totalJpy / days : 0,
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Rankings
+ * ------------------------------------------------------------------ */
+
+/** Normaliza el nombre de un comercio para poder agrupar ("Uber " y "uber"). */
+export function normalizeLabel(label: string): string {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[.,;:!?]+$/, '')
+}
+
+export interface LabelStat {
+  label: string
+  totalJpy: number
+  count: number
+  avgJpy: number
+  categoryId: string
+}
+
+/** Ranking de comercios / conceptos por importe total. */
+export function topLabels(
+  data: AppData,
+  opts: StatsOptions & { limit?: number; monthIds?: string[] } = {},
+): LabelStat[] {
+  const src = filtered(data, opts)
+  const allow = opts.monthIds ? new Set(opts.monthIds) : null
+  const map = new Map<string, LabelStat>()
+  for (const e of src.expenses) {
+    if (allow && !allow.has(e.monthId)) continue
+    const key = normalizeLabel(e.label)
+    if (!key) continue
+    const cur = map.get(key)
+    if (cur) {
+      cur.totalJpy += e.amount
+      cur.count += 1
+      cur.avgJpy = cur.totalJpy / cur.count
+    } else {
+      map.set(key, {
+        label: e.label.trim(),
+        totalJpy: e.amount,
+        count: 1,
+        avgJpy: e.amount,
+        categoryId: e.categoryId,
+      })
+    }
+  }
+  const out = [...map.values()].sort((a, b) => b.totalJpy - a.totalJpy)
+  return opts.limit ? out.slice(0, opts.limit) : out
+}
+
+/** Gastos individuales mas grandes. */
+export function topExpenses(
+  data: AppData,
+  opts: StatsOptions & { limit?: number; monthIds?: string[] } = {},
+): Expense[] {
+  const src = filtered(data, opts)
+  const allow = opts.monthIds ? new Set(opts.monthIds) : null
+  return src.expenses
+    .filter((e) => !allow || allow.has(e.monthId))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, opts.limit ?? 10)
+}
+
+/* ------------------------------------------------------------------ *
+ * Ritmo de gasto dentro del mes
+ * ------------------------------------------------------------------ */
+
+export interface BurnPoint {
+  day: number
+  cumulativeJpy: number
+  paceJpy: number
+}
+
+/**
+ * Gasto acumulado por dia frente al ritmo ideal (limite repartido
+ * linealmente). Solo tiene sentido si hay gastos con dia asignado.
+ */
+export function monthBurn(data: AppData, monthId: string): BurnPoint[] {
+  const t = monthTotals(data, monthId)
+  const nDays = daysInMonth(monthId)
+  const items = expensesOfMonth(data, monthId)
+  const perDay = new Array(nDays + 1).fill(0) as number[]
+  // los gastos sin dia y los fijos se reparten en el dia 1
+  let unassigned = t.rentJpy + t.extrasJpy
+  for (const e of items) {
+    if (e.day && e.day >= 1 && e.day <= nDays) perDay[e.day] += e.amount
+    else unassigned += e.amount
+  }
+  perDay[1] += unassigned
+  const out: BurnPoint[] = []
+  let acc = 0
+  for (let d = 1; d <= nDays; d++) {
+    acc += perDay[d]
+    out.push({ day: d, cumulativeJpy: acc, paceJpy: (t.limitJpy * d) / nDays })
+  }
+  return out
+}
+
+/** Cuantos gastos del mes tienen dia asignado. */
+export function datedCount(data: AppData, monthId: string): number {
+  return expensesOfMonth(data, monthId).filter((e) => !!e.day).length
+}
+
+/**
+ * Proyeccion de cierre del mes en curso: lo gastado hasta hoy extrapolado
+ * al total de dias. Si el mes no es el actual devuelve el total real.
+ */
+export function projectMonth(data: AppData, monthId: string, today = new Date()): number {
+  const t = monthTotals(data, monthId)
+  const currentId = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  if (monthId !== currentId) return t.totalJpy
+  const nDays = daysInMonth(monthId)
+  const elapsed = Math.min(today.getDate(), nDays)
+  if (elapsed === 0) return t.totalJpy
+  return (t.totalJpy / elapsed) * nDays
+}
+
+/* ------------------------------------------------------------------ *
+ * Ahorros / patrimonio
+ * ------------------------------------------------------------------ */
+
+/** Convierte el saldo de una cuenta a yenes usando el tipo de cambio dado. */
+export function accountToJpy(amount: number, currency: string, fxRate: number): number {
+  if (currency === 'JPY') return amount
+  // fxRate es JPY -> moneda secundaria, asi que invertimos
+  return fxRate > 0 ? amount / fxRate : 0
+}
+
+export interface SnapshotTotals {
+  id: string
+  date: string
+  assetsJpy: number
+  debtsJpy: number
+  netJpy: number
+}
+
+export function snapshotTotals(s: Snapshot, fxRate: number): SnapshotTotals {
+  let assets = 0
+  let debts = 0
+  for (const a of s.accounts) {
+    const jpy = accountToJpy(a.amount, a.currency, fxRate)
+    if (a.isDebt) debts += jpy
+    else assets += jpy
+  }
+  return { id: s.id, date: s.date, assetsJpy: assets, debtsJpy: debts, netJpy: assets - debts }
+}
+
+export function snapshotSeries(data: AppData): SnapshotTotals[] {
+  return [...data.snapshots]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((s) => snapshotTotals(s, data.settings.defaultFxRate))
+}
+
+/* ------------------------------------------------------------------ *
+ * Ayudas de presentacion
+ * ------------------------------------------------------------------ */
+
+export function categoryById(cats: Category[], id: string): Category | undefined {
+  return cats.find((c) => c.id === id)
+}
+
+export function activeCategories(cats: Category[]): Category[] {
+  return cats.filter((c) => !c.archived)
+}
