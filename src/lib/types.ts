@@ -1,0 +1,107 @@
+/** Modelo de datos de la aplicacion. Todos los importes se guardan en yenes (JPY). */
+
+export type Lang = 'es' | 'ja' | 'en'
+export type ThemePref = 'system' | 'light' | 'dark'
+
+/** Como se comporta un gasto en los totales del mes. */
+export type ExpenseKind =
+  /** gasto normal del mes */
+  | 'normal'
+  /** gasto que se repite todos los meses (suscripciones, movil, agua...) */
+  | 'recurring'
+  /** gasto extraordinario / puntual (mudanza, hotel, billetes de avion...) */
+  | 'extraordinary'
+
+/** Un "bucket" agrupa categorias para los indicadores del mes. */
+export type Bucket =
+  /** vida diaria: comida fuera + supermercado (一日生活の費消) */
+  | 'daily'
+  /** el resto: ocio, ropa, cosas de casa... (別の費消) */
+  | 'other'
+
+export interface Category {
+  id: string
+  /** nombre en el idioma del usuario */
+  name: string
+  /** nombre japones opcional, tal cual estaba en el Excel */
+  nameJa?: string
+  bucket: Bucket
+  /** indice 0-7 de la paleta categorica */
+  colorSlot: number
+  archived?: boolean
+}
+
+export interface Expense {
+  id: string
+  /** 'YYYY-MM' */
+  monthId: string
+  categoryId: string
+  label: string
+  /** importe en yenes */
+  amount: number
+  /** dia del mes 1-31, opcional */
+  day?: number | null
+  kind: ExpenseKind
+  note?: string
+}
+
+export interface FixedItem {
+  id: string
+  label: string
+  /** importe en yenes */
+  amount: number
+}
+
+export interface MonthData {
+  /** 'YYYY-MM' */
+  id: string
+  /** alquiler en yenes (家賃) */
+  rentJpy: number
+  /** otros gastos fijos que no son filas de categoria (luz, gas, agua...) */
+  extras: FixedItem[]
+  /** tipo de cambio JPY -> moneda secundaria (為替相場) */
+  fxRate: number
+  /** limite de gasto del mes en yenes (上限) */
+  limitJpy: number
+  note?: string
+}
+
+export interface Account {
+  id: string
+  name: string
+  amount: number
+  currency: 'JPY' | 'EUR'
+  /** true = deuda (se resta del patrimonio) */
+  isDebt?: boolean
+}
+
+/** Foto de los ahorros en una fecha concreta. */
+export interface Snapshot {
+  id: string
+  /** 'YYYY-MM-DD' */
+  date: string
+  accounts: Account[]
+  note?: string
+}
+
+export interface Settings {
+  lang: Lang
+  theme: ThemePref
+  /** tipo de cambio por defecto para meses nuevos */
+  defaultFxRate: number
+  defaultLimitJpy: number
+  defaultRentJpy: number
+  /** codigo de la moneda secundaria (la principal siempre es JPY) */
+  secondaryCurrency: 'EUR' | 'USD' | 'GBP'
+}
+
+export interface AppData {
+  version: number
+  categories: Category[]
+  expenses: Expense[]
+  months: MonthData[]
+  snapshots: Snapshot[]
+  settings: Settings
+}
+
+export const DATA_VERSION = 1

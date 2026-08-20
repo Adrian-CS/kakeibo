@@ -1,0 +1,17 @@
+node_modules
+dist
+coverage
+*.local
+.DS_Store
+.vite
+.env
+.env.*
+
+# datos personales: nunca al repositorio
+/private/
+*.xlsx
+!src/test/fixtures/sample.xlsx
+kakeibo-*.json
+
+# artefactos de tsc
+*.tsbuildinfo
