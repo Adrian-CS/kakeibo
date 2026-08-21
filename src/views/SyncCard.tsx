@@ -12,7 +12,8 @@ export function SyncCard() {
   const [url, setUrl] = useState(sync.config?.url ?? '')
   const [key, setKey] = useState(sync.config?.anonKey ?? '')
   const [email, setEmail] = useState(data.sync?.email ?? '')
-  const [code, setCode] = useState('')
+  const [password, setPassword] = useState('')
+  const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn')
 
   const working = sync.status === 'working'
 
@@ -23,6 +24,7 @@ export function SyncCard() {
           {t('sync.error')}: {sync.message}
         </p>
       )}
+      {sync.status !== 'error' && sync.message && <p className="mb-3 text-sm text-ink-2">{sync.message}</p>}
 
       {/* 1. configuracion del proyecto */}
       {!sync.config && (
@@ -56,21 +58,9 @@ export function SyncCard() {
         </div>
       )}
 
-      {/* 2. entrar con el correo */}
+      {/* 2. entrar con correo y contraseña */}
       {sync.config && !sync.session && (
         <div className="grid gap-3 sm:grid-cols-2">
-          {sync.redirectTo ? (
-            <p className="text-xs text-muted sm:col-span-2">
-              {t('sync.returnTo')}{' '}
-              <code className="rounded bg-surface-2 px-1 py-0.5 text-ink-2">{sync.redirectTo}</code>
-              <br />
-              {t('sync.siteUrlHint')}
-            </p>
-          ) : (
-            <p className="text-xs sm:col-span-2" style={{ color: 'var(--serious)' }}>
-              {t('sync.noReturn')}
-            </p>
-          )}
           <Field label={t('sync.email')}>
             <TextInput
               type="email"
@@ -80,39 +70,33 @@ export function SyncCard() {
               autoComplete="email"
             />
           </Field>
-          <div className="flex items-end">
+          <Field label={t('sync.password')} hint={mode === 'signUp' ? t('sync.passwordHint') : undefined}>
+            <TextInput
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={mode === 'signUp' ? 'new-password' : 'current-password'}
+            />
+          </Field>
+
+          <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
             <Button
               variant="primary"
-              disabled={!email.includes('@') || working}
-              onClick={() => void sync.requestCode(email)}
+              disabled={!email.includes('@') || password.length < 6 || working}
+              onClick={() =>
+                void (mode === 'signUp' ? sync.signUp(email, password) : sync.signIn(email, password))
+              }
             >
-              {working ? t('sync.working') : t('sync.sendCode')}
+              {working ? t('sync.working') : mode === 'signUp' ? t('sync.createAccount') : t('sync.logIn')}
             </Button>
+            <button
+              type="button"
+              className="text-xs text-muted underline"
+              onClick={() => setMode(mode === 'signUp' ? 'signIn' : 'signUp')}
+            >
+              {mode === 'signUp' ? t('sync.haveAccount') : t('sync.needAccount')}
+            </button>
           </div>
-
-          {sync.pendingCode && (
-            <>
-              <p className="text-xs text-muted sm:col-span-2">
-                {t('sync.codeSent')} {t('sync.codeHint')}
-              </p>
-              <Field label={t('sync.code')}>
-                <TextInput
-                  value={code}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  onChange={(e) => setCode(e.target.value)}
-                />
-              </Field>
-              <div className="flex items-end">
-                <Button
-                  disabled={code.trim().length < 6 || working}
-                  onClick={() => void sync.submitCode(email, code)}
-                >
-                  {t('sync.enter')}
-                </Button>
-              </div>
-            </>
-          )}
 
           <div className="sm:col-span-2">
             <ConfirmButton confirmLabel={`${t('sync.forget')}?`} onConfirm={() => sync.setConfig(null)}>

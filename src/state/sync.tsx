@@ -25,7 +25,9 @@ import {
   pushDoc,
   saveConfig,
   saveSession,
+  signInWithPassword,
   signOut,
+  signUpWithPassword,
   type Session,
   type SupabaseConfig,
 } from '../lib/supabase'
@@ -38,33 +40,19 @@ export type SyncStatus = 'unconfigured' | 'signedOut' | 'idle' | 'working' | 'er
 
 export interface SyncApi {
   status: SyncStatus
-  /** direccion a la que volvera el enlace del correo (null si es imposible) */
-  redirectTo: string | null
   /** mensaje corto para la interfaz (ya traducido por quien lo pone) */
   message: string
   config: SupabaseConfig | null
   session: Session | null
   lastSyncAt?: string
-  pendingCode: boolean
   setConfig: (c: SupabaseConfig | null) => void
-  requestCode: (email: string) => Promise<void>
-  submitCode: (email: string, code: string) => Promise<void>
+  signUp: (email: string, password: string) => Promise<void>
+  signIn: (email: string, password: string) => Promise<void>
   syncNow: () => Promise<void>
   logOut: () => Promise<void>
 }
 
 const SyncContext = createContext<SyncApi | null>(null)
-
-/**
- * URL a la que debe volver el enlace del correo, o null si la app no esta
- * servida por web (fichero local, `file://`): en ese caso no hay vuelta
- * posible y hay que entrar con el codigo.
- */
-export function redirectTarget(loc: { protocol: string; origin: string } = window.location): string | null {
-  if (loc.protocol !== 'http:' && loc.protocol !== 'https:') return null
-  const base = import.meta.env?.BASE_URL ?? '/'
-  return `${loc.origin}${base}`
-}
 
 export function SyncProvider({ children }: { children: ReactNode }) {
   const { data, dispatch, t } = useStore()
@@ -72,7 +60,6 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => loadSession())
   const [status, setStatus] = useState<SyncStatus>('unconfigured')
   const [message, setMessage] = useState('')
-  const [pendingCode, setPendingCode] = useState(false)
 
   // el motor lee los datos con un ref para no reengancharse en cada tecla
   const dataRef = useRef<AppData>(data)
@@ -83,20 +70,6 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setStatus(!config ? 'unconfigured' : session ? 'idle' : 'signedOut')
   }, [config, session])
-
-  // error que dejo el enlace del correo (lo recoge main.tsx antes de montar)
-  useEffect(() => {
-    try {
-      const err = sessionStorage.getItem('kakeibo:authError')
-      if (err) {
-        sessionStorage.removeItem('kakeibo:authError')
-        setStatus('error')
-        setMessage(err)
-      }
-    } catch {
-      /* sin sessionStorage no hay nada que recoger */
-    }
-  }, [])
 
   const setConfig = useCallback((c: SupabaseConfig | null) => {
     saveConfig(c)
@@ -174,35 +147,40 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
   }, [config, session, dispatch, t])
 
-  const requestCode = useCallback(
-    async (email: string) => {
+  const signUp = useCallback(
+    async (email: string, password: string) => {
       if (!config) return
       setStatus('working')
       setMessage('')
       try {
-        const { sendLoginEmail } = await import('../lib/supabase')
-        await sendLoginEmail(config, email.trim(), redirectTarget())
-        setPendingCode(true)
-        setStatus('signedOut')
+        const s = await signUpWithPassword(config, email.trim(), password)
+        if (s) {
+          saveSession(s)
+          setSession(s)
+          dispatch({ type: 'patchSync', patch: { email: s.email } })
+          setStatus('idle')
+        } else {
+          // el proyecto exige confirmar el correo antes de dejar entrar
+          setStatus('signedOut')
+          setMessage(t('sync.confirmEmailSent'))
+        }
       } catch (e) {
         setStatus('error')
         setMessage(e instanceof Error ? e.message : String(e))
       }
     },
-    [config],
+    [config, dispatch, t],
   )
 
-  const submitCode = useCallback(
-    async (email: string, code: string) => {
+  const signIn = useCallback(
+    async (email: string, password: string) => {
       if (!config) return
       setStatus('working')
       setMessage('')
       try {
-        const { verifyEmailCode } = await import('../lib/supabase')
-        const s = await verifyEmailCode(config, email.trim(), code)
+        const s = await signInWithPassword(config, email.trim(), password)
         saveSession(s)
         setSession(s)
-        setPendingCode(false)
         dispatch({ type: 'patchSync', patch: { email: s.email } })
         setStatus('idle')
       } catch (e) {
@@ -248,18 +226,16 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     () => ({
       status,
       message,
-      redirectTo: redirectTarget(),
       config,
       session,
       lastSyncAt: data.sync?.lastSyncAt,
-      pendingCode,
       setConfig,
-      requestCode,
-      submitCode,
+      signUp,
+      signIn,
       syncNow,
       logOut,
     }),
-    [status, message, config, session, data.sync?.lastSyncAt, pendingCode, setConfig, requestCode, submitCode, syncNow, logOut],
+    [status, message, config, session, data.sync?.lastSyncAt, setConfig, signUp, signIn, syncNow, logOut],
   )
 
   return <SyncContext.Provider value={api}>{children}</SyncContext.Provider>

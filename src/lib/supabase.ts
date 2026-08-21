@@ -1,10 +1,10 @@
 /**
  * Cliente minimo de Supabase, escrito con `fetch`.
  *
- * La libreria oficial pesa mas de 100 kB y aqui solo hacen falta cuatro
- * llamadas: pedir el correo de acceso, canjear el codigo, refrescar la sesion
- * y leer/escribir un documento. Menos peso en el movil y ninguna dependencia
- * que actualizar.
+ * La libreria oficial pesa mas de 100 kB y aqui solo hacen falta unas pocas
+ * llamadas: crear cuenta o entrar con correo y contraseña, refrescar la
+ * sesion y leer/escribir un documento. Menos peso en el movil y ninguna
+ * dependencia que actualizar.
  *
  * La tabla esperada (ver supabase/schema.sql):
  *   kakeibo_docs(user_id uuid primary key, data jsonb, updated_at timestamptz)
@@ -108,29 +108,6 @@ export function decodeJwt(token: string): Record<string, unknown> | null {
   }
 }
 
-export interface AuthHash {
-  accessToken?: string
-  refreshToken?: string
-  expiresIn?: number
-  error?: string
-}
-
-/**
- * Lee el hash con el que vuelve el enlace del correo
- * (#access_token=...&refresh_token=...&expires_in=3600).
- */
-export function parseAuthHash(hash: string): AuthHash | null {
-  const h = hash.startsWith('#') ? hash.slice(1) : hash
-  if (!h || !/(access_token|error)=/.test(h)) return null
-  const p = new URLSearchParams(h)
-  const error = p.get('error_description') ?? p.get('error') ?? undefined
-  if (error) return { error }
-  const accessToken = p.get('access_token') ?? undefined
-  const refreshToken = p.get('refresh_token') ?? undefined
-  if (!accessToken || !refreshToken) return { error: 'respuesta incompleta' }
-  return { accessToken, refreshToken, expiresIn: Number(p.get('expires_in') ?? 3600) }
-}
-
 interface TokenResponse {
   access_token: string
   refresh_token: string
@@ -195,42 +172,38 @@ export async function call<T>(
 }
 
 /**
- * Envia el correo con el enlace (y el codigo, si la plantilla lo incluye).
- *
- * `redirectTo` puede ser null: si la app se abre desde un fichero local no hay
- * direccion a la que volver, y mandar una invalida hace que Supabase caiga en
- * el "Site URL" del proyecto (que por defecto es localhost). Mejor no mandar
- * nada y que use el Site URL a proposito.
+ * Crea la cuenta con correo y contraseña. Si el proyecto exige confirmar el
+ * correo antes de dejar entrar, la respuesta no trae sesion todavia (solo el
+ * usuario recien creado): hay que avisar de que revise el correo y luego
+ * entre con `signInWithPassword`.
  */
-export async function sendLoginEmail(
+export async function signUpWithPassword(
   cfg: SupabaseConfig,
   email: string,
-  redirectTo: string | null,
+  password: string,
   f: Fetcher = fetch,
-): Promise<void> {
-  const query = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : ''
-  await call<unknown>(
+): Promise<Session | null> {
+  const t = await call<Partial<TokenResponse>>(
     cfg,
-    `/auth/v1/otp${query}`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ email, create_user: true, gotrue_meta_security: {} }),
-    },
+    '/auth/v1/signup',
+    { method: 'POST', body: JSON.stringify({ email, password }) },
     f,
   )
+  if (!t.access_token || !t.refresh_token) return null
+  return sessionFromTokens({ ...t, access_token: t.access_token, refresh_token: t.refresh_token })
 }
 
-/** Canjea el codigo de seis digitos que llega en el correo. */
-export async function verifyEmailCode(
+/** Entra con correo y contraseña ya creados. */
+export async function signInWithPassword(
   cfg: SupabaseConfig,
   email: string,
-  code: string,
+  password: string,
   f: Fetcher = fetch,
 ): Promise<Session> {
   const t = await call<TokenResponse>(
     cfg,
-    '/auth/v1/verify',
-    { method: 'POST', body: JSON.stringify({ type: 'email', email, token: code.trim() }) },
+    '/auth/v1/token?grant_type=password',
+    { method: 'POST', body: JSON.stringify({ email, password }) },
     f,
   )
   return sessionFromTokens(t)

@@ -122,70 +122,22 @@ tenga su copia. Hay dos formas de juntarlas:
    Crea la tabla `kakeibo_docs` con RLS: cada usuario solo puede leer y escribir
    su propia fila.
 3. En **Project Settings → API**, copia la *Project URL* y la clave *anon*.
-4. En **Authentication → URL Configuration**, añade la dirección de la app
-   (`https://USUARIO.github.io/kakeibo/`) a *Site URL* y a *Redirect URLs*, o el
-   enlace del correo no sabrá volver.
-5. En la app: **Ajustes → Sincronización**, pega URL y clave, escribe tu correo
-   y pulsa *Enviarme el acceso*. Llega un correo con un enlace; al pulsarlo
-   vuelves a la app ya con la sesión abierta. Repite en el otro dispositivo.
+4. En la app: **Ajustes → Sincronización**, pega URL y clave, escribe tu correo
+   y una contraseña, y pulsa *Crear cuenta*. En el otro dispositivo, pega la
+   misma URL y clave, escribe el mismo correo y contraseña, y pulsa *Entrar*.
 
-Si prefieres el código de seis dígitos en lugar del enlace (más cómodo en el
-móvil), añade `{{ .Token }}` a la plantilla *Magic Link* en
-**Authentication → Email Templates**; la app tiene el campo para pegarlo.
+El acceso es con correo y contraseña normales — sin enlaces ni códigos por
+correo de por medio — así que funciona igual en cualquier navegador o
+dispositivo, incluido un icono que hayas añadido a la pantalla de inicio del
+móvil (esos icono "instalados" no comparten sesión con el navegador normal;
+con contraseña no hace falta que la compartan, porque entras directamente
+dentro de cada uno).
 
-### Si el enlace del correo apunta a `localhost`
-
-Supabase manda al **Site URL** del proyecto cuando el `redirect_to` que pide la
-app no está en la lista blanca, o cuando no hay ninguno; y el Site URL por
-defecto es `http://localhost:3000`. Dos causas posibles:
-
-- **La app se está abriendo desde un archivo local** (`file://`, por ejemplo la
-  vista previa de un solo fichero). Ahí no hay dirección a la que volver, así
-  que la app no manda ninguna y Supabase usa el Site URL. Entra con el código
-  de seis dígitos, o publica la app y entra desde su dirección.
-- **Falta la dirección en Supabase.** Pon la dirección publicada en *Site URL*
-  y añádela a *Redirect URLs*. La app te enseña, en Ajustes → Sincronización,
-  la dirección exacta que va a pedir: cópiala tal cual.
-
-En *Redirect URLs* vale también un patrón, útil si sirves la app desde varios
-sitios: `https://USUARIO.github.io/kakeibo/**`.
-
-### "email rate limit exceeded"
-
-El correo integrado de Supabase (el que usa por defecto, sin configurar nada)
-está pensado solo para probar y deja mandar muy pocos correos por hora. Si das
-de alta varios dispositivos seguidos, o pulsas *Enviarme el acceso* más de una
-vez, lo agotas enseguida y este error no tiene que ver con la app ni con tus
-datos: solo hay que esperar (suele bastar una hora) y pulsar una sola vez.
-
-Para no toparte con esto, pon un proveedor SMTP propio en
-**Authentication → Settings → SMTP Settings** (cualquiera con plan gratuito,
-como Resend o Brevo, sirve de sobra para esto); así el límite lo pone tu
-proveedor de correo, no Supabase.
-
-#### Con Resend
-
-1. Crea una cuenta en [resend.com](https://resend.com) y genera una API Key
-   (Dashboard → API Keys).
-2. Verifica un dominio propio (Dashboard → Domains → Add Domain): da tres
-   registros DNS (TXT del SPF, TXT del DKIM y un MX) que hay que añadir en tu
-   proveedor de dominio. Suele verificarse en minutos, pero puede tardar hasta
-   72 horas. **Sin dominio verificado no vale**: el dominio de prueba
-   (`onboarding@resend.dev`) solo puede mandar correos a la cuenta con la que
-   te registraste en Resend, no a usuarios de verdad.
-3. En Supabase → Authentication → Settings → SMTP Settings, activa *Enable
-   Custom SMTP* y rellena:
-
-   | Campo | Valor |
-   | --- | --- |
-   | Host | `smtp.resend.com` |
-   | Puerto | `465` (o `587`) |
-   | Usuario | `resend` (literal) |
-   | Contraseña | tu API Key de Resend |
-   | Sender email | una dirección de tu dominio verificado |
-
-4. Guarda y prueba *Enviarme el acceso* desde la app. El plan gratuito de
-   Resend admite 100 correos/día y 3000/mes, de sobra para esto.
+Si en **Authentication → Providers → Email** tienes activado *Confirm email*
+(viene así por defecto en los proyectos nuevos), tras *Crear cuenta* llega un
+correo de confirmación: ábrelo una vez y vuelve a la app para pulsar *Entrar*
+con tu contraseña. Si lo desactivas ahí, *Crear cuenta* deja la sesión
+abierta al momento, sin pasar por el correo en absoluto.
 
 También puedes dejar URL y clave fijas en el build con `VITE_SUPABASE_URL` y
 `VITE_SUPABASE_ANON_KEY` (ver [`.env.example`](.env.example)); en un repositorio
@@ -200,20 +152,22 @@ sesión ve la app vacía:
 - La clave *anon* que va en la página no da acceso a nada por sí sola: la
   política RLS exige `auth.uid() = user_id`, y sin sesión `auth.uid()` es nulo,
   así que la consulta devuelve cero filas.
-- Para leer tus datos hace falta una sesión válida, y la única forma de
-  conseguirla es recibir el correo en tu buzón. No hay contraseña que adivinar:
-  la llave es tu correo.
+- Para leer tus datos hace falta una sesión válida, y para conseguirla hace
+  falta tu correo y tu contraseña — no basta con acceso a tu buzón, como
+  pasaría con un enlace o un código por correo.
 - La sesión (token de una hora + token de refresco) se guarda en el navegador
   del dispositivo donde entraste.
 
-De ahí salen los riesgos reales, que no son la URL pública: quien entre en tu
-correo puede entrar en la app, y quien use tu dispositivo desbloqueado también.
+De ahí salen los riesgos reales, que no son la URL pública: quien conozca tu
+correo y contraseña puede entrar en la app, y quien use tu dispositivo
+desbloqueado (con la sesión ya abierta) también.
 
 Dos cosas que conviene hacer:
 
-1. En **Authentication → Sign In / Providers**, una vez creada tu cuenta,
-   desactiva *Allow new users to sign up*. Así nadie más puede registrarse con
-   la clave pública (sus datos irían a su propia fila, pero mejor cerrarlo).
+1. En **Authentication → Sign In / Providers**, una vez creadas tu cuenta (y
+   la de tu pareja, si vas a vincularla), desactiva *Allow new users to sign
+   up*. Así nadie más puede registrarse con la clave pública (sus datos irían
+   a su propia fila, pero mejor cerrarlo).
 2. La clave *service_role* de **Project Settings → API** no se pone nunca en la
    app: esa sí se salta la RLS.
 

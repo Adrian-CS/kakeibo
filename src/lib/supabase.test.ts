@@ -7,15 +7,14 @@ import {
   ensureFresh,
   loadConfig,
   loadSession,
-  parseAuthHash,
   pullDoc,
   pullDocFor,
   pushDoc,
   saveConfig,
   saveSession,
-  sendLoginEmail,
   sessionFromTokens,
-  verifyEmailCode,
+  signInWithPassword,
+  signUpWithPassword,
 } from './supabase'
 import { emptyData } from './defaults'
 import type { Session } from './supabase'
@@ -89,25 +88,6 @@ describe('piezas puras', () => {
     expect(decodeJwt('')).toBeNull()
   })
 
-  it('lee el hash del enlace del correo', () => {
-    const h = '#access_token=abc&refresh_token=def&expires_in=3600&token_type=bearer'
-    expect(parseAuthHash(h)).toEqual({ accessToken: 'abc', refreshToken: 'def', expiresIn: 3600 })
-  })
-
-  it('ignora un hash normal de la aplicacion', () => {
-    expect(parseAuthHash('#/month/2026-08')).toBeNull()
-    expect(parseAuthHash('')).toBeNull()
-  })
-
-  it('recoge el error que devuelve el enlace caducado', () => {
-    const r = parseAuthHash('#error=access_denied&error_description=Email%20link%20is%20invalid')
-    expect(r?.error).toContain('invalid')
-  })
-
-  it('avisa si faltan tokens', () => {
-    expect(parseAuthHash('#access_token=abc')?.error).toBeTruthy()
-  })
-
   it('construye la sesion desde los tokens', () => {
     const s = sessionFromTokens({ access_token: TOKEN, refresh_token: 'r', expires_in: 60 })
     expect(s.userId).toBe('user-1')
@@ -117,40 +97,38 @@ describe('piezas puras', () => {
 })
 
 describe('llamadas', () => {
-  it('pide el correo de acceso con el redirect', async () => {
-    const f = vi.fn().mockResolvedValue(okJson({}))
-    await sendLoginEmail(CFG, 'yo@ejemplo.com', 'https://usuario.github.io/kakeibo/', f)
-    const [url, init] = f.mock.calls[0]
-    expect(url).toContain('/auth/v1/otp?redirect_to=https%3A%2F%2Fusuario.github.io%2Fkakeibo%2F')
-    expect(JSON.parse(init.body)).toMatchObject({ email: 'yo@ejemplo.com', create_user: true })
-    expect(init.headers.apikey).toBe('anon-123')
-  })
-
-  it('sin direccion de vuelta no manda redirect_to', async () => {
-    // asi Supabase usa el Site URL del proyecto a proposito, en vez de
-    // rechazar una direccion invalida y caer en el por sorpresa
-    const f = vi.fn().mockResolvedValue(okJson({}))
-    await sendLoginEmail(CFG, 'yo@ejemplo.com', null, f)
-    expect(f.mock.calls[0][0]).toBe('https://proyecto.supabase.co/auth/v1/otp')
-  })
-
-  it('canjea el codigo de seis digitos', async () => {
+  it('crea la cuenta con correo y contraseña', async () => {
     const f = vi
       .fn()
       .mockResolvedValue(okJson({ access_token: TOKEN, refresh_token: 'r', expires_in: 3600 }))
-    const s = await verifyEmailCode(CFG, 'yo@ejemplo.com', ' 123456 ', f)
-    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({
-      type: 'email',
-      email: 'yo@ejemplo.com',
-      token: '123456',
-    })
+    const s = await signUpWithPassword(CFG, 'yo@ejemplo.com', 'clave-segura', f)
+    const [url, init] = f.mock.calls[0]
+    expect(url).toBe('https://proyecto.supabase.co/auth/v1/signup')
+    expect(JSON.parse(init.body)).toEqual({ email: 'yo@ejemplo.com', password: 'clave-segura' })
+    expect(init.headers.apikey).toBe('anon-123')
+    expect(s?.userId).toBe('user-1')
+  })
+
+  it('si el proyecto exige confirmar el correo, signUp no trae sesion', async () => {
+    const f = vi.fn().mockResolvedValue(okJson({ id: 'user-1', email: 'yo@ejemplo.com' }))
+    expect(await signUpWithPassword(CFG, 'yo@ejemplo.com', 'clave-segura', f)).toBeNull()
+  })
+
+  it('entra con correo y contraseña', async () => {
+    const f = vi
+      .fn()
+      .mockResolvedValue(okJson({ access_token: TOKEN, refresh_token: 'r', expires_in: 3600 }))
+    const s = await signInWithPassword(CFG, 'yo@ejemplo.com', 'clave-segura', f)
+    const [url, init] = f.mock.calls[0]
+    expect(url).toBe('https://proyecto.supabase.co/auth/v1/token?grant_type=password')
+    expect(JSON.parse(init.body)).toEqual({ email: 'yo@ejemplo.com', password: 'clave-segura' })
     expect(s.userId).toBe('user-1')
   })
 
   it('propaga el mensaje de error del servidor', async () => {
-    const f = vi.fn().mockResolvedValue(okJson({ msg: 'Token has expired' }, 401))
-    await expect(verifyEmailCode(CFG, 'a@b.c', '000000', f)).rejects.toThrow(/expired/)
-    await expect(verifyEmailCode(CFG, 'a@b.c', '000000', f)).rejects.toBeInstanceOf(SupabaseError)
+    const f = vi.fn().mockResolvedValue(okJson({ msg: 'Invalid login credentials' }, 400))
+    await expect(signInWithPassword(CFG, 'a@b.c', 'mala', f)).rejects.toThrow(/Invalid login/)
+    await expect(signInWithPassword(CFG, 'a@b.c', 'mala', f)).rejects.toBeInstanceOf(SupabaseError)
   })
 
   it('no refresca una sesion que aun vale', async () => {

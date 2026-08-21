@@ -209,10 +209,14 @@ const es = {
   'sync.save': 'Guardar configuración',
   'sync.forget': 'Quitar configuración',
   'sync.email': 'Tu correo',
-  'sync.sendCode': 'Enviarme el acceso',
-  'sync.codeSent': 'Te he enviado un correo. Pulsa el enlace, o pega aquí el código si lo trae.',
-  'sync.code': 'Código del correo',
-  'sync.enter': 'Entrar',
+  'sync.password': 'Contraseña',
+  'sync.passwordHint': 'Mínimo 6 caracteres.',
+  'sync.logIn': 'Entrar',
+  'sync.createAccount': 'Crear cuenta',
+  'sync.needAccount': '¿No tienes cuenta? Créala',
+  'sync.haveAccount': '¿Ya tienes cuenta? Entra',
+  'sync.confirmEmailSent':
+    'Te hemos enviado un correo de confirmación. Ábrelo y vuelve aquí para entrar con tu contraseña.',
   'sync.signedInAs': 'Sesión de',
   'sync.now': 'Sincronizar ahora',
   'sync.logOut': 'Salir',
@@ -222,15 +226,8 @@ const es = {
   'sync.error': 'No se ha podido sincronizar',
   'sync.accountMismatch':
     'Este dispositivo ya tiene datos sincronizados con {email}. Para evitar mezclarlos, exporta una copia y pulsa Ajustes → Borrar todo antes de usar esta cuenta aquí.',
-  'sync.returnTo': 'El enlace del correo volverá a',
-  'sync.noReturn':
-    'Estás abriendo la app desde un archivo local, así que el enlace del correo no puede volver aquí (te llevará al Site URL del proyecto, que por defecto es localhost). Entra con el código de seis dígitos, o publica la app y entra desde su dirección.',
-  'sync.siteUrlHint':
-    'En Supabase → Authentication → URL Configuration, pon esa misma dirección en Site URL y añádela a Redirect URLs.',
-  'sync.codeHint':
-    'Si el correo no trae código, añade {{ .Token }} a la plantilla Magic Link en Authentication → Email Templates.',
   'sync.help':
-    'Los datos se guardan primero en este dispositivo; la nube es una copia que se fusiona cuando hay red. Nada se pierde si apuntas cosas en los dos sitios a la vez.',
+    'Los datos se guardan primero en este dispositivo; la nube es una copia que se fusiona cuando hay red. Nada se pierde si apuntas cosas en los dos sitios a la vez. Al entrar con contraseña funciona igual en Safari que en el icono que añadas a la pantalla de inicio.',
 
   'household.title': 'Pareja',
   'household.hint': 'Ver, solo lectura, los datos de tu pareja y una vista conjunta con los tuyos.',
@@ -438,9 +435,13 @@ const ja: Partial<Record<Key, string>> = {
   'sync.off': '未設定',
   'sync.setup': '設定',
   'sync.email': 'メール',
-  'sync.sendCode': 'ログイン用メールを送る',
-  'sync.code': 'メールのコード',
-  'sync.enter': 'ログイン',
+  'sync.password': 'パスワード',
+  'sync.passwordHint': '6文字以上。',
+  'sync.logIn': 'ログイン',
+  'sync.createAccount': 'アカウント作成',
+  'sync.needAccount': 'アカウントがない場合はこちらで作成',
+  'sync.haveAccount': 'アカウントがある場合はこちらでログイン',
+  'sync.confirmEmailSent': '確認メールを送りました。開いてから戻り、パスワードでログインしてください。',
   'sync.signedInAs': 'ログイン中',
   'sync.now': '今すぐ同期',
   'sync.logOut': 'ログアウト',
@@ -450,7 +451,8 @@ const ja: Partial<Record<Key, string>> = {
   'sync.error': '同期できませんでした',
   'sync.accountMismatch':
     'この端末には {email} と同期したデータが残っています。混ざらないように、データを書き出してからこのアカウントを使う前に 設定 → 全部消す をしてください。',
-  'sync.returnTo': 'メールのリンクの戻り先',
+  'sync.help':
+    'データはまずこの端末に保存され、クラウドは通信があるときに合わさるコピー。両方に同時に書いても失われない。パスワードでのログインは、Safari でもホーム画面に追加したアイコンでも同じように使える。',
 
   'household.title': 'パートナー',
   'household.hint': '閲覧専用でパートナーのデータを見たり、二人分をまとめて見たりする。',
@@ -655,10 +657,14 @@ const en: Partial<Record<Key, string>> = {
   'sync.save': 'Save configuration',
   'sync.forget': 'Remove configuration',
   'sync.email': 'Your email',
-  'sync.sendCode': 'Email me a link',
-  'sync.codeSent': 'Check your inbox. Click the link, or paste the code here if it has one.',
-  'sync.code': 'Code from the email',
-  'sync.enter': 'Sign in',
+  'sync.password': 'Password',
+  'sync.passwordHint': 'At least 6 characters.',
+  'sync.logIn': 'Sign in',
+  'sync.createAccount': 'Create account',
+  'sync.needAccount': "Don't have an account? Create one",
+  'sync.haveAccount': 'Already have an account? Sign in',
+  'sync.confirmEmailSent':
+    'We sent you a confirmation email. Open it, then come back here to sign in with your password.',
   'sync.signedInAs': 'Signed in as',
   'sync.now': 'Sync now',
   'sync.logOut': 'Sign out',
@@ -668,9 +674,8 @@ const en: Partial<Record<Key, string>> = {
   'sync.error': 'Could not sync',
   'sync.accountMismatch':
     'This device already has data synced with {email}. To avoid mixing it up, export a backup and go to Settings → Delete everything before using this account here.',
-  'sync.returnTo': 'The email link will return to',
-  'sync.noReturn':
-    'You are opening the app from a local file, so the email link cannot come back here. Use the six-digit code, or publish the app and sign in from its address.',
+  'sync.help':
+    'Data is saved on this device first; the cloud is a copy that merges whenever there is a connection. Nothing is lost if you note things on both at once. Signing in with a password works the same in Safari and in the icon you add to the home screen.',
 
   'household.title': 'Partner',
   'household.hint': 'See your partner\'s data (read-only) and a combined view with yours.',
