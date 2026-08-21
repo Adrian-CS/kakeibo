@@ -132,6 +132,19 @@ defecto es `http://localhost:3000`. Dos causas posibles:
 En *Redirect URLs* vale también un patrón, útil si sirves la app desde varios
 sitios: `https://USUARIO.github.io/kakeibo/**`.
 
+### "email rate limit exceeded"
+
+El correo integrado de Supabase (el que usa por defecto, sin configurar nada)
+está pensado solo para probar y deja mandar muy pocos correos por hora. Si das
+de alta varios dispositivos seguidos, o pulsas *Enviarme el acceso* más de una
+vez, lo agotas enseguida y este error no tiene que ver con la app ni con tus
+datos: solo hay que esperar (suele bastar una hora) y pulsar una sola vez.
+
+Para no toparte con esto, pon un proveedor SMTP propio en
+**Authentication → Settings → SMTP Settings** (cualquiera con plan gratuito,
+como Resend o Brevo, sirve de sobra para esto); así el límite lo pone tu
+proveedor de correo, no Supabase.
+
 También puedes dejar URL y clave fijas en el build con `VITE_SUPABASE_URL` y
 `VITE_SUPABASE_ANON_KEY` (ver [`.env.example`](.env.example)); en un repositorio
 público quedarían a la vista, y por eso por defecto se escriben en Ajustes y se
