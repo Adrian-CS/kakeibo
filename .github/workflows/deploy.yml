@@ -51,7 +51,7 @@ jobs:
         # tambien abre si alguien entra por un enlace profundo
         run: cp dist/index.html dist/404.html
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
       - uses: actions/upload-pages-artifact@v3
         with:
