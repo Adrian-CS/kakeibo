@@ -9,6 +9,7 @@ import {
   shiftMonth,
 } from '../lib/calc'
 import { fmtJpy, fmtMoney, fmtMonth, fmtPercent, parseAmount } from '../lib/format'
+import { fetchFxRate } from '../lib/fx'
 import { limitStatus, seriesVar, STATUS } from '../lib/palette'
 import type { Expense, ExpenseKind, MonthData } from '../lib/types'
 import {
@@ -340,6 +341,7 @@ export function MonthView({
   const isCurrent = monthId === monthIdOf()
 
   const eur = (jpy: number) => fmtMoney(jpy * totals.fxRate, cur, lang)
+  const [fxBusy, setFxBusy] = useState(false)
 
   const patch = (p: Partial<MonthData>) => dispatch({ type: 'patchMonth', monthId, patch: p })
 
@@ -462,6 +464,21 @@ export function MonthView({
                 </div>
               }
             >
+              {!!c.limitJpy && c.limitJpy > 0 && (
+                <div className="mb-2">
+                  <Meter
+                    ratio={subtotal / c.limitJpy}
+                    color={STATUS[limitStatus(subtotal / c.limitJpy)]}
+                    label={`${t('cat.limit')}: ${c.name}`}
+                  />
+                  <p className="mt-1 text-[11px] text-muted">
+                    {subtotal > c.limitJpy
+                      ? `${fmtJpy(subtotal - c.limitJpy, lang)} ${t('cat.over')}`
+                      : `${fmtJpy(c.limitJpy - subtotal, lang)} ${t('cat.left')}`}{' '}
+                    ({fmtJpy(c.limitJpy, lang)})
+                  </p>
+                </div>
+              )}
               <ul className="space-y-0">
                 {items.map((e) => (
                   <ExpenseRow key={e.id} expense={e} />
@@ -551,13 +568,31 @@ export function MonthView({
               />
             </Field>
             <Field label={t('fields.fx')} hint={`1 ¥ = ${totals.fxRate} ${cur}`}>
-              <NumberInput
-                value={month?.fxRate ?? 0}
-                onChange={(e) => {
-                  const n = parseAmount(e.target.value)
-                  if (n !== null) patch({ fxRate: n })
-                }}
-              />
+              <div className="flex items-center gap-1.5">
+                <NumberInput
+                  value={month?.fxRate ?? 0}
+                  onChange={(e) => {
+                    const n = parseAmount(e.target.value)
+                    if (n !== null) patch({ fxRate: n })
+                  }}
+                  className="w-full min-w-0"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  disabled={fxBusy}
+                  onClick={() => {
+                    setFxBusy(true)
+                    void fetchFxRate(cur)
+                      .then((r) => patch({ fxRate: r.rate }))
+                      .catch(() => undefined)
+                      .finally(() => setFxBusy(false))
+                  }}
+                >
+                  {t('fx.update')}
+                </Button>
+              </div>
             </Field>
             <Field label={t('fields.note')} className="col-span-2">
               <TextInput

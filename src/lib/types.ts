@@ -29,6 +29,8 @@ export interface Category {
   /** indice 0-7 de la paleta categorica */
   colorSlot: number
   archived?: boolean
+  /** tope mensual de esta categoria, en yenes (0 o vacio = sin tope) */
+  limitJpy?: number
 }
 
 export interface Expense {
@@ -43,6 +45,8 @@ export interface Expense {
   day?: number | null
   kind: ExpenseKind
   note?: string
+  /** ISO. Lo usa la fusion al sincronizar para saber que version es mas nueva */
+  updatedAt?: string
 }
 
 export interface FixedItem {
@@ -64,6 +68,7 @@ export interface MonthData {
   /** limite de gasto del mes en yenes (上限) */
   limitJpy: number
   note?: string
+  updatedAt?: string
 }
 
 export interface Account {
@@ -82,6 +87,7 @@ export interface Snapshot {
   date: string
   accounts: Account[]
   note?: string
+  updatedAt?: string
 }
 
 export interface Settings {
@@ -93,6 +99,31 @@ export interface Settings {
   defaultRentJpy: number
   /** codigo de la moneda secundaria (la principal siempre es JPY) */
   secondaryCurrency: 'EUR' | 'USD' | 'GBP'
+  /**
+   * Al abrir un mes nuevo, copiar del anterior el alquiler, los extras fijos
+   * y los gastos marcados como recurrentes.
+   */
+  autoFillFixed: boolean
+  /** Traer el tipo de cambio de internet al abrir la app (una vez al dia). */
+  autoFxRate: boolean
+  /** ISO del ultimo dia en que se actualizo el tipo de cambio */
+  fxUpdatedAt?: string
+}
+
+/** Marca de borrado, para que al sincronizar no resucite lo que borraste. */
+export interface Tombstone {
+  id: string
+  /** ISO */
+  at: string
+}
+
+export interface SyncState {
+  /** ISO de la ultima subida/bajada correcta */
+  lastSyncAt?: string
+  /** valor de updatedAt del documento remoto en la ultima sincronizacion */
+  lastRemoteAt?: string
+  /** correo de la sesion activa, solo informativo */
+  email?: string
 }
 
 export interface AppData {
@@ -102,6 +133,11 @@ export interface AppData {
   months: MonthData[]
   snapshots: Snapshot[]
   settings: Settings
+  /** ISO del ultimo cambio en este dispositivo */
+  updatedAt?: string
+  /** identificadores borrados (gastos, meses, categorias, fotos, extras) */
+  deleted?: Tombstone[]
+  sync?: SyncState
 }
 
-export const DATA_VERSION = 1
+export const DATA_VERSION = 2

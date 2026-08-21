@@ -16,15 +16,19 @@ import type {
   MonthData,
   Settings,
   Snapshot,
+  SyncState,
 } from '../lib/types'
 import { loadData, saveData } from '../lib/storage'
 import { monthIdOf, newMonth } from '../lib/defaults'
-import { getMonth } from '../lib/calc'
+import { getMonth, shiftMonth } from '../lib/calc'
 import { translator, type TFunc } from '../lib/i18n'
 import { uid } from '../lib/id'
+import { nowIso } from '../lib/sync'
 
 type Action =
   | { type: 'replace'; data: AppData }
+  /** como `replace`, pero conservando la fecha del documento fusionado */
+  | { type: 'applyMerge'; data: AppData }
   | { type: 'ensureMonth'; monthId: string }
   | { type: 'patchMonth'; monthId: string; patch: Partial<MonthData> }
   | { type: 'addExpense'; expense: Omit<Expense, 'id'> }
@@ -40,6 +44,7 @@ type Action =
   | { type: 'upsertSnapshot'; snapshot: Snapshot }
   | { type: 'deleteSnapshot'; id: string }
   | { type: 'patchSettings'; patch: Partial<Settings> }
+  | { type: 'patchSync'; patch: Partial<SyncState> }
   | { type: 'undo' }
 
 interface State {
@@ -48,14 +53,63 @@ interface State {
 }
 
 const MAX_HISTORY = 25
+const MAX_TOMBSTONES = 2000
 
+/**
+ * Un cambio: entra en el historial de deshacer y sella la fecha del
+ * documento, que es lo que usa la sincronizacion para saber que copia es
+ * mas nueva.
+ */
 function withHistory(state: State, data: AppData): State {
-  return { data, past: [state.data, ...state.past].slice(0, MAX_HISTORY) }
+  return {
+    data: { ...data, updatedAt: nowIso() },
+    past: [state.data, ...state.past].slice(0, MAX_HISTORY),
+  }
 }
 
+/** Anota que algo se ha borrado, para que la fusion no lo resucite. */
+function tomb(data: AppData, ...ids: string[]): AppData['deleted'] {
+  const at = nowIso()
+  return [...ids.map((id) => ({ id, at })), ...(data.deleted ?? [])].slice(0, MAX_TOMBSTONES)
+}
+
+/**
+ * Crea el mes si no existe. Con `autoFillFixed` copia del mes anterior el
+ * alquiler, los extras y los gastos recurrentes, para no teclearlos cada mes.
+ * Solo rellena desde un mes anterior que exista, y nunca meses muy futuros.
+ */
 function ensureMonth(data: AppData, monthId: string): AppData {
   if (data.months.some((m) => m.id === monthId)) return data
-  return { ...data, months: [...data.months, newMonth(monthId, data.settings)] }
+
+  const fresh = newMonth(monthId, data.settings)
+  const prevId = shiftMonth(monthId, -1)
+  const prev = data.months.find((m) => m.id === prevId)
+  const tooFar = monthId > shiftMonth(monthIdOf(), 1)
+
+  if (!data.settings.autoFillFixed || !prev || tooFar) {
+    return { ...data, months: [...data.months, fresh] }
+  }
+
+  const at = nowIso()
+  const recurring = data.expenses
+    .filter((e) => e.monthId === prevId && e.kind === 'recurring')
+    .map((e) => ({ ...e, id: uid('e'), monthId, day: null, updatedAt: at }))
+
+  return {
+    ...data,
+    expenses: [...data.expenses, ...recurring],
+    months: [
+      ...data.months,
+      {
+        ...fresh,
+        rentJpy: prev.rentJpy,
+        fxRate: prev.fxRate,
+        limitJpy: prev.limitJpy,
+        extras: prev.extras.map((x) => ({ ...x, id: uid('x') })),
+        updatedAt: at,
+      },
+    ],
+  }
 }
 
 function reducer(state: State, action: Action): State {
@@ -64,16 +118,24 @@ function reducer(state: State, action: Action): State {
     case 'replace':
       return withHistory(state, action.data)
 
+    case 'applyMerge':
+      return {
+        data: action.data,
+        past: [state.data, ...state.past].slice(0, MAX_HISTORY),
+      }
+
     case 'ensureMonth': {
       const next = ensureMonth(data, action.monthId)
-      return next === data ? state : { ...state, data: next }
+      return next === data ? state : withHistory(state, next)
     }
 
     case 'patchMonth': {
       const base = ensureMonth(data, action.monthId)
       return withHistory(state, {
         ...base,
-        months: base.months.map((m) => (m.id === action.monthId ? { ...m, ...action.patch } : m)),
+        months: base.months.map((m) =>
+          m.id === action.monthId ? { ...m, ...action.patch, updatedAt: nowIso() } : m,
+        ),
       })
     }
 
@@ -81,20 +143,23 @@ function reducer(state: State, action: Action): State {
       const base = ensureMonth(data, action.expense.monthId)
       return withHistory(state, {
         ...base,
-        expenses: [...base.expenses, { ...action.expense, id: uid('e') }],
+        expenses: [...base.expenses, { ...action.expense, id: uid('e'), updatedAt: nowIso() }],
       })
     }
 
     case 'patchExpense':
       return withHistory(state, {
         ...data,
-        expenses: data.expenses.map((e) => (e.id === action.id ? { ...e, ...action.patch } : e)),
+        expenses: data.expenses.map((e) =>
+          e.id === action.id ? { ...e, ...action.patch, updatedAt: nowIso() } : e,
+        ),
       })
 
     case 'deleteExpense':
       return withHistory(state, {
         ...data,
         expenses: data.expenses.filter((e) => e.id !== action.id),
+        deleted: tomb(data, action.id),
       })
 
     case 'addExtra': {
@@ -103,7 +168,7 @@ function reducer(state: State, action: Action): State {
         ...base,
         months: base.months.map((m) =>
           m.id === action.monthId
-            ? { ...m, extras: [...m.extras, { ...action.extra, id: uid('x') }] }
+            ? { ...m, extras: [...m.extras, { ...action.extra, id: uid('x') }], updatedAt: nowIso() }
             : m,
         ),
       })
@@ -117,6 +182,7 @@ function reducer(state: State, action: Action): State {
             ? {
                 ...m,
                 extras: m.extras.map((x) => (x.id === action.id ? { ...x, ...action.patch } : x)),
+                updatedAt: nowIso(),
               }
             : m,
         ),
@@ -126,8 +192,11 @@ function reducer(state: State, action: Action): State {
       return withHistory(state, {
         ...data,
         months: data.months.map((m) =>
-          m.id === action.monthId ? { ...m, extras: m.extras.filter((x) => x.id !== action.id) } : m,
+          m.id === action.monthId
+            ? { ...m, extras: m.extras.filter((x) => x.id !== action.id), updatedAt: nowIso() }
+            : m,
         ),
+        deleted: tomb(data, action.id),
       })
 
     case 'copyFixed': {
@@ -177,6 +246,11 @@ function reducer(state: State, action: Action): State {
         ...data,
         categories: data.categories.filter((c) => c.id !== action.id),
         expenses: data.expenses.filter((e) => e.categoryId !== action.id),
+        deleted: tomb(
+          data,
+          action.id,
+          ...data.expenses.filter((e) => e.categoryId === action.id).map((e) => e.id),
+        ),
       })
 
     case 'moveCategory': {
@@ -190,11 +264,12 @@ function reducer(state: State, action: Action): State {
 
     case 'upsertSnapshot': {
       const exists = data.snapshots.some((s) => s.id === action.snapshot.id)
+      const stamped = { ...action.snapshot, updatedAt: nowIso() }
       return withHistory(state, {
         ...data,
         snapshots: exists
-          ? data.snapshots.map((s) => (s.id === action.snapshot.id ? action.snapshot : s))
-          : [...data.snapshots, action.snapshot],
+          ? data.snapshots.map((s) => (s.id === action.snapshot.id ? stamped : s))
+          : [...data.snapshots, stamped],
       })
     }
 
@@ -202,10 +277,16 @@ function reducer(state: State, action: Action): State {
       return withHistory(state, {
         ...data,
         snapshots: data.snapshots.filter((s) => s.id !== action.id),
+        deleted: tomb(data, action.id),
       })
 
     case 'patchSettings':
       return withHistory(state, { ...data, settings: { ...data.settings, ...action.patch } })
+
+    // el estado de sincronizacion es local: no cuenta como cambio del
+    // documento ni entra en el historial de deshacer
+    case 'patchSync':
+      return { ...state, data: { ...data, sync: { ...data.sync, ...action.patch } } }
 
     case 'undo': {
       const [prev, ...rest] = state.past

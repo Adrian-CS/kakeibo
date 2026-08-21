@@ -19,7 +19,10 @@ import {
   TextInput,
 } from '../components/ui'
 import { ImportDialog } from './ImportDialog'
+import { SyncCard } from './SyncCard'
 import { uid } from '../lib/id'
+import { fetchFxRate } from '../lib/fx'
+import { Toggle } from '../components/ui'
 
 function CategoryRow({ category }: { category: Category }) {
   const { dispatch, data, t } = useStore()
@@ -57,6 +60,16 @@ function CategoryRow({ category }: { category: Category }) {
         options={Array.from({ length: MAX_SLOTS }, (_, i) => ({ value: String(i), label: `${i + 1}` }))}
         className="w-[4.5rem] shrink-0"
       />
+      <NumberInput
+        value={category.limitJpy ?? ''}
+        placeholder={t('cat.limitNone')}
+        aria-label={`${t('cat.limit')}: ${category.name}`}
+        onChange={(e) => {
+          const n = parseAmount(e.target.value)
+          patch({ limitJpy: n === null || n <= 0 ? undefined : n })
+        }}
+        className="w-[7rem] shrink-0"
+      />
       <IconButton
         label="↑"
         className="h-8 w-8 shrink-0"
@@ -87,6 +100,26 @@ export function SettingsView() {
   const [importOpen, setImportOpen] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  const [fxBusy, setFxBusy] = useState(false)
+  const [fxMsg, setFxMsg] = useState<string | null>(null)
+
+  const updateFx = async () => {
+    setFxBusy(true)
+    setFxMsg(null)
+    try {
+      const r = await fetchFxRate(data.settings.secondaryCurrency)
+      dispatch({
+        type: 'patchSettings',
+        patch: { defaultFxRate: r.rate, fxUpdatedAt: r.date || undefined },
+      })
+      setFxMsg(t('fx.updated', { date: r.date }))
+    } catch {
+      setFxMsg(t('fx.error'))
+    } finally {
+      setFxBusy(false)
+    }
+  }
 
   const doExport = () => {
     const blob = new Blob([serialize(data)], { type: 'application/json' })
@@ -183,7 +216,7 @@ export function SettingsView() {
         </div>
       </Card>
 
-      <Card title={t('settings.categories')}>
+      <Card title={t('settings.categories')} hint={`${t('settings.bucket')} · ${t('settings.color')} · ${t('cat.limit')}`}>
         <ul>
           {data.categories.map((c) => (
             <CategoryRow key={c.id} category={c} />
@@ -208,6 +241,32 @@ export function SettingsView() {
           {t('settings.addCategory')}
         </Button>
       </Card>
+
+      <Card title={t('settings.automation')} hint={t('settings.autoFillHint')}>
+        <div className="space-y-3">
+          <Toggle
+            checked={data.settings.autoFillFixed}
+            onChange={(v) => dispatch({ type: 'patchSettings', patch: { autoFillFixed: v } })}
+            label={t('settings.autoFill')}
+          />
+          <div>
+            <Toggle
+              checked={data.settings.autoFxRate}
+              onChange={(v) => dispatch({ type: 'patchSettings', patch: { autoFxRate: v } })}
+              label={t('settings.autoFx')}
+            />
+            <p className="mt-1 text-[11px] text-muted">{t('settings.autoFxHint')}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" disabled={fxBusy} onClick={() => void updateFx()}>
+              {t('fx.update')}
+            </Button>
+            {fxMsg && <span className="text-xs text-muted">{fxMsg}</span>}
+          </div>
+        </div>
+      </Card>
+
+      <SyncCard />
 
       <Card title={t('settings.data')} hint={t('settings.dataHint')}>
         {msg && <p className="mb-3 text-sm text-[var(--good-text)]">{msg}</p>}

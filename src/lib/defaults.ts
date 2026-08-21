@@ -19,6 +19,8 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultLimitJpy: 200000,
   defaultRentJpy: 82000,
   secondaryCurrency: 'EUR',
+  autoFillFixed: true,
+  autoFxRate: false,
 }
 
 /** 'YYYY-MM' del mes indicado (por defecto, hoy). */
