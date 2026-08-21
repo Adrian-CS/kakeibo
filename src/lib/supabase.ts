@@ -173,7 +173,8 @@ async function readError(res: Response): Promise<string> {
   return b.error_description || b.msg || b.message || b.error || `HTTP ${res.status}`
 }
 
-async function call<T>(
+/** Expuesta para otros clientes minimos sobre la misma API (ver household.ts). */
+export async function call<T>(
   cfg: SupabaseConfig,
   path: string,
   init: RequestInit,
@@ -284,20 +285,35 @@ export interface RemoteDoc {
   updatedAt: string
 }
 
-export async function pullDoc(
+/**
+ * Lee el documento de un usuario cualquiera (por defecto, el propio). Sirve
+ * tanto para `pullDoc` como para leer el de la pareja vinculada: la RLS de
+ * `kakeibo_docs` es quien decide si la fila pedida es visible o no, esta
+ * funcion no distingue "mio" de "de la pareja".
+ */
+export async function pullDocFor(
   cfg: SupabaseConfig,
   session: Session,
+  userId: string,
   f: Fetcher = fetch,
 ): Promise<RemoteDoc | null> {
   const rows = await call<{ data: AppData; updated_at: string }[]>(
     cfg,
-    `/rest/v1/${TABLE}?select=data,updated_at&user_id=eq.${encodeURIComponent(session.userId)}&limit=1`,
+    `/rest/v1/${TABLE}?select=data,updated_at&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
     { method: 'GET', headers: { Authorization: `Bearer ${session.accessToken}` } },
     f,
   )
   const row = rows?.[0]
   if (!row?.data) return null
   return { data: row.data, updatedAt: row.updated_at }
+}
+
+export async function pullDoc(
+  cfg: SupabaseConfig,
+  session: Session,
+  f: Fetcher = fetch,
+): Promise<RemoteDoc | null> {
+  return pullDocFor(cfg, session, session.userId, f)
 }
 
 export async function pushDoc(

@@ -36,6 +36,10 @@ siempre en GitHub Pages.
   ya estuvieran pasados de límite antes de encenderlo.
 - **Tipo de cambio** al día desde el Banco Central Europeo, o a mano.
 - **Sincronización opcional** entre móvil y PC con Supabase (plan gratuito).
+- **Vínculo de pareja opcional**: dos cuentas separadas se pueden vincular
+  para verse los datos la una a la otra en solo lectura, con un selector Yo /
+  Pareja / Juntos en Estadísticas y Ahorros — sin fusionar nunca los
+  documentos ni poder editar los datos del otro.
 - Funciona **sin conexión** (PWA instalable) y se ve bien en móvil y en PC.
 - Interfaz en español, japonés e inglés.
 
@@ -256,6 +260,31 @@ correcta, que sobrevive a *Salir*) y bloquea la sincronización con un aviso en
 vez de fusionar o subir esos datos sin más. Para pasar el dispositivo de una
 persona a otra: exporta una copia primero, luego Ajustes → Borrar todo, y ya
 puede la otra persona configurar su sincronización desde cero.
+
+### Ver los datos de tu pareja (opcional)
+
+Dos cuentas separadas (cada una con sus propios ingresos, límites y
+categorías) pueden vincularse para verse la una a la otra **solo lectura**,
+sin fusionar nunca los documentos. Hace falta:
+
+1. Que los dos uséis el **mismo proyecto de Supabase**, cada uno con su
+   propia cuenta/correo (la política RLS ya mantiene las filas separadas
+   aunque compartáis proyecto).
+2. Ejecutar una vez [`supabase/household_schema.sql`](supabase/household_schema.sql)
+   en el SQL Editor (además de `schema.sql`).
+3. En la app, Ajustes → Pareja: invitar por correo desde una cuenta, aceptar
+   desde la otra.
+
+Una vez vinculadas, en Estadísticas y Ahorros aparece un selector **Yo /
+Pareja / Juntos**: "Pareja" enseña los datos de la otra cuenta tal cual (sin
+poder editarlos); "Juntos" los suma para ver el conjunto. Las categorías se
+pueden enlazar una a una (Ajustes → Pareja → Categorías equivalentes) para
+que "Juntos" las sume como una sola aunque tengan nombres distintos en cada
+cuenta.
+
+Ningún lado puede escribir en los datos del otro bajo ninguna circunstancia
+— la política de la base de datos solo concede lectura, nunca escritura — y
+desvincular corta el acceso al momento.
 
 ## Cómo se calculan las cosas
 

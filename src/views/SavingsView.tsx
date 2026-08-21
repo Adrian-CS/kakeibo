@@ -8,6 +8,9 @@ import {
   snapshotSeries,
   sum,
 } from '../lib/calc'
+import { combinedProjectSavings, combinedSnapshotSeries, combinedStats } from '../lib/householdCalc'
+import { emptyData } from '../lib/defaults'
+import { useHousehold, type HouseholdViewScope } from '../state/household'
 import { fmtDate, fmtJpy, fmtMoney, fmtNumber, parseAmount } from '../lib/format'
 import { seriesVar } from '../lib/palette'
 import {
@@ -18,6 +21,7 @@ import {
   Icon,
   IconButton,
   NumberInput,
+  Segmented,
   Select,
   StatTile,
   TextInput,
@@ -160,23 +164,53 @@ function SnapshotCard({ snapshot }: { snapshot: Snapshot }) {
 
 export function SavingsView() {
   const { data, dispatch, t } = useStore()
+  const household = useHousehold()
   const lang = data.settings.lang
   const cur = data.settings.secondaryCurrency
   const [tables, setTables] = useState(false)
+  const [scope, setScope] = useState<HouseholdViewScope>('mine')
 
-  const series = useMemo(() => snapshotSeries(data), [data])
-  const stats = useMemo(() => computeStats(data, { lastMonths: 6 }), [data])
+  const links = data.settings.householdCategoryLinks
+  const isTogether = scope === 'together'
+  const isPartner = scope === 'partner'
+  // "Juntos" combina los dos documentos con householdCalc.ts; "Pareja"
+  // reutiliza tal cual las mismas funciones sobre el documento (de solo
+  // lectura) de la pareja, igual que en Estadisticas.
+  const source = isPartner ? (household.partnerData ?? emptyData()) : data
+  const partnerMissing = isPartner && !household.partnerData
+
+  const series = useMemo(
+    () => (isTogether ? combinedSnapshotSeries(data, household.partnerData) : snapshotSeries(source)),
+    [isTogether, data, household.partnerData, source],
+  )
+  const stats = useMemo(
+    () =>
+      isTogether
+        ? combinedStats(data, household.partnerData, links, { lastMonths: 6 })
+        : computeStats(source, { lastMonths: 6 }),
+    [isTogether, data, household.partnerData, links, source],
+  )
   const last = series.at(-1)
   const prev = series.at(-2)
   const runway = last && stats.averageJpy > 0 ? last.netJpy / stats.averageJpy : 0
-  const projection = useMemo(() => projectSavings(data, [3, 6, 12]), [data])
-  // mismas bases que usa projectSavings, solo para mostrar el desglose
-  const projectedIncomeJpy = data.settings.defaultIncomeJpy
+  const projection = useMemo(
+    () =>
+      isTogether
+        ? combinedProjectSavings(data, household.partnerData, [3, 6, 12])
+        : projectSavings(source, [3, 6, 12]),
+    [isTogether, data, household.partnerData, source],
+  )
+  // mismas bases que usa projectSavings, solo para mostrar el desglose: en
+  // "Juntos" no hay un unico ingreso/limite que enseñar, asi que se omite
+  const projectedIncomeJpy = source.settings.defaultIncomeJpy
   const projectedCategorySpendJpy =
-    categoryLimitsJpy(data.categories) +
-    data.settings.defaultRentJpy +
-    sum(data.settings.defaultExtras.map((x) => x.amount))
-  const recentAverageJpy = useMemo(() => recentActiveAverageJpy(data, 6), [data])
+    categoryLimitsJpy(source.categories) +
+    source.settings.defaultRentJpy +
+    sum(source.settings.defaultExtras.map((x) => x.amount))
+  const recentAverageJpy = useMemo(
+    () => (isTogether ? null : recentActiveAverageJpy(source, 6)),
+    [isTogether, source],
+  )
 
   const addSnapshot = () => {
     const template = series.length ? data.snapshots.find((s) => s.id === last?.id) : undefined
@@ -194,15 +228,35 @@ export function SavingsView() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-base font-semibold text-ink">{t('savings.title')}</h1>
-        <Button variant="primary" size="sm" onClick={addSnapshot}>
-          <Icon name="plus" />
-          {t('savings.add')}
-        </Button>
+        <div className="flex items-center gap-2">
+          {household.partnerLink && (
+            <Segmented<HouseholdViewScope>
+              label={t('household.scope')}
+              value={scope}
+              onChange={setScope}
+              options={[
+                { id: 'mine', label: t('household.scope.mine') },
+                { id: 'partner', label: t('household.scope.partner') },
+                { id: 'together', label: t('household.scope.together') },
+              ]}
+            />
+          )}
+          {scope === 'mine' && (
+            <Button variant="primary" size="sm" onClick={addSnapshot}>
+              <Icon name="plus" />
+              {t('savings.add')}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {series.length === 0 ? (
+      {partnerMissing ? (
+        <Card>
+          <p className="text-sm text-muted">{t('household.noPartnerDataYet')}</p>
+        </Card>
+      ) : series.length === 0 ? (
         <Card>
           <p className="text-sm text-muted">{t('savings.empty')}</p>
         </Card>
@@ -275,29 +329,39 @@ export function SavingsView() {
                     key={h.months}
                     label={t('savings.forecastIn', { n: h.months })}
                     value={fmtJpy(h.worstCaseJpy, lang)}
-                    hint={t('totals.savingsWorstLimitHint', {
-                      income: fmtJpy(projectedIncomeJpy, lang),
-                      limit: fmtJpy(data.settings.defaultLimitJpy, lang),
-                    })}
+                    hint={
+                      isTogether
+                        ? undefined
+                        : t('totals.savingsWorstLimitHint', {
+                            income: fmtJpy(projectedIncomeJpy, lang),
+                            limit: fmtJpy(source.settings.defaultLimitJpy, lang),
+                          })
+                    }
                   >
                     <p
                       className="mt-1 text-[11px] text-muted"
-                      title={t('totals.savingsWorstCategoryLimitsHint', {
-                        income: fmtJpy(projectedIncomeJpy, lang),
-                        spend: fmtJpy(projectedCategorySpendJpy, lang),
-                      })}
+                      title={
+                        isTogether
+                          ? undefined
+                          : t('totals.savingsWorstCategoryLimitsHint', {
+                              income: fmtJpy(projectedIncomeJpy, lang),
+                              spend: fmtJpy(projectedCategorySpendJpy, lang),
+                            })
+                      }
                     >
                       {t('totals.savingsWorstCategoryLimits')}: {fmtJpy(h.worstCaseByCategoryJpy, lang)}
                     </p>
                     <p
                       className="mt-1 text-[11px] text-muted"
                       title={
-                        recentAverageJpy === null
-                          ? t('totals.savingsRealisticNoData')
-                          : t('totals.savingsRealisticHint', {
-                              income: fmtJpy(projectedIncomeJpy, lang),
-                              avg: fmtJpy(recentAverageJpy, lang),
-                            })
+                        isTogether
+                          ? undefined
+                          : recentAverageJpy === null
+                            ? t('totals.savingsRealisticNoData')
+                            : t('totals.savingsRealisticHint', {
+                                income: fmtJpy(projectedIncomeJpy, lang),
+                                avg: fmtJpy(recentAverageJpy, lang),
+                              })
                       }
                     >
                       {t('totals.savingsRealistic')}:{' '}
@@ -311,13 +375,17 @@ export function SavingsView() {
         </>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        {[...data.snapshots]
-          .sort((a, b) => b.date.localeCompare(a.date))
-          .map((s) => (
-            <SnapshotCard key={s.id} snapshot={s} />
-          ))}
-      </div>
+      {/* fotos individuales: siempre las mias, nunca las de la pareja (de
+          solo lectura, no tiene sentido editarlas ni mezclarlas aqui) */}
+      {scope === 'mine' && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {[...data.snapshots]
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .map((s) => (
+              <SnapshotCard key={s.id} snapshot={s} />
+            ))}
+        </div>
+      )}
     </div>
   )
 }

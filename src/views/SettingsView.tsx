@@ -20,6 +20,7 @@ import {
 } from '../components/ui'
 import { ImportDialog } from './ImportDialog'
 import { SyncCard } from './SyncCard'
+import { HouseholdCard } from './HouseholdCard'
 import { uid } from '../lib/id'
 import { fetchFxRate } from '../lib/fx'
 import { Toggle } from '../components/ui'
@@ -369,6 +370,8 @@ export function SettingsView() {
       </Card>
 
       <SyncCard />
+
+      <HouseholdCard />
 
       <Card title={t('settings.data')} hint={t('settings.dataHint')}>
         {msg && <p className="mb-3 text-sm text-[var(--good-text)]">{msg}</p>}

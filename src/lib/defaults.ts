@@ -28,6 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoFxRate: false,
   autoDebtOnOverspend: false,
   autoDebtTarget: 'lastSnapshot',
+  householdCategoryLinks: [],
 }
 
 /** 'YYYY-MM' del mes indicado (por defecto, hoy). */

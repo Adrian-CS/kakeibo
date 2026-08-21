@@ -13,6 +13,9 @@ import {
   topExpenses,
   topLabels,
 } from '../lib/calc'
+import { combinedCategories, combinedMonthTotals, combinedStats } from '../lib/householdCalc'
+import { emptyData } from '../lib/defaults'
+import { useHousehold, type HouseholdViewScope } from '../state/household'
 import {
   fmtCompact,
   fmtJpy,
@@ -38,6 +41,7 @@ export function StatsView({
   setMonthId: (id: string) => void
 }) {
   const { data, t } = useStore()
+  const household = useHousehold()
   const lang = data.settings.lang
   const cur = data.settings.secondaryCurrency
 
@@ -45,46 +49,82 @@ export function StatsView({
   const [excludeExtra, setExcludeExtra] = useState(false)
   const [tables, setTables] = useState(false)
   const [biggestScope, setBiggestScope] = useState<BiggestScope>('period')
+  const [scope, setScope] = useState<HouseholdViewScope>('mine')
 
   const lastMonths = range === 'all' ? 0 : Number(range)
-  const cats = activeCategories(data.categories)
+  const links = data.settings.householdCategoryLinks
+  const isTogether = scope === 'together'
+  const isPartner = scope === 'partner'
+  // "Juntos" no tiene un unico AppData: usa los combinadores de
+  // householdCalc.ts sobre los dos documentos. "Pareja" reutiliza tal cual
+  // las mismas funciones de calc.ts que "Yo", solo que sobre el documento de
+  // la pareja (de solo lectura, nunca se edita ni se guarda aqui).
+  const source = isPartner ? (household.partnerData ?? emptyData()) : data
+  const partnerMissing = isPartner && !household.partnerData
+
+  const cats = isTogether
+    ? combinedCategories(data.categories, household.partnerData?.categories ?? [], links)
+    : activeCategories(source.categories)
 
   // el mes en foco: el que se elige aqui mismo (o el que ya estaba
   // seleccionado en Mes). "Reparto del mes", "Ritmo del mes" y el primer
   // indicador de arriba son siempre sobre este mes, tenga datos o no.
   const focusId = monthId
-  const focus = monthTotals(data, focusId)
   const focusPrevId = shiftMonth(focusId, -1)
-  const focusPrev = monthTotals(data, focusPrevId)
-  const hasFocusPrev = monthsWithData(data).includes(focusPrevId) && focusPrev.totalJpy > 0
+  const focus = isTogether
+    ? combinedMonthTotals(data, household.partnerData, focusId, links)
+    : monthTotals(source, focusId)
+  const focusPrev = isTogether
+    ? combinedMonthTotals(data, household.partnerData, focusPrevId, links)
+    : monthTotals(source, focusPrevId)
+  const hasFocusPrev =
+    (monthsWithData(source).includes(focusPrevId) ||
+      (isTogether && !!household.partnerData && monthsWithData(household.partnerData).includes(focusPrevId))) &&
+    focusPrev.totalJpy > 0
   const focusMomRatio = hasFocusPrev ? focus.totalJpy / focusPrev.totalJpy - 1 : 0
 
   const stats = useMemo(
-    () => computeStats(data, { lastMonths, excludeExtraordinary: excludeExtra }),
-    [data, lastMonths, excludeExtra],
+    () =>
+      isTogether
+        ? combinedStats(data, household.partnerData, links, { lastMonths, excludeExtraordinary: excludeExtra })
+        : computeStats(source, { lastMonths, excludeExtraordinary: excludeExtra }),
+    [isTogether, data, household.partnerData, links, source, lastMonths, excludeExtra],
   )
 
+  // sin combinador todavia (ver fase 2 del plan): en "Juntos" estas listas no
+  // se calculan ni se muestran, solo lo que ya tiene comparativa combinada
   const monthIds = stats.months.map((m) => m.monthId)
   const labels = useMemo(
-    () => topLabels(data, { limit: 10, monthIds, excludeExtraordinary: excludeExtra }),
+    () => (isTogether ? [] : topLabels(source, { limit: 10, monthIds, excludeExtraordinary: excludeExtra })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, excludeExtra, monthIds.join(',')],
+    [isTogether, source, excludeExtra, monthIds.join(',')],
   )
   const biggestMonthIds = biggestScope === 'month' ? [focusId] : monthIds
   const biggest = useMemo(
-    () => topExpenses(data, { limit: 8, monthIds: biggestMonthIds, excludeExtraordinary: excludeExtra }),
+    () =>
+      isTogether
+        ? []
+        : topExpenses(source, { limit: 8, monthIds: biggestMonthIds, excludeExtraordinary: excludeExtra }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, excludeExtra, biggestMonthIds.join(',')],
+    [isTogether, source, excludeExtra, biggestMonthIds.join(',')],
   )
   const gifts = useMemo(
-    () => noCostItems(data, { monthIds }),
+    () => (isTogether ? [] : noCostItems(source, { monthIds })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, monthIds.join(',')],
+    [isTogether, source, monthIds.join(',')],
   )
 
   const series = cats.map((c) => ({ key: c.id, label: c.name, color: seriesVar(c.colorSlot) }))
   const jpy = (n: number) => fmtJpy(n, lang)
   const compact = (n: number) => fmtCompact(n, lang)
+
+  if (partnerMissing) {
+    return (
+      <Card title={t('stats.title')}>
+        <p className="text-sm text-muted">{t('household.noPartnerDataYet')}</p>
+      </Card>
+    )
+  }
 
   if (stats.months.length === 0) {
     return (
@@ -126,13 +166,13 @@ export function StatsView({
     values: { day: m.perDayJpy },
   }))
 
-  const yoy = computeYoy(data, focusId, { excludeExtraordinary: excludeExtra })
+  const yoy = computeYoy(source, focusId, { excludeExtraordinary: excludeExtra })
   const monthNames = Array.from({ length: 12 }, (_, i) =>
     fmtMonthAxis(`${yoy.year}-${String(i + 1).padStart(2, '0')}`, lang),
   )
 
-  const burn = monthBurn(data, focusId)
-  const hasDays = datedCount(data, focusId) > 0
+  const burn = monthBurn(source, focusId)
+  const hasDays = datedCount(source, focusId) > 0
 
   return (
     <div className="space-y-3">
@@ -152,6 +192,18 @@ export function StatsView({
 
       {/* una sola fila de filtros, encima de todo lo que afecta */}
       <div className="flex flex-wrap items-center gap-3">
+        {household.partnerLink && (
+          <Segmented<HouseholdViewScope>
+            label={t('household.scope')}
+            value={scope}
+            onChange={setScope}
+            options={[
+              { id: 'mine', label: t('household.scope.mine') },
+              { id: 'partner', label: t('household.scope.partner') },
+              { id: 'together', label: t('household.scope.together') },
+            ]}
+          />
+        )}
         <Segmented<Range>
           label={t('stats.range')}
           value={range}
@@ -251,31 +303,33 @@ export function StatsView({
           )}
         </Card>
 
-        {/* ranking de conceptos */}
-        <Card title={t('stats.topLabels')} hint={t('stats.topLabelsHint')}>
-          <HBars
-            data={labels.map((l) => ({
-              key: l.label,
-              label: l.label || '—',
-              value: l.totalJpy,
-              color: seriesVar(cats.find((c) => c.id === l.categoryId)?.colorSlot ?? 0),
-            }))}
-            fmtValue={(n) => `${compact(n)} ¥`}
-            title={t('stats.topLabels')}
-          />
-          {tables && (
-            <DataTable
-              caption={t('stats.topLabels')}
-              columns={[t('fields.label'), t('stats.count'), t('common.jpy'), t('stats.avg')]}
-              rows={labels.map((l) => [
-                l.label || '—',
-                l.count,
-                fmtNumber(l.totalJpy, lang),
-                fmtNumber(l.avgJpy, lang),
-              ])}
+        {/* ranking de conceptos: sin combinador todavia, fuera en "Juntos" */}
+        {!isTogether && (
+          <Card title={t('stats.topLabels')} hint={t('stats.topLabelsHint')}>
+            <HBars
+              data={labels.map((l) => ({
+                key: l.label,
+                label: l.label || '—',
+                value: l.totalJpy,
+                color: seriesVar(cats.find((c) => c.id === l.categoryId)?.colorSlot ?? 0),
+              }))}
+              fmtValue={(n) => `${compact(n)} ¥`}
+              title={t('stats.topLabels')}
             />
-          )}
-        </Card>
+            {tables && (
+              <DataTable
+                caption={t('stats.topLabels')}
+                columns={[t('fields.label'), t('stats.count'), t('common.jpy'), t('stats.avg')]}
+                rows={labels.map((l) => [
+                  l.label || '—',
+                  l.count,
+                  fmtNumber(l.totalJpy, lang),
+                  fmtNumber(l.avgJpy, lang),
+                ])}
+              />
+            )}
+          </Card>
+        )}
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
@@ -303,44 +357,47 @@ export function StatsView({
           )}
         </Card>
 
-        {/* ritmo del mes */}
-        <Card title={`${t('stats.burn')} · ${fmtMonth(focusId, lang)}`} hint={t('stats.burnHint')}>
-          {hasDays ? (
-            <>
-              <Lines
-                data={burn.map((b) => ({
-                  x: b.day,
-                  label: `${b.day}`,
-                  values: { acc: b.cumulativeJpy, 'ref:pace': b.paceJpy },
-                }))}
-                series={[
-                  { key: 'acc', label: t('totals.total'), color: seriesVar(0) },
-                  { key: 'ref:pace', label: t('totals.limit'), color: 'var(--axis)' },
-                ]}
-                fmtValue={jpy}
-                fmtTick={compact}
-                fmtX={(_, label) => label}
-                title={t('stats.burn')}
-              />
-              {tables && (
-                <DataTable
-                  caption={t('stats.burn')}
-                  columns={[t('fields.day'), t('totals.total'), t('totals.limit')]}
-                  rows={burn.map((b) => [
-                    b.day,
-                    fmtNumber(b.cumulativeJpy, lang),
-                    fmtNumber(b.paceJpy, lang),
-                  ])}
+        {/* ritmo del mes: sin combinador todavia, fuera en "Juntos" */}
+        {!isTogether && (
+          <Card title={`${t('stats.burn')} · ${fmtMonth(focusId, lang)}`} hint={t('stats.burnHint')}>
+            {hasDays ? (
+              <>
+                <Lines
+                  data={burn.map((b) => ({
+                    x: b.day,
+                    label: `${b.day}`,
+                    values: { acc: b.cumulativeJpy, 'ref:pace': b.paceJpy },
+                  }))}
+                  series={[
+                    { key: 'acc', label: t('totals.total'), color: seriesVar(0) },
+                    { key: 'ref:pace', label: t('totals.limit'), color: 'var(--axis)' },
+                  ]}
+                  fmtValue={jpy}
+                  fmtTick={compact}
+                  fmtX={(_, label) => label}
+                  title={t('stats.burn')}
                 />
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-muted">{t('stats.burnNoDays')}</p>
-          )}
-        </Card>
+                {tables && (
+                  <DataTable
+                    caption={t('stats.burn')}
+                    columns={[t('fields.day'), t('totals.total'), t('totals.limit')]}
+                    rows={burn.map((b) => [
+                      b.day,
+                      fmtNumber(b.cumulativeJpy, lang),
+                      fmtNumber(b.paceJpy, lang),
+                    ])}
+                  />
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted">{t('stats.burnNoDays')}</p>
+            )}
+          </Card>
+        )}
       </div>
 
-      {/* comparacion con el ano anterior */}
+      {/* comparacion con el ano anterior: sin combinador todavia */}
+      {!isTogether && (
       <Card
         title={`${t('stats.yoy')} · ${yoy.year}`}
         hint={t('stats.yoyHint')}
@@ -403,8 +460,10 @@ export function StatsView({
           </>
         )}
       </Card>
+      )}
 
-      {/* gastos mas grandes */}
+      {/* gastos mas grandes: sin combinador todavia, fuera en "Juntos" */}
+      {!isTogether && (
       <Card
         title={t('stats.topExpenses')}
         actions={
@@ -430,8 +489,10 @@ export function StatsView({
           ])}
         />
       </Card>
+      )}
 
-      {/* apuntes "sin coste" (regalos, etc.): informativo, no cuentan en el gasto */}
+      {/* apuntes "sin coste" (regalos, etc.): sin combinador todavia */}
+      {!isTogether && (
       <Card title={`🎁 ${t('stats.noCost')}`} hint={t('stats.noCostHint')}>
         {gifts.length === 0 ? (
           <p className="text-sm text-muted">{t('stats.noCostEmpty')}</p>
@@ -448,6 +509,7 @@ export function StatsView({
           />
         )}
       </Card>
+      )}
     </div>
   )
 }

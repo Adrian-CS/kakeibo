@@ -85,6 +85,15 @@ export function fmtDate(iso: string, lang: Lang = 'es'): string {
   return new Intl.DateTimeFormat(localeOf(lang), { dateStyle: 'medium' }).format(d)
 }
 
+/** Fecha y hora de un ISO completo (con hora), tipo "20 ago 2026 10:15". */
+export function fmtWhen(iso: string | undefined, lang: Lang = 'es'): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const time = new Intl.DateTimeFormat(localeOf(lang), { hour: '2-digit', minute: '2-digit' }).format(d)
+  return `${fmtDate(iso.slice(0, 10), lang)} ${time}`
+}
+
 /** Lee un importe escrito a mano: "1.200", "1,200", "1 200 ¥", "12.5". */
 export function parseAmount(raw: string): number | null {
   const s = raw.replace(/[^\d.,-]/g, '').trim()

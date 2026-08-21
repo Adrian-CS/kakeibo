@@ -128,6 +128,20 @@ export interface Settings {
   autoDebtOnOverspend: boolean
   /** Donde aterriza esa deuda: en la ultima foto que haya, o en una nueva */
   autoDebtTarget: 'lastSnapshot' | 'newSnapshot'
+  /**
+   * Mi categoria X equivale a la categoria Y de mi pareja: para que la vista
+   * "Juntos" (ver src/lib/householdCalc.ts) sume las dos como una sola,
+   * aunque tengan id o nombre distintos en cada cuenta.
+   */
+  householdCategoryLinks: CategoryLink[]
+}
+
+/** Mi categoria equivale a esta otra en la cuenta de mi pareja. */
+export interface CategoryLink {
+  /** id de mi categoria */
+  categoryId: string
+  /** id de la categoria equivalente en el documento de mi pareja */
+  partnerCategoryId: string
 }
 
 /** Marca de borrado, para que al sincronizar no resucite lo que borraste. */

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { StoreProvider, useCurrentMonth, useStore } from './state/store'
 import { SyncProvider } from './state/sync'
+import { HouseholdProvider } from './state/household'
 import { MonthView } from './views/MonthView'
 import { StatsView } from './views/StatsView'
 import { SavingsView } from './views/SavingsView'
@@ -156,7 +157,9 @@ export function App({ initial }: { initial?: AppData }) {
   return (
     <StoreProvider initial={initial}>
       <SyncProvider>
-        <Shell />
+        <HouseholdProvider>
+          <Shell />
+        </HouseholdProvider>
       </SyncProvider>
     </StoreProvider>
   )

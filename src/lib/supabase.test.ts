@@ -9,6 +9,7 @@ import {
   loadSession,
   parseAuthHash,
   pullDoc,
+  pullDocFor,
   pushDoc,
   saveConfig,
   saveSession,
@@ -181,6 +182,14 @@ describe('llamadas', () => {
   it('si no hay fila devuelve null', async () => {
     const f = vi.fn().mockResolvedValue(okJson([]))
     expect(await pullDoc(CFG, session(), f)).toBeNull()
+  })
+
+  it('pullDocFor lee el documento de otro usuario (para la pareja vinculada)', async () => {
+    const data = emptyData()
+    const f = vi.fn().mockResolvedValue(okJson([{ data, updated_at: '2026-08-20T00:00:00Z' }]))
+    const doc = await pullDocFor(CFG, session(), 'user-2', f)
+    expect(f.mock.calls[0][0]).toContain('user_id=eq.user-2')
+    expect(doc?.updatedAt).toBe('2026-08-20T00:00:00Z')
   })
 
   it('sube el documento sin el estado de sincronizacion', async () => {

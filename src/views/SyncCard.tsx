@@ -1,19 +1,8 @@
 import { useState } from 'react'
 import { useStore } from '../state/store'
 import { useSync } from '../state/sync'
-import { fmtDate } from '../lib/format'
+import { fmtWhen } from '../lib/format'
 import { Button, Card, ConfirmButton, Field, TextInput } from '../components/ui'
-
-function fmtWhen(iso: string | undefined, lang: 'es' | 'ja' | 'en'): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const time = new Intl.DateTimeFormat(lang === 'ja' ? 'ja-JP' : lang === 'en' ? 'en-GB' : 'es-ES', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(d)
-  return `${fmtDate(iso.slice(0, 10), lang)} ${time}`
-}
 
 export function SyncCard() {
   const { t, data } = useStore()
