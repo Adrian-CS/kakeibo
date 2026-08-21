@@ -510,38 +510,90 @@ export function snapshotSeries(data: AppData): SnapshotTotals[] {
     .map((s) => snapshotTotals(s, data.settings.defaultFxRate))
 }
 
-/** Patrimonio proyectado a un plazo, en dos escenarios. */
+/**
+ * Suma los topes de categoria (0 para las que no tienen o estan archivadas):
+ * el gasto que se daria si cada categoria llegara justo a su limite.
+ */
+export function categoryLimitsJpy(categories: Category[]): number {
+  return sum(categories.filter((c) => !c.archived).map((c) => c.limitJpy ?? 0))
+}
+
+/** Patrimonio proyectado a un plazo, en tres escenarios. */
 export interface SavingsHorizon {
   months: number
-  /** gastando hasta el limite del mes (el escenario mas conservador) */
+  /** gastando hasta el limite total del mes (el escenario mas simple) */
   worstCaseJpy: number
+  /**
+   * gastando hasta el tope de cada categoria (las que no tienen tope cuentan
+   * como gasto cero) mas alquiler y extras: otro "peor caso", mas fino
+   */
+  worstCaseByCategoryJpy: number
   /** al ritmo real de los ultimos meses (ver `lastMonths`) */
   realisticJpy: number
 }
 
 /**
+ * Media de gasto real de los ultimos `lastMonths` meses con datos, para el
+ * escenario "realista" de la prevision de ahorro.
+ *
+ * Un mes que solo se abrio de pasada -sin apuntar nada, con el limite y el
+ * alquiler que trae por defecto- cuenta como "mes con datos" en
+ * `monthsWithData` (por el limite), pero no es gasto real: si entrara en la
+ * media, la rebajaria de forma artificial y el ahorro previsto saldria
+ * demasiado optimista. Por eso solo se cuentan los meses con algun apunte de
+ * verdad, y se deja fuera el mes en curso porque esta a medias (compararlo
+ * con meses completos tambien rebaja la media sin motivo).
+ */
+export function recentActiveAverageJpy(data: AppData, lastMonths = 6, today = new Date()): number {
+  const currentId = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  const stats = computeStats(data, { lastMonths })
+  const active = stats.months.filter((m) => m.count > 0 && m.monthId !== currentId)
+  if (!active.length) return stats.averageJpy
+  return sum(active.map((m) => m.totalJpy)) / active.length
+}
+
+/**
  * Proyecta el patrimonio neto unos meses hacia delante desde la ultima foto
  * de ahorros, sumando cada mes el ahorro previsto: ingresos por defecto menos
- * gasto. Dos escenarios porque uno solo no cuenta la historia completa:
- *   - "peor caso": se gasta hasta el limite del mes (conservador, siempre hay
- *     un limite porque cae al de Ajustes si no se pone uno).
- *   - "realista": al ritmo real de los ultimos `lastMonths` meses con datos.
+ * gasto. Tres escenarios porque uno solo no cuenta la historia completa:
+ *   - "peor caso, limite total": se gasta hasta el limite del mes (siempre
+ *     hay uno, porque cae al de Ajustes si no se pone).
+ *   - "peor caso, por categoria": se gasta hasta el tope de cada categoria
+ *     (mas alquiler y los extras fijos por defecto); las categorias sin tope
+ *     cuentan como gasto cero en ellas, no como "sin limite".
+ *   - "realista": al ritmo real de los ultimos `lastMonths` meses con gasto
+ *     de verdad (ver `recentActiveAverageJpy`).
+ *
+ * Como es una proyeccion a futuro (meses que ni existen todavia), los dos
+ * peores casos usan los valores por defecto de Ajustes, no los de un mes
+ * concreto.
  *
  * Devuelve [] si todavia no hay ninguna foto de ahorros de la que partir, o
  * si no hay ingresos previstos configurados (sin eso no hay nada que
  * proyectar, solo ruido).
  */
-export function projectSavings(data: AppData, horizons: number[], lastMonths = 6): SavingsHorizon[] {
+export function projectSavings(
+  data: AppData,
+  horizons: number[],
+  lastMonths = 6,
+  today = new Date(),
+): SavingsHorizon[] {
   const income = data.settings.defaultIncomeJpy
   const last = snapshotSeries(data).at(-1)
   if (!last || income <= 0) return []
 
   const worstCaseDelta = income - data.settings.defaultLimitJpy
-  const realisticDelta = income - computeStats(data, { lastMonths }).averageJpy
+  const byCategorySpend =
+    categoryLimitsJpy(data.categories) +
+    data.settings.defaultRentJpy +
+    sum(data.settings.defaultExtras.map((x) => x.amount))
+  const worstCaseByCategoryDelta = income - byCategorySpend
+  const realisticDelta = income - recentActiveAverageJpy(data, lastMonths, today)
 
   return horizons.map((months) => ({
     months,
     worstCaseJpy: last.netJpy + worstCaseDelta * months,
+    worstCaseByCategoryJpy: last.netJpy + worstCaseByCategoryDelta * months,
     realisticJpy: last.netJpy + realisticDelta * months,
   }))
 }

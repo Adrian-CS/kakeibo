@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import {
   activeCategories,
-  computeStats,
+  categoryLimitsJpy,
   daysInMonth,
   getMonth,
   monthTotals,
   projectMonth,
+  recentActiveAverageJpy,
   shiftMonth,
 } from '../lib/calc'
 import { fmtJpy, fmtMoney, fmtMonth, fmtPercent, parseAmount } from '../lib/format'
@@ -362,9 +363,13 @@ export function MonthView({
   const projection = projectMonth(data, monthId)
   const isCurrent = monthId === monthIdOf()
   // media reciente, para el "segun tu ritmo habitual" del ahorro previsto
-  const recentStats = useMemo(() => computeStats(data, { lastMonths: 6 }), [data])
+  const recentAverageJpy = useMemo(() => recentActiveAverageJpy(data, 6), [data])
   const savingsWorstCaseJpy = totals.incomeJpy - totals.limitJpy
-  const savingsRealisticJpy = totals.incomeJpy - recentStats.averageJpy
+  // otro "peor caso", mas fino: el tope de cada categoria (0 en las que no
+  // tienen), mas alquiler y extras del mes
+  const savingsByCategoryLimitsJpy =
+    totals.incomeJpy - (categoryLimitsJpy(data.categories) + totals.rentJpy + totals.extrasJpy)
+  const savingsRealisticJpy = totals.incomeJpy - recentAverageJpy
 
   const eur = (jpy: number) => fmtMoney(jpy * totals.fxRate, cur, lang)
   const [fxBusy, setFxBusy] = useState(false)
@@ -460,15 +465,24 @@ export function MonthView({
               : eur(totals.perDayJpy)
           }
         />
-        {totals.incomeJpy > 0 && (
-          <StatTile
-            label={t('totals.savingsForecast')}
-            value={fmtJpy(savingsWorstCaseJpy, lang)}
-            secondary={`${t('totals.savingsRealistic')}: ${fmtJpy(savingsRealisticJpy, lang)}`}
-            hint={t('totals.savingsForecastHint')}
-          />
-        )}
       </div>
+
+      {totals.incomeJpy > 0 && (
+        <Card title={t('totals.savingsForecast')} hint={t('totals.savingsForecastHint')}>
+          <div className="grid grid-cols-3 gap-2">
+            <StatTile
+              label={t('totals.savingsWorstLimit')}
+              value={fmtJpy(savingsWorstCaseJpy, lang)}
+            />
+            <StatTile
+              label={t('totals.savingsWorstCategoryLimits')}
+              value={fmtJpy(savingsByCategoryLimitsJpy, lang)}
+              hint={t('totals.savingsWorstCategoryLimitsHint')}
+            />
+            <StatTile label={t('totals.savingsRealistic')} value={fmtJpy(savingsRealisticJpy, lang)} />
+          </div>
+        </Card>
+      )}
 
       {/* categorias */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

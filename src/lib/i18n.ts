@@ -36,7 +36,12 @@ const es = {
   'totals.extraordinary': 'Extraordinarios',
   'totals.noCost': 'Sin coste',
   'totals.savingsForecast': 'Ahorro previsto',
-  'totals.savingsForecastHint': 'Ingresos previstos menos gasto, si te gastas hasta el límite',
+  'totals.savingsForecastHint':
+    'Ingresos previstos menos gasto, en tres escenarios: por el límite total, por los límites de categoría o a tu ritmo habitual',
+  'totals.savingsWorstLimit': 'Por límite total',
+  'totals.savingsWorstCategoryLimits': 'Por límites de categoría',
+  'totals.savingsWorstCategoryLimitsHint':
+    'Suma el tope de cada categoría más alquiler y extras; las categorías sin tope cuentan como gasto cero',
   'totals.savingsRealistic': 'A tu ritmo habitual',
 
   'fields.rent': 'Alquiler',
@@ -127,7 +132,8 @@ const es = {
   'savings.months': 'Meses de colchón',
   'savings.monthsHint': 'Patrimonio / gasto medio mensual',
   'savings.forecast': 'Previsión de ahorro',
-  'savings.forecastHint': 'Desde tu última foto, sumando el ahorro previsto de cada mes',
+  'savings.forecastHint':
+    'Desde tu última foto. El número grande es el peor caso por el límite total; debajo, el peor caso por límites de categoría y la cifra más realista, a tu ritmo habitual',
   'savings.forecastIn': 'Dentro de {n} meses',
 
   'settings.title': 'Ajustes',
@@ -271,7 +277,11 @@ const ja: Partial<Record<Key, string>> = {
   'totals.extraordinary': '臨時',
   'totals.noCost': '無償',
   'totals.savingsForecast': '貯金の見込み',
-  'totals.savingsForecastHint': '見込み収入から上限までの出費を引いたもの',
+  'totals.savingsForecastHint': '見込み収入から出費を引いたもの。上限全体・カテゴリごとの上限・普段のペースの三通り',
+  'totals.savingsWorstLimit': '上限全体なら',
+  'totals.savingsWorstCategoryLimits': 'カテゴリの上限なら',
+  'totals.savingsWorstCategoryLimitsHint':
+    '各カテゴリの上限＋家賃＋固定費の合計。上限がないカテゴリは0円として計算',
   'totals.savingsRealistic': '普段のペースなら',
   'fields.rent': '家賃',
   'fields.extras': '固定費',
@@ -348,7 +358,8 @@ const ja: Partial<Record<Key, string>> = {
   'savings.evolution': '推移',
   'savings.months': '生活できる月数',
   'savings.forecast': '貯金の見込み',
-  'savings.forecastHint': '最後の記録から、毎月の貯金の見込みを足していく',
+  'savings.forecastHint':
+    '最後の記録から。大きい数字は上限全体での最悪の場合。下にカテゴリの上限での最悪の場合と、より現実的な普段のペースの額',
   'savings.forecastIn': '{n}か月後',
   'settings.title': '設定',
   'settings.appearance': '言語と外観',
@@ -436,7 +447,12 @@ const en: Partial<Record<Key, string>> = {
   'totals.extraordinary': 'One-offs',
   'totals.noCost': 'No cost',
   'totals.savingsForecast': 'Projected savings',
-  'totals.savingsForecastHint': 'Expected income minus spending, if you spend up to the limit',
+  'totals.savingsForecastHint':
+    'Expected income minus spending, in three scenarios: by the overall limit, by category limits, or at your usual pace',
+  'totals.savingsWorstLimit': 'By overall limit',
+  'totals.savingsWorstCategoryLimits': 'By category limits',
+  'totals.savingsWorstCategoryLimitsHint':
+    "Adds up each category's limit plus rent and extras; categories with no limit count as zero spending",
   'totals.savingsRealistic': 'At your usual pace',
   'fields.rent': 'Rent',
   'fields.extras': 'Fixed extras',
@@ -514,7 +530,8 @@ const en: Partial<Record<Key, string>> = {
   'savings.evolution': 'Evolution',
   'savings.months': 'Months of runway',
   'savings.forecast': 'Savings forecast',
-  'savings.forecastHint': 'From your last snapshot, adding up the projected savings of each month',
+  'savings.forecastHint':
+    'From your last snapshot. The big number is the worst case by the overall limit; below, the worst case by category limits and the more realistic figure, at your usual pace',
   'savings.forecastIn': 'In {n} months',
   'settings.title': 'Settings',
   'settings.appearance': 'Language & appearance',

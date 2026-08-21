@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   accountToJpy,
+  categoryLimitsJpy,
   computeStats,
   computeYoy,
   daysInMonth,
@@ -14,6 +15,7 @@ import {
   normalizeLabel,
   projectMonth,
   projectSavings,
+  recentActiveAverageJpy,
   shiftMonth,
   snapshotTotals,
   topExpenses,
@@ -373,13 +375,83 @@ describe('ahorros', () => {
     expect(projectSavings({ ...data, settings: { ...data.settings, defaultIncomeJpy: 0 } }, [3])).toEqual([])
   })
 
-  it('proyecta el patrimonio en los dos escenarios', () => {
-    const points = projectSavings(withIncome(), [3, 6])
-    // peor caso: 250000 (ingreso) - 150000 (limite) = 100000 ahorrados/mes
+  it('proyecta el patrimonio en los tres escenarios', () => {
+    const today = new Date('2026-08-15T00:00:00')
+    const points = projectSavings(withIncome(), [3, 6], 6, today)
+    // peor caso (limite): 250000 (ingreso) - 150000 (limite) = 100000 ahorrados/mes
+    // peor caso (categorias): ninguna categoria tiene tope (0) + 82000 de
+    //   alquiler por defecto + 0 de extras por defecto = 82000 de gasto
+    //   asumido -> 250000 - 82000 = 168000 ahorrados/mes
     // realista: 250000 - 100000 (media de julio, unico mes con datos) = 150000/mes
     expect(points).toEqual([
-      { months: 3, worstCaseJpy: 500000 + 100000 * 3, realisticJpy: 500000 + 150000 * 3 },
-      { months: 6, worstCaseJpy: 500000 + 100000 * 6, realisticJpy: 500000 + 150000 * 6 },
+      {
+        months: 3,
+        worstCaseJpy: 500000 + 100000 * 3,
+        worstCaseByCategoryJpy: 500000 + 168000 * 3,
+        realisticJpy: 500000 + 150000 * 3,
+      },
+      {
+        months: 6,
+        worstCaseJpy: 500000 + 100000 * 6,
+        worstCaseByCategoryJpy: 500000 + 168000 * 6,
+        realisticJpy: 500000 + 150000 * 6,
+      },
     ])
+  })
+
+  it('categoryLimitsJpy suma los topes y cuenta como cero las categorias sin tope', () => {
+    const cats: AppData['categories'] = [
+      { id: 'a', name: 'a', bucket: 'daily', colorSlot: 0, limitJpy: 20000 },
+      { id: 'b', name: 'b', bucket: 'daily', colorSlot: 1 }, // sin tope: cuenta como 0
+      { id: 'c', name: 'c', bucket: 'other', colorSlot: 2, limitJpy: 0 }, // tope a 0: tambien 0
+      { id: 'd', name: 'd', bucket: 'other', colorSlot: 3, limitJpy: 50000, archived: true }, // no cuenta
+    ]
+    expect(categoryLimitsJpy(cats)).toBe(20000)
+  })
+
+  it('recentActiveAverageJpy ignora meses en blanco y el mes en curso', () => {
+    const today = new Date('2026-08-15T00:00:00')
+    const data: AppData = {
+      ...emptyData(today),
+      months: [
+        // real: alquiler + un gasto
+        { id: '2026-06', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+        // visitado pero en blanco: no deberia contar
+        { id: '2026-07', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+        // el mes en curso: no deberia contar aunque tenga gasto
+        { id: '2026-08', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+      ],
+      expenses: [
+        { id: 'e1', monthId: '2026-06', categoryId: 'eating_out', label: 'x', amount: 20000, kind: 'normal' },
+        { id: 'e2', monthId: '2026-08', categoryId: 'eating_out', label: 'y', amount: 999999, kind: 'normal' },
+      ],
+    }
+    // solo cuenta 2026-06: 80000 (alquiler) + 20000 = 100000
+    expect(recentActiveAverageJpy(data, 6, today)).toBe(100000)
+  })
+
+  it('la media "realista" no cuenta un mes visitado y vacio ni el mes en curso', () => {
+    // bug real: un mes solo abierto (limite/alquiler por defecto, nada
+    // apuntado) o el mes en curso (a medias) rebajaban la media artificialmente
+    // y el ahorro "realista" salia demasiado optimista
+    const today = new Date('2026-08-15T00:00:00')
+    const base = withIncome()
+    const withNoise: AppData = {
+      ...base,
+      months: [
+        ...base.months,
+        // visitado pero en blanco: solo trae el limite y el alquiler por defecto
+        { id: '2026-06', rentJpy: 82000, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 },
+        // el mes en curso, a medias
+        { id: '2026-08', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 },
+      ],
+      expenses: [
+        ...base.expenses,
+        { id: 'e2', monthId: '2026-08', categoryId: 'eating_out', label: 'y', amount: 5000, kind: 'normal' },
+      ],
+    }
+    const withoutNoise = projectSavings(base, [3], 6, today)
+    const withNoiseResult = projectSavings(withNoise, [3], 6, today)
+    expect(withNoiseResult).toEqual(withoutNoise)
   })
 })

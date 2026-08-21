@@ -261,8 +261,12 @@ export function SavingsView() {
                     key={h.months}
                     label={t('savings.forecastIn', { n: h.months })}
                     value={fmtJpy(h.worstCaseJpy, lang)}
-                    secondary={`${t('totals.savingsRealistic')}: ${fmtJpy(h.realisticJpy, lang)}`}
-                  />
+                    secondary={`${t('totals.savingsWorstCategoryLimits')}: ${fmtJpy(h.worstCaseByCategoryJpy, lang)}`}
+                  >
+                    <p className="mt-1 text-[11px] text-muted">
+                      {t('totals.savingsRealistic')}: {fmtJpy(h.realisticJpy, lang)}
+                    </p>
+                  </StatTile>
                 ))}
               </div>
             </Card>
