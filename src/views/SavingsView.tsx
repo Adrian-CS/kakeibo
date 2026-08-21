@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../state/store'
-import { computeStats, projectSavings, snapshotSeries } from '../lib/calc'
+import {
+  categoryLimitsJpy,
+  computeStats,
+  projectSavings,
+  recentActiveAverageJpy,
+  snapshotSeries,
+  sum,
+} from '../lib/calc'
 import { fmtDate, fmtJpy, fmtMoney, fmtNumber, parseAmount } from '../lib/format'
 import { seriesVar } from '../lib/palette'
 import {
@@ -163,6 +170,13 @@ export function SavingsView() {
   const prev = series.at(-2)
   const runway = last && stats.averageJpy > 0 ? last.netJpy / stats.averageJpy : 0
   const projection = useMemo(() => projectSavings(data, [3, 6, 12]), [data])
+  // mismas bases que usa projectSavings, solo para mostrar el desglose
+  const projectedIncomeJpy = data.settings.defaultIncomeJpy
+  const projectedCategorySpendJpy =
+    categoryLimitsJpy(data.categories) +
+    data.settings.defaultRentJpy +
+    sum(data.settings.defaultExtras.map((x) => x.amount))
+  const recentAverageJpy = useMemo(() => recentActiveAverageJpy(data, 6), [data])
 
   const addSnapshot = () => {
     const template = series.length ? data.snapshots.find((s) => s.id === last?.id) : undefined
@@ -261,9 +275,27 @@ export function SavingsView() {
                     key={h.months}
                     label={t('savings.forecastIn', { n: h.months })}
                     value={fmtJpy(h.worstCaseJpy, lang)}
-                    secondary={`${t('totals.savingsWorstCategoryLimits')}: ${fmtJpy(h.worstCaseByCategoryJpy, lang)}`}
+                    hint={t('totals.savingsWorstLimitHint', {
+                      income: fmtJpy(projectedIncomeJpy, lang),
+                      limit: fmtJpy(data.settings.defaultLimitJpy, lang),
+                    })}
                   >
-                    <p className="mt-1 text-[11px] text-muted">
+                    <p
+                      className="mt-1 text-[11px] text-muted"
+                      title={t('totals.savingsWorstCategoryLimitsHint', {
+                        income: fmtJpy(projectedIncomeJpy, lang),
+                        spend: fmtJpy(projectedCategorySpendJpy, lang),
+                      })}
+                    >
+                      {t('totals.savingsWorstCategoryLimits')}: {fmtJpy(h.worstCaseByCategoryJpy, lang)}
+                    </p>
+                    <p
+                      className="mt-1 text-[11px] text-muted"
+                      title={t('totals.savingsRealisticHint', {
+                        income: fmtJpy(projectedIncomeJpy, lang),
+                        avg: fmtJpy(recentAverageJpy, lang),
+                      })}
+                    >
                       {t('totals.savingsRealistic')}: {fmtJpy(h.realisticJpy, lang)}
                     </p>
                   </StatTile>

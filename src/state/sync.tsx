@@ -29,7 +29,7 @@ import {
   type Session,
   type SupabaseConfig,
 } from '../lib/supabase'
-import { isBlankDevice, mergeData, needsPush, nowIso, signature } from '../lib/sync'
+import { isAccountMismatch, isBlankDevice, mergeData, needsPush, nowIso, signature } from '../lib/sync'
 import { monthIdOf } from '../lib/defaults'
 import { migrate } from '../lib/storage'
 import type { AppData } from '../lib/types'
@@ -67,7 +67,7 @@ export function redirectTarget(loc: { protocol: string; origin: string } = windo
 }
 
 export function SyncProvider({ children }: { children: ReactNode }) {
-  const { data, dispatch } = useStore()
+  const { data, dispatch, t } = useStore()
   const [config, setConfigState] = useState<SupabaseConfig | null>(() => loadConfig())
   const [session, setSession] = useState<Session | null>(() => loadSession())
   const [status, setStatus] = useState<SyncStatus>('unconfigured')
@@ -115,6 +115,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     setStatus('working')
     setMessage('')
     try {
+      const local = dataRef.current
+      // este dispositivo ya se sincronizo antes con otra cuenta: fusionar sin
+      // avisar mezclaria (o subiria de golpe) esos datos a la cuenta nueva
+      if (isAccountMismatch(local, session.email)) {
+        setStatus('error')
+        setMessage(t('sync.accountMismatch', { email: local.sync?.lastSyncedEmail ?? '?' }))
+        return
+      }
+
       const fresh = await ensureFresh(config, session)
       if (fresh !== session) setSession(fresh)
 
@@ -124,7 +133,6 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // mismo saneado que una copia importada a mano, para no arrastrar
       // `undefined` a sitios que ya no lo esperan
       const remote = pulled ? { ...pulled, data: migrate(pulled.data) } : null
-      const local = dataRef.current
       let merged = local
 
       if (remote && isBlankDevice(local)) {
@@ -142,15 +150,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // el email de la sesion sobrevive a un "Salir" en `lastSyncedEmail` (a
+      // diferencia de `email`), para poder detectar un cambio de cuenta la
+      // proxima vez; solo se pisa si de verdad hay uno nuevo que anotar
+      const emailPatch = fresh.email ? { lastSyncedEmail: fresh.email } : {}
       if (needsPush(merged, remote?.data ?? null)) {
         const at = await pushDoc(config, fresh, { ...merged, updatedAt: merged.updatedAt ?? nowIso() })
         lastPushedSig.current = signature(merged)
-        dispatch({ type: 'patchSync', patch: { lastSyncAt: nowIso(), lastRemoteAt: at } })
+        dispatch({ type: 'patchSync', patch: { lastSyncAt: nowIso(), lastRemoteAt: at, ...emailPatch } })
       } else {
         lastPushedSig.current = signature(merged)
         dispatch({
           type: 'patchSync',
-          patch: { lastSyncAt: nowIso(), lastRemoteAt: remote?.updatedAt },
+          patch: { lastSyncAt: nowIso(), lastRemoteAt: remote?.updatedAt, ...emailPatch },
         })
       }
       setStatus('idle')
@@ -160,7 +172,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     } finally {
       busy.current = false
     }
-  }, [config, session, dispatch])
+  }, [config, session, dispatch, t])
 
   const requestCode = useCallback(
     async (email: string) => {

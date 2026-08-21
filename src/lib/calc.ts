@@ -536,18 +536,27 @@ export interface SavingsHorizon {
  * Media de gasto real de los ultimos `lastMonths` meses con datos, para el
  * escenario "realista" de la prevision de ahorro.
  *
- * Un mes que solo se abrio de pasada -sin apuntar nada, con el limite y el
- * alquiler que trae por defecto- cuenta como "mes con datos" en
- * `monthsWithData` (por el limite), pero no es gasto real: si entrara en la
- * media, la rebajaria de forma artificial y el ahorro previsto saldria
- * demasiado optimista. Por eso solo se cuentan los meses con algun apunte de
- * verdad, y se deja fuera el mes en curso porque esta a medias (compararlo
- * con meses completos tambien rebaja la media sin motivo).
+ * Dos tipos de mes no cuentan como "gasto real", aunque tengan un total
+ * mayor que cero:
+ *   - un mes que solo se abrio de pasada -sin apuntar nada, con el limite y
+ *     el alquiler que trae por defecto- cuenta como "mes con datos" en
+ *     `monthsWithData` (por el limite), pero no es gasto real;
+ *   - un mes que solo tiene alquiler y gastos recurrentes (copiados solos del
+ *     mes anterior) pero ni un apunte del dia a dia: el alquiler es real,
+ *     pero falta toda la parte variable, asi que su total no representa un
+ *     mes completo.
+ * Meter cualquiera de los dos en la media la rebajaria de forma artificial y
+ * el ahorro previsto saldria demasiado optimista. Por eso solo se cuentan los
+ * meses con al menos un apunte normal o extraordinario, y se deja fuera el
+ * mes en curso porque esta a medias (compararlo con meses completos tambien
+ * rebaja la media sin motivo).
  */
 export function recentActiveAverageJpy(data: AppData, lastMonths = 6, today = new Date()): number {
   const currentId = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   const stats = computeStats(data, { lastMonths })
-  const active = stats.months.filter((m) => m.count > 0 && m.monthId !== currentId)
+  const hasRealSpend = (monthId: string) =>
+    expensesOfMonth(data, monthId).some((e) => e.kind === 'normal' || e.kind === 'extraordinary')
+  const active = stats.months.filter((m) => m.monthId !== currentId && hasRealSpend(m.monthId))
   if (!active.length) return stats.averageJpy
   return sum(active.map((m) => m.totalJpy)) / active.length
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  isAccountMismatch,
   isBlankDevice,
   mergeById,
   mergeData,
@@ -252,6 +253,23 @@ describe('mergeData', () => {
         ...blank,
         months: [{ ...blank.months[0], extras: [{ id: 'x', label: 'luz', amount: 4000 }] }],
       }),
+    ).toBe(false)
+  })
+
+  it('detecta un cambio de cuenta en un dispositivo con datos de otra', () => {
+    const withData = doc([exp('a', 100, T1)], T1, { sync: { lastSyncedEmail: 'a@x.com' } })
+    // misma cuenta: no es un cambio
+    expect(isAccountMismatch(withData, 'a@x.com')).toBe(false)
+    // otra cuenta: si hay datos de verdad, es un cambio
+    expect(isAccountMismatch(withData, 'b@y.com')).toBe(true)
+    // sin sesion, o sesion sin correo: no se puede saber, no se bloquea
+    expect(isAccountMismatch(withData, undefined)).toBe(false)
+    // nunca se habia sincronizado con nadie: primer alta normal, no un cambio
+    expect(isAccountMismatch(doc([exp('a', 100, T1)], T1), 'b@y.com')).toBe(false)
+    // dispositivo en blanco: adoptar la nube es siempre seguro
+    const blank = emptyData(new Date('2026-08-15T00:00:00'))
+    expect(
+      isAccountMismatch({ ...blank, sync: { lastSyncedEmail: 'a@x.com' } }, 'b@y.com'),
     ).toBe(false)
   })
 

@@ -134,8 +134,15 @@ export interface SyncState {
   lastSyncAt?: string
   /** valor de updatedAt del documento remoto en la ultima sincronizacion */
   lastRemoteAt?: string
-  /** correo de la sesion activa, solo informativo */
+  /** correo de la sesion activa, solo informativo: se borra al salir */
   email?: string
+  /**
+   * correo con el que se hizo la ultima sincronizacion correcta. A diferencia
+   * de `email`, esto NO se borra al salir: sirve para detectar que este
+   * dispositivo ya tenia datos de otra cuenta antes de fusionar con una
+   * nueva sesion (ver `isAccountMismatch` en sync.ts).
+   */
+  lastSyncedEmail?: string
 }
 
 export interface AppData {

@@ -430,6 +430,30 @@ describe('ahorros', () => {
     expect(recentActiveAverageJpy(data, 6, today)).toBe(100000)
   })
 
+  it('recentActiveAverageJpy ignora meses que solo tienen alquiler y recurrentes, sin compras del dia a dia', () => {
+    // bug real: un mes con solo el alquiler y una suscripcion copiada del mes
+    // anterior (autoFillFixed) tenia un total > 0, pero le faltaba toda la
+    // parte variable -no era un mes "vivido"- y rebajaba la media igual
+    const today = new Date('2026-08-15T00:00:00')
+    const data: AppData = {
+      ...emptyData(today),
+      months: [
+        { id: '2026-06', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+        { id: '2026-07', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+      ],
+      expenses: [
+        // 2026-06: solo alquiler + una recurrente, nada de dia a dia
+        { id: 'e1', monthId: '2026-06', categoryId: 'fixed_transport', label: 'netflix', amount: 1500, kind: 'recurring' },
+        // 2026-07: lo mismo, mas una compra real
+        { id: 'e2', monthId: '2026-07', categoryId: 'fixed_transport', label: 'netflix', amount: 1500, kind: 'recurring' },
+        { id: 'e3', monthId: '2026-07', categoryId: 'eating_out', label: 'sushi', amount: 3000, kind: 'normal' },
+      ],
+    }
+    // 2026-06 (80000+1500=81500) se ignora: solo tiene alquiler+recurrente
+    // solo cuenta 2026-07: 80000+1500+3000 = 84500
+    expect(recentActiveAverageJpy(data, 6, today)).toBe(84500)
+  })
+
   it('la media "realista" no cuenta un mes visitado y vacio ni el mes en curso', () => {
     // bug real: un mes solo abierto (limite/alquiler por defecto, nada
     // apuntado) o el mes en curso (a medias) rebajaban la media artificialmente

@@ -39,10 +39,12 @@ const es = {
   'totals.savingsForecastHint':
     'Ingresos previstos menos gasto, en tres escenarios: por el límite total, por los límites de categoría o a tu ritmo habitual',
   'totals.savingsWorstLimit': 'Por límite total',
+  'totals.savingsWorstLimitHint': 'Ingresos {income} − límite {limit}',
   'totals.savingsWorstCategoryLimits': 'Por límites de categoría',
   'totals.savingsWorstCategoryLimitsHint':
-    'Suma el tope de cada categoría más alquiler y extras; las categorías sin tope cuentan como gasto cero',
+    'Suma el tope de cada categoría más alquiler y extras (las categorías sin tope cuentan como gasto cero): ingresos {income} − {spend}',
   'totals.savingsRealistic': 'A tu ritmo habitual',
+  'totals.savingsRealisticHint': 'Ingresos {income} − tu media reciente {avg}',
 
   'fields.rent': 'Alquiler',
   'fields.extras': 'Extras fijos',
@@ -213,6 +215,8 @@ const es = {
   'sync.lastSync': 'Última sincronización',
   'sync.never': 'todavía no',
   'sync.error': 'No se ha podido sincronizar',
+  'sync.accountMismatch':
+    'Este dispositivo ya tiene datos sincronizados con {email}. Para evitar mezclarlos, exporta una copia y pulsa Ajustes → Borrar todo antes de usar esta cuenta aquí.',
   'sync.returnTo': 'El enlace del correo volverá a',
   'sync.noReturn':
     'Estás abriendo la app desde un archivo local, así que el enlace del correo no puede volver aquí (te llevará al Site URL del proyecto, que por defecto es localhost). Entra con el código de seis dígitos, o publica la app y entra desde su dirección.',
@@ -279,10 +283,12 @@ const ja: Partial<Record<Key, string>> = {
   'totals.savingsForecast': '貯金の見込み',
   'totals.savingsForecastHint': '見込み収入から出費を引いたもの。上限全体・カテゴリごとの上限・普段のペースの三通り',
   'totals.savingsWorstLimit': '上限全体なら',
+  'totals.savingsWorstLimitHint': '見込み収入 {income} − 上限 {limit}',
   'totals.savingsWorstCategoryLimits': 'カテゴリの上限なら',
   'totals.savingsWorstCategoryLimitsHint':
-    '各カテゴリの上限＋家賃＋固定費の合計。上限がないカテゴリは0円として計算',
+    '各カテゴリの上限＋家賃＋固定費の合計（上限がないカテゴリは0円）：見込み収入 {income} − {spend}',
   'totals.savingsRealistic': '普段のペースなら',
+  'totals.savingsRealisticHint': '見込み収入 {income} − 最近の平均 {avg}',
   'fields.rent': '家賃',
   'fields.extras': '固定費',
   'fields.income': '見込み収入',
@@ -402,6 +408,8 @@ const ja: Partial<Record<Key, string>> = {
   'sync.lastSync': '最後の同期',
   'sync.never': 'まだ',
   'sync.error': '同期できませんでした',
+  'sync.accountMismatch':
+    'この端末には {email} と同期したデータが残っています。混ざらないように、データを書き出してからこのアカウントを使う前に 設定 → 全部消す をしてください。',
   'sync.returnTo': 'メールのリンクの戻り先',
   'cat.limit': 'カテゴリの上限',
   'cat.limitNone': '上限なし',
@@ -450,10 +458,12 @@ const en: Partial<Record<Key, string>> = {
   'totals.savingsForecastHint':
     'Expected income minus spending, in three scenarios: by the overall limit, by category limits, or at your usual pace',
   'totals.savingsWorstLimit': 'By overall limit',
+  'totals.savingsWorstLimitHint': 'Income {income} − limit {limit}',
   'totals.savingsWorstCategoryLimits': 'By category limits',
   'totals.savingsWorstCategoryLimitsHint':
-    "Adds up each category's limit plus rent and extras; categories with no limit count as zero spending",
+    "Adds up each category's limit plus rent and extras (categories with no limit count as zero spending): income {income} − {spend}",
   'totals.savingsRealistic': 'At your usual pace',
+  'totals.savingsRealisticHint': 'Income {income} − your recent average {avg}',
   'fields.rent': 'Rent',
   'fields.extras': 'Fixed extras',
   'fields.income': 'Expected income',
@@ -581,6 +591,8 @@ const en: Partial<Record<Key, string>> = {
   'sync.lastSync': 'Last sync',
   'sync.never': 'not yet',
   'sync.error': 'Could not sync',
+  'sync.accountMismatch':
+    'This device already has data synced with {email}. To avoid mixing it up, export a backup and go to Settings → Delete everything before using this account here.',
   'sync.returnTo': 'The email link will return to',
   'sync.noReturn':
     'You are opening the app from a local file, so the email link cannot come back here. Use the six-digit code, or publish the app and sign in from its address.',

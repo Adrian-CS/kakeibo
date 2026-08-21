@@ -152,6 +152,30 @@ Para no toparte con esto, pon un proveedor SMTP propio en
 como Resend o Brevo, sirve de sobra para esto); así el límite lo pone tu
 proveedor de correo, no Supabase.
 
+#### Con Resend
+
+1. Crea una cuenta en [resend.com](https://resend.com) y genera una API Key
+   (Dashboard → API Keys).
+2. Verifica un dominio propio (Dashboard → Domains → Add Domain): da tres
+   registros DNS (TXT del SPF, TXT del DKIM y un MX) que hay que añadir en tu
+   proveedor de dominio. Suele verificarse en minutos, pero puede tardar hasta
+   72 horas. **Sin dominio verificado no vale**: el dominio de prueba
+   (`onboarding@resend.dev`) solo puede mandar correos a la cuenta con la que
+   te registraste en Resend, no a usuarios de verdad.
+3. En Supabase → Authentication → Settings → SMTP Settings, activa *Enable
+   Custom SMTP* y rellena:
+
+   | Campo | Valor |
+   | --- | --- |
+   | Host | `smtp.resend.com` |
+   | Puerto | `465` (o `587`) |
+   | Usuario | `resend` (literal) |
+   | Contraseña | tu API Key de Resend |
+   | Sender email | una dirección de tu dominio verificado |
+
+4. Guarda y prueba *Enviarme el acceso* desde la app. El plan gratuito de
+   Resend admite 100 correos/día y 3000/mes, de sobra para esto.
+
 También puedes dejar URL y clave fijas en el build con `VITE_SUPABASE_URL` y
 `VITE_SUPABASE_ANON_KEY` (ver [`.env.example`](.env.example)); en un repositorio
 público quedarían a la vista, y por eso por defecto se escriben en Ajustes y se
@@ -209,6 +233,22 @@ datos están en local y se reintenta a la siguiente.
 La clave *anon* es pública por diseño; lo que protege los datos es la política
 RLS del paso 2. Sin esa política, cualquiera con la clave podría leer la tabla:
 no te la salte.
+
+### Varias personas, un mismo dispositivo
+
+Cada persona con su propio dispositivo no necesita nada especial: el
+documento vive en el navegador de cada uno, y si sincronizan con cuentas
+distintas, la política RLS mantiene sus filas completamente separadas en la
+nube.
+
+Lo que hay que evitar es compartir el *mismo* dispositivo/navegador entre dos
+personas sin más: no hay concepto de "perfil", así que si sincronizas ahí con
+una cuenta nueva mientras quedan datos de otra persona, la app detecta el
+cambio de cuenta (comparando con el correo de la última sincronización
+correcta, que sobrevive a *Salir*) y bloquea la sincronización con un aviso en
+vez de fusionar o subir esos datos sin más. Para pasar el dispositivo de una
+persona a otra: exporta una copia primero, luego Ajustes → Borrar todo, y ya
+puede la otra persona configurar su sincronización desde cero.
 
 ## Cómo se calculan las cosas
 

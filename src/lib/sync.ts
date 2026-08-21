@@ -91,6 +91,24 @@ export function isBlankDevice(d: AppData): boolean {
   )
 }
 
+/**
+ * Un dispositivo que ya se sincronizo antes con una cuenta, y ahora se acaba
+ * de iniciar sesion con OTRA distinta. Fusionar sin avisar mezclaria (o
+ * subiria de golpe) los datos de una persona a la cuenta de otra: el correo
+ * de la sesion activa se borra al salir (`sync.email`), pero
+ * `sync.lastSyncedEmail` no, asi que sobrevive al cambio de cuenta y sirve
+ * para detectarlo.
+ *
+ * Un dispositivo en blanco, o que nunca sincronizo con nadie todavia
+ * (`lastSyncedEmail` sin definir: el primer alta de sincronizacion sobre
+ * datos locales ya existentes es el caso normal, no una alarma), no cuenta
+ * como desajuste.
+ */
+export function isAccountMismatch(local: AppData, sessionEmail?: string): boolean {
+  const lastEmail = local.sync?.lastSyncedEmail
+  return !!lastEmail && !!sessionEmail && lastEmail !== sessionEmail && !isBlankDevice(local)
+}
+
 /** Fusiona la copia local con la remota. El resultado es simetrico. */
 export function mergeData(local: AppData, remote: AppData): AppData {
   const localAt = local.updatedAt ?? ''

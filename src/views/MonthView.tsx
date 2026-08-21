@@ -367,8 +367,8 @@ export function MonthView({
   const savingsWorstCaseJpy = totals.incomeJpy - totals.limitJpy
   // otro "peor caso", mas fino: el tope de cada categoria (0 en las que no
   // tienen), mas alquiler y extras del mes
-  const savingsByCategoryLimitsJpy =
-    totals.incomeJpy - (categoryLimitsJpy(data.categories) + totals.rentJpy + totals.extrasJpy)
+  const categoryLimitsAndFixedJpy = categoryLimitsJpy(data.categories) + totals.rentJpy + totals.extrasJpy
+  const savingsByCategoryLimitsJpy = totals.incomeJpy - categoryLimitsAndFixedJpy
   const savingsRealisticJpy = totals.incomeJpy - recentAverageJpy
 
   const eur = (jpy: number) => fmtMoney(jpy * totals.fxRate, cur, lang)
@@ -473,13 +473,27 @@ export function MonthView({
             <StatTile
               label={t('totals.savingsWorstLimit')}
               value={fmtJpy(savingsWorstCaseJpy, lang)}
+              hint={t('totals.savingsWorstLimitHint', {
+                income: fmtJpy(totals.incomeJpy, lang),
+                limit: fmtJpy(totals.limitJpy, lang),
+              })}
             />
             <StatTile
               label={t('totals.savingsWorstCategoryLimits')}
               value={fmtJpy(savingsByCategoryLimitsJpy, lang)}
-              hint={t('totals.savingsWorstCategoryLimitsHint')}
+              hint={t('totals.savingsWorstCategoryLimitsHint', {
+                income: fmtJpy(totals.incomeJpy, lang),
+                spend: fmtJpy(categoryLimitsAndFixedJpy, lang),
+              })}
             />
-            <StatTile label={t('totals.savingsRealistic')} value={fmtJpy(savingsRealisticJpy, lang)} />
+            <StatTile
+              label={t('totals.savingsRealistic')}
+              value={fmtJpy(savingsRealisticJpy, lang)}
+              hint={t('totals.savingsRealisticHint', {
+                income: fmtJpy(totals.incomeJpy, lang),
+                avg: fmtJpy(recentAverageJpy, lang),
+              })}
+            />
           </div>
         </Card>
       )}
