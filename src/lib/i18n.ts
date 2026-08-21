@@ -18,6 +18,7 @@ const es = {
   'month.empty': 'Este mes todavía no tiene datos.',
   'month.copyPrev': 'Copiar fijos del mes anterior',
   'month.duplicate': 'Duplicar en el mes siguiente',
+  'month.loadDefaultExtras': 'Cargar de ajustes',
 
   'totals.total': 'Total del mes',
   'totals.daily': 'Vida diaria',
@@ -245,6 +246,7 @@ const ja: Partial<Record<Key, string>> = {
   'month.empty': 'この月のデータはまだありません。',
   'month.copyPrev': '前月の固定費をコピー',
   'month.duplicate': '次の月に複製',
+  'month.loadDefaultExtras': '設定から読み込む',
   'totals.total': '合計',
   'totals.daily': '一日生活の費消',
   'totals.dailyHint': '外食＋スーパーマーケット',
@@ -401,6 +403,7 @@ const en: Partial<Record<Key, string>> = {
   'month.empty': 'No data for this month yet.',
   'month.copyPrev': 'Copy fixed costs from last month',
   'month.duplicate': 'Duplicate into next month',
+  'month.loadDefaultExtras': 'Load from settings',
   'totals.total': 'Month total',
   'totals.daily': 'Daily living',
   'totals.dailyHint': 'Eating out + groceries',

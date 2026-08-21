@@ -27,6 +27,7 @@ import {
   TextInput,
 } from '../components/ui'
 import { monthIdOf } from '../lib/defaults'
+import { uid } from '../lib/id'
 
 /* ------------------------------------------------------------------ *
  * Fila editable de gasto
@@ -560,14 +561,31 @@ export function MonthView({
                   </li>
                 ))}
               </ul>
-              <Button
-                size="sm"
-                className="mt-1.5"
-                onClick={() => dispatch({ type: 'addExtra', monthId, extra: { label: '', amount: 0 } })}
-              >
-                <Icon name="plus" />
-                {t('action.add')}
-              </Button>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                <Button
+                  size="sm"
+                  onClick={() => dispatch({ type: 'addExtra', monthId, extra: { label: '', amount: 0 } })}
+                >
+                  <Icon name="plus" />
+                  {t('action.add')}
+                </Button>
+                {data.settings.defaultExtras.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      patch({
+                        extras: [
+                          ...(month?.extras ?? []),
+                          ...data.settings.defaultExtras.map((x) => ({ ...x, id: uid('x') })),
+                        ],
+                      })
+                    }
+                  >
+                    {t('month.loadDefaultExtras')}
+                  </Button>
+                )}
+              </div>
             </div>
 
             <p className="text-xs text-muted">
