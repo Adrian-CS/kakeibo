@@ -111,6 +111,23 @@ Si prefieres el código de seis dígitos en lugar del enlace (más cómodo en el
 móvil), añade `{{ .Token }}` a la plantilla *Magic Link* en
 **Authentication → Email Templates**; la app tiene el campo para pegarlo.
 
+### Si el enlace del correo apunta a `localhost`
+
+Supabase manda al **Site URL** del proyecto cuando el `redirect_to` que pide la
+app no está en la lista blanca, o cuando no hay ninguno; y el Site URL por
+defecto es `http://localhost:3000`. Dos causas posibles:
+
+- **La app se está abriendo desde un archivo local** (`file://`, por ejemplo la
+  vista previa de un solo fichero). Ahí no hay dirección a la que volver, así
+  que la app no manda ninguna y Supabase usa el Site URL. Entra con el código
+  de seis dígitos, o publica la app y entra desde su dirección.
+- **Falta la dirección en Supabase.** Pon la dirección publicada en *Site URL*
+  y añádela a *Redirect URLs*. La app te enseña, en Ajustes → Sincronización,
+  la dirección exacta que va a pedir: cópiala tal cual.
+
+En *Redirect URLs* vale también un patrón, útil si sirves la app desde varios
+sitios: `https://USUARIO.github.io/kakeibo/**`.
+
 También puedes dejar URL y clave fijas en el build con `VITE_SUPABASE_URL` y
 `VITE_SUPABASE_ANON_KEY` (ver [`.env.example`](.env.example)); en un repositorio
 público quedarían a la vista, y por eso por defecto se escriben en Ajustes y se

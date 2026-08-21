@@ -190,6 +190,13 @@ const es = {
   'sync.lastSync': 'Última sincronización',
   'sync.never': 'todavía no',
   'sync.error': 'No se ha podido sincronizar',
+  'sync.returnTo': 'El enlace del correo volverá a',
+  'sync.noReturn':
+    'Estás abriendo la app desde un archivo local, así que el enlace del correo no puede volver aquí (te llevará al Site URL del proyecto, que por defecto es localhost). Entra con el código de seis dígitos, o publica la app y entra desde su dirección.',
+  'sync.siteUrlHint':
+    'En Supabase → Authentication → URL Configuration, pon esa misma dirección en Site URL y añádela a Redirect URLs.',
+  'sync.codeHint':
+    'Si el correo no trae código, añade {{ .Token }} a la plantilla Magic Link en Authentication → Email Templates.',
   'sync.help':
     'Los datos se guardan primero en este dispositivo; la nube es una copia que se fusiona cuando hay red. Nada se pierde si apuntas cosas en los dos sitios a la vez.',
 
@@ -349,6 +356,7 @@ const ja: Partial<Record<Key, string>> = {
   'sync.lastSync': '最後の同期',
   'sync.never': 'まだ',
   'sync.error': '同期できませんでした',
+  'sync.returnTo': 'メールのリンクの戻り先',
   'cat.limit': 'カテゴリの上限',
   'cat.limitNone': '上限なし',
   'cat.over': '上限超過',
@@ -502,6 +510,9 @@ const en: Partial<Record<Key, string>> = {
   'sync.lastSync': 'Last sync',
   'sync.never': 'not yet',
   'sync.error': 'Could not sync',
+  'sync.returnTo': 'The email link will return to',
+  'sync.noReturn':
+    'You are opening the app from a local file, so the email link cannot come back here. Use the six-digit code, or publish the app and sign in from its address.',
   'cat.limit': 'Monthly cap',
   'cat.limitNone': 'no cap',
   'cat.over': 'over the cap',

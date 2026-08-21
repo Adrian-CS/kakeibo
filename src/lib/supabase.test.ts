@@ -125,6 +125,14 @@ describe('llamadas', () => {
     expect(init.headers.apikey).toBe('anon-123')
   })
 
+  it('sin direccion de vuelta no manda redirect_to', async () => {
+    // asi Supabase usa el Site URL del proyecto a proposito, en vez de
+    // rechazar una direccion invalida y caer en el por sorpresa
+    const f = vi.fn().mockResolvedValue(okJson({}))
+    await sendLoginEmail(CFG, 'yo@ejemplo.com', null, f)
+    expect(f.mock.calls[0][0]).toBe('https://proyecto.supabase.co/auth/v1/otp')
+  })
+
   it('canjea el codigo de seis digitos', async () => {
     const f = vi
       .fn()

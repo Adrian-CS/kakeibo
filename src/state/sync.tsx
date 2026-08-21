@@ -36,6 +36,8 @@ export type SyncStatus = 'unconfigured' | 'signedOut' | 'idle' | 'working' | 'er
 
 export interface SyncApi {
   status: SyncStatus
+  /** direccion a la que volvera el enlace del correo (null si es imposible) */
+  redirectTo: string | null
   /** mensaje corto para la interfaz (ya traducido por quien lo pone) */
   message: string
   config: SupabaseConfig | null
@@ -51,10 +53,15 @@ export interface SyncApi {
 
 const SyncContext = createContext<SyncApi | null>(null)
 
-/** URL a la que vuelve el enlace del correo. */
-export function redirectTarget(): string {
+/**
+ * URL a la que debe volver el enlace del correo, o null si la app no esta
+ * servida por web (fichero local, `file://`): en ese caso no hay vuelta
+ * posible y hay que entrar con el codigo.
+ */
+export function redirectTarget(loc: { protocol: string; origin: string } = window.location): string | null {
+  if (loc.protocol !== 'http:' && loc.protocol !== 'https:') return null
   const base = import.meta.env?.BASE_URL ?? '/'
-  return `${window.location.origin}${base}`
+  return `${loc.origin}${base}`
 }
 
 export function SyncProvider({ children }: { children: ReactNode }) {
@@ -215,6 +222,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     () => ({
       status,
       message,
+      redirectTo: redirectTarget(),
       config,
       session,
       lastSyncAt: data.sync?.lastSyncAt,

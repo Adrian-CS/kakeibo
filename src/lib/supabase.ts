@@ -193,16 +193,24 @@ async function call<T>(
   return (text ? JSON.parse(text) : undefined) as T
 }
 
-/** Envia el correo con el enlace (y el codigo, si la plantilla lo incluye). */
+/**
+ * Envia el correo con el enlace (y el codigo, si la plantilla lo incluye).
+ *
+ * `redirectTo` puede ser null: si la app se abre desde un fichero local no hay
+ * direccion a la que volver, y mandar una invalida hace que Supabase caiga en
+ * el "Site URL" del proyecto (que por defecto es localhost). Mejor no mandar
+ * nada y que use el Site URL a proposito.
+ */
 export async function sendLoginEmail(
   cfg: SupabaseConfig,
   email: string,
-  redirectTo: string,
+  redirectTo: string | null,
   f: Fetcher = fetch,
 ): Promise<void> {
+  const query = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : ''
   await call<unknown>(
     cfg,
-    `/auth/v1/otp?redirect_to=${encodeURIComponent(redirectTo)}`,
+    `/auth/v1/otp${query}`,
     {
       method: 'POST',
       body: JSON.stringify({ email, create_user: true, gotrue_meta_security: {} }),
