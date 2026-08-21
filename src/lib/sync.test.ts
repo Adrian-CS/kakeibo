@@ -1,0 +1,194 @@
+import { describe, expect, it } from 'vitest'
+import {
+  mergeById,
+  mergeData,
+  mergeReport,
+  mergeTombstones,
+  needsPush,
+  newestIso,
+  signature,
+} from './sync'
+import { emptyData } from './defaults'
+import type { AppData, Expense } from './types'
+
+const T1 = '2026-08-01T10:00:00.000Z'
+const T2 = '2026-08-02T10:00:00.000Z'
+const T3 = '2026-08-03T10:00:00.000Z'
+
+function exp(id: string, amount: number, updatedAt?: string): Expense {
+  return {
+    id,
+    monthId: '2026-08',
+    categoryId: 'eating_out',
+    label: id,
+    amount,
+    kind: 'normal',
+    updatedAt,
+  }
+}
+
+function doc(expenses: Expense[], updatedAt: string, extra: Partial<AppData> = {}): AppData {
+  return { ...emptyData(new Date('2026-08-15T00:00:00')), expenses, updatedAt, ...extra }
+}
+
+describe('utilidades', () => {
+  it('newestIso', () => {
+    expect(newestIso(T1, T2)).toBe(T2)
+    expect(newestIso(T2, T1)).toBe(T2)
+    expect(newestIso(undefined, T1)).toBe(T1)
+    expect(newestIso(T1, undefined)).toBe(T1)
+    expect(newestIso()).toBe('')
+  })
+
+  it('mergeById se queda con la version mas nueva', () => {
+    const mine = [exp('a', 100, T1), exp('b', 200, T3)]
+    const theirs = [exp('a', 999, T2), exp('c', 300, T1)]
+    const out = mergeById(mine, theirs, T1, T2)
+    expect(out).toHaveLength(3)
+    expect(out.find((e) => e.id === 'a')!.amount).toBe(999)
+    expect(out.find((e) => e.id === 'b')!.amount).toBe(200)
+    expect(out.find((e) => e.id === 'c')!.amount).toBe(300)
+  })
+
+  it('mergeById usa la fecha del documento si el apunte no la lleva', () => {
+    const out = mergeById([exp('a', 1)], [exp('a', 2)], T3, T1)
+    expect(out[0].amount).toBe(1)
+  })
+
+  it('mergeTombstones deduplica y ordena por fecha', () => {
+    const out = mergeTombstones(
+      [{ id: 'x', at: T1 }],
+      [
+        { id: 'x', at: T3 },
+        { id: 'y', at: T2 },
+      ],
+    )
+    expect(out).toEqual([
+      { id: 'x', at: T3 },
+      { id: 'y', at: T2 },
+    ])
+  })
+})
+
+describe('mergeData', () => {
+  it('une los apuntes de los dos dispositivos', () => {
+    const local = doc([exp('cafe', 400, T2)], T2)
+    const remote = doc([exp('cerveza', 600, T1)], T1)
+    const out = mergeData(local, remote)
+    expect(out.expenses.map((e) => e.id).sort()).toEqual(['cafe', 'cerveza'])
+    expect(out.updatedAt).toBe(T2)
+  })
+
+  it('en un conflicto gana el apunte editado mas tarde', () => {
+    const local = doc([exp('a', 100, T1)], T1)
+    const remote = doc([exp('a', 250, T3)], T3)
+    expect(mergeData(local, remote).expenses[0].amount).toBe(250)
+    expect(mergeData(remote, local).expenses[0].amount).toBe(250)
+  })
+
+  it('lo borrado en un dispositivo no vuelve desde el otro', () => {
+    const local = doc([], T3, { deleted: [{ id: 'a', at: T3 }] })
+    const remote = doc([exp('a', 100, T1)], T1)
+    expect(mergeData(local, remote).expenses).toEqual([])
+    // y al contrario, la marca de borrado viaja
+    expect(mergeData(remote, local).expenses).toEqual([])
+  })
+
+  it('una edicion posterior al borrado gana', () => {
+    const local = doc([], T1, { deleted: [{ id: 'a', at: T1 }] })
+    const remote = doc([exp('a', 100, T3)], T3)
+    expect(mergeData(local, remote).expenses).toHaveLength(1)
+  })
+
+  it('es simetrico', () => {
+    const local = doc([exp('a', 1, T1), exp('b', 2, T3)], T3, { deleted: [{ id: 'z', at: T2 }] })
+    const remote = doc([exp('a', 9, T2), exp('c', 3, T1)], T2)
+    const ab = mergeData(local, remote)
+    const ba = mergeData(remote, local)
+    const key = (d: AppData) =>
+      d.expenses
+        .map((e) => `${e.id}:${e.amount}`)
+        .sort()
+        .join('|')
+    expect(key(ab)).toBe(key(ba))
+    expect(ab.deleted).toEqual(ba.deleted)
+  })
+
+  it('los ajustes vienen de la copia mas nueva', () => {
+    const local = doc([], T1)
+    local.settings = { ...local.settings, lang: 'ja' }
+    const remote = doc([], T3)
+    remote.settings = { ...remote.settings, lang: 'en' }
+    expect(mergeData(local, remote).settings.lang).toBe('en')
+    expect(mergeData(remote, local).settings.lang).toBe('en')
+  })
+
+  it('fusiona los extras de un mes uno a uno', () => {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    const local: AppData = {
+      ...base,
+      updatedAt: T2,
+      months: [
+        {
+          id: '2026-08',
+          rentJpy: 80000,
+          fxRate: 0.0056,
+          limitJpy: 200000,
+          extras: [{ id: 'luz', label: 'luz', amount: 4000 }],
+          updatedAt: T2,
+        },
+      ],
+    }
+    const remote: AppData = {
+      ...base,
+      updatedAt: T1,
+      months: [
+        {
+          id: '2026-08',
+          rentJpy: 80000,
+          fxRate: 0.0056,
+          limitJpy: 200000,
+          extras: [{ id: 'agua', label: 'agua', amount: 3000 }],
+          updatedAt: T1,
+        },
+      ],
+    }
+    const out = mergeData(local, remote)
+    expect(out.months).toHaveLength(1)
+    expect(out.months[0].extras.map((e) => e.id).sort()).toEqual(['agua', 'luz'])
+  })
+
+  it('el estado de sincronizacion no se importa del remoto', () => {
+    const local = doc([], T2, { sync: { lastSyncAt: T2, email: 'yo@ejemplo.com' } })
+    const remote = doc([], T1, { sync: { lastSyncAt: T1, email: 'otro@ejemplo.com' } })
+    expect(mergeData(local, remote).sync?.email).toBe('yo@ejemplo.com')
+  })
+
+  it('la huella no depende del orden', () => {
+    const a = doc([exp('a', 100, T1), exp('b', 200, T2)], T2)
+    const b = doc([exp('b', 200, T2), exp('a', 100, T1)], T2)
+    expect(signature(a)).toBe(signature(b))
+    expect(signature(doc([exp('a', 100, T1)], T1))).not.toBe(signature(a))
+  })
+
+  it('needsPush', () => {
+    const local = doc([exp('a', 100, T1)], T2)
+    expect(needsPush(local, null)).toBe(true)
+    expect(needsPush(local, doc([exp('a', 100, T1)], T1))).toBe(true)
+    expect(needsPush(local, doc([exp('a', 100, T1)], T2))).toBe(false)
+    // misma fecha pero al remoto le falta un apunte
+    expect(needsPush(doc([exp('a', 1, T1), exp('b', 2, T1)], T2), doc([exp('a', 1, T1)], T2))).toBe(
+      true,
+    )
+  })
+
+  it('informa de lo que ha cambiado', () => {
+    const local = doc([exp('a', 1, T1)], T1)
+    const merged = doc([exp('a', 1, T1), exp('b', 2, T2)], T2)
+    expect(mergeReport(local, merged)).toEqual({
+      addedExpenses: 1,
+      removedExpenses: 0,
+      addedMonths: 0,
+    })
+  })
+})

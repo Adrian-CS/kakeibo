@@ -6,6 +6,7 @@ coverage
 .vite
 .env
 .env.*
+!.env.example
 
 # datos personales: nunca al repositorio
 /private/
