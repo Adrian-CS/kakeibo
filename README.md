@@ -90,7 +90,8 @@ tenga su copia. Hay dos formas de juntarlas:
 
 - **A mano**: Ajustes → *Exportar datos* descarga un `.json` con todo, e
   *Importar datos* lo restaura en el otro dispositivo. Es también la copia de
-  seguridad recomendada.
+  seguridad recomendada. Ojo: *Importar datos* **reemplaza** lo que haya en ese
+  dispositivo, mientras que *Importar Excel* deja elegir mes a mes.
 - **Automática**: la sincronización con Supabase que se describe abajo.
 
 ## Sincronizar el móvil y el PC (Supabase, plan gratuito)
@@ -133,6 +134,36 @@ También puedes dejar URL y clave fijas en el build con `VITE_SUPABASE_URL` y
 público quedarían a la vista, y por eso por defecto se escriben en Ajustes y se
 guardan solo en el dispositivo.
 
+### Quién puede ver los datos
+
+La página es pública (cualquiera puede abrirla), los datos no. Quien entre sin
+sesión ve la app vacía:
+
+- La clave *anon* que va en la página no da acceso a nada por sí sola: la
+  política RLS exige `auth.uid() = user_id`, y sin sesión `auth.uid()` es nulo,
+  así que la consulta devuelve cero filas.
+- Para leer tus datos hace falta una sesión válida, y la única forma de
+  conseguirla es recibir el correo en tu buzón. No hay contraseña que adivinar:
+  la llave es tu correo.
+- La sesión (token de una hora + token de refresco) se guarda en el navegador
+  del dispositivo donde entraste.
+
+De ahí salen los riesgos reales, que no son la URL pública: quien entre en tu
+correo puede entrar en la app, y quien use tu dispositivo desbloqueado también.
+
+Dos cosas que conviene hacer:
+
+1. En **Authentication → Sign In / Providers**, una vez creada tu cuenta,
+   desactiva *Allow new users to sign up*. Así nadie más puede registrarse con
+   la clave pública (sus datos irían a su propia fila, pero mejor cerrarlo).
+2. La clave *service_role* de **Project Settings → API** no se pone nunca en la
+   app: esa sí se salta la RLS.
+
+Y una limitación honesta: en Supabase los datos se guardan sin cifrar, así que
+el proveedor podría leerlos. Para un registro de gastos domésticos es un
+riesgo asumible; si no lo fuera, la opción es no sincronizar y quedarse con la
+copia local más las exportaciones.
+
 ### Cómo se fusionan los cambios
 
 Cada dispositivo sube el documento completo y, al bajar, se fusiona con el
@@ -143,6 +174,10 @@ local (`src/lib/sync.ts`):
 - lo que borras deja una marca con la fecha, así que no resucita al
   sincronizar — salvo que se haya editado *después* de borrarlo, caso en el que
   gana la edición, que es lo menos destructivo.
+
+La primera vez que entras en un dispositivo nuevo no se fusiona nada: como no
+tiene apuntes, adopta la copia de la nube tal cual (categorías, ajustes,
+idioma). A partir de ahí sí se fusiona.
 
 La sincronización ocurre al abrir la app, al volver a ella, al recuperar la
 conexión y unos segundos después de cada cambio. Si falla, no pasa nada: los

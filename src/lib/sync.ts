@@ -72,6 +72,25 @@ function alive<T extends Identified>(items: T[], deleted: Map<string, string>, f
   })
 }
 
+/**
+ * Un dispositivo "en blanco": recien instalado o recien vaciado. No tiene
+ * apuntes, ni fotos de ahorros, ni marcas de borrado; lo unico que puede
+ * tener es el mes en curso, creado solo al abrir la app.
+ *
+ * Distinguirlo importa: al entrar por primera vez en un movil nuevo, lo suyo
+ * es adoptar la copia de la nube entera (categorias renombradas, ajustes,
+ * idioma) en vez de fusionarla con unos valores por defecto que son mas
+ * "nuevos" solo porque el reloj dice que se crearon hace un segundo.
+ */
+export function isBlankDevice(d: AppData): boolean {
+  return (
+    d.expenses.length === 0 &&
+    d.snapshots.length === 0 &&
+    (d.deleted?.length ?? 0) === 0 &&
+    d.months.every((m) => m.extras.length === 0)
+  )
+}
+
 /** Fusiona la copia local con la remota. El resultado es simetrico. */
 export function mergeData(local: AppData, remote: AppData): AppData {
   const localAt = local.updatedAt ?? ''

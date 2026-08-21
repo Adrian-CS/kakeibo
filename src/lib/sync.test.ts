@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  isBlankDevice,
   mergeById,
   mergeData,
   mergeReport,
@@ -180,6 +181,27 @@ describe('mergeData', () => {
     expect(needsPush(doc([exp('a', 1, T1), exp('b', 2, T1)], T2), doc([exp('a', 1, T1)], T2))).toBe(
       true,
     )
+  })
+
+  it('reconoce un dispositivo en blanco', () => {
+    const blank = emptyData(new Date('2026-08-15T00:00:00'))
+    expect(isBlankDevice(blank)).toBe(true)
+    // el mes en curso, creado al abrir la app, no cuenta
+    expect(isBlankDevice({ ...blank, months: [...blank.months] })).toBe(true)
+    expect(isBlankDevice(doc([exp('a', 100, T1)], T1))).toBe(false)
+    expect(isBlankDevice({ ...blank, deleted: [{ id: 'x', at: T1 }] })).toBe(false)
+    expect(
+      isBlankDevice({
+        ...blank,
+        snapshots: [{ id: 's', date: '2026-08-01', accounts: [] }],
+      }),
+    ).toBe(false)
+    expect(
+      isBlankDevice({
+        ...blank,
+        months: [{ ...blank.months[0], extras: [{ id: 'x', label: 'luz', amount: 4000 }] }],
+      }),
+    ).toBe(false)
   })
 
   it('informa de lo que ha cambiado', () => {

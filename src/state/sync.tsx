@@ -29,7 +29,8 @@ import {
   type Session,
   type SupabaseConfig,
 } from '../lib/supabase'
-import { mergeData, mergeReport, needsPush, nowIso, signature } from '../lib/sync'
+import { isBlankDevice, mergeData, mergeReport, needsPush, nowIso, signature } from '../lib/sync'
+import { monthIdOf } from '../lib/defaults'
 import type { AppData } from '../lib/types'
 
 export type SyncStatus = 'unconfigured' | 'signedOut' | 'idle' | 'working' | 'error'
@@ -120,7 +121,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const local = dataRef.current
       let merged = local
 
-      if (remote) {
+      if (remote && isBlankDevice(local)) {
+        // primer acceso en este dispositivo: se adopta la copia de la nube
+        merged = { ...remote.data, sync: local.sync }
+        dispatch({ type: 'applyMerge', data: merged })
+        dispatch({ type: 'ensureMonth', monthId: monthIdOf() })
+      } else if (remote) {
         merged = mergeData(local, remote.data)
         const report = mergeReport(local, merged)
         if (report.addedExpenses || report.removedExpenses || report.addedMonths) {
