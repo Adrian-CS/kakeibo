@@ -265,6 +265,71 @@ export function computeStats(data: AppData, opts: StatsOptions = {}): Stats {
 }
 
 /* ------------------------------------------------------------------ *
+ * Comparacion con el ano anterior
+ * ------------------------------------------------------------------ */
+
+export interface YoyPoint {
+  /** mes 1-12 */
+  month: number
+  /** 'YYYY-MM' del ano en curso */
+  monthId: string
+  currentJpy: number | null
+  previousJpy: number | null
+}
+
+export interface Yoy {
+  year: number
+  points: YoyPoint[]
+  currentTotal: number
+  previousTotal: number
+  /** variacion del total acumulado; 0 si el ano anterior no tiene datos */
+  ratio: number
+  /** meses con datos en los dos anos */
+  comparable: number
+}
+
+/**
+ * Serie de doce meses del ano de `monthId` frente al mismo mes del ano
+ * anterior. Solo se comparan meses que existen en los dos anos, para que la
+ * variacion no salga distorsionada por meses vacios.
+ */
+export function computeYoy(data: AppData, monthId: string, opts: StatsOptions = {}): Yoy {
+  const src = opts.excludeExtraordinary
+    ? { ...data, expenses: data.expenses.filter((e) => e.kind !== 'extraordinary') }
+    : data
+  const year = Number(monthId.slice(0, 4))
+  const have = new Set(monthsWithData(src))
+
+  const points: YoyPoint[] = []
+  let currentTotal = 0
+  let previousTotal = 0
+  let comparable = 0
+
+  for (let m = 1; m <= 12; m++) {
+    const mm = String(m).padStart(2, '0')
+    const cur = `${year}-${mm}`
+    const prev = `${year - 1}-${mm}`
+    const currentJpy = have.has(cur) ? monthTotals(src, cur).totalJpy : null
+    const previousJpy = have.has(prev) ? monthTotals(src, prev).totalJpy : null
+    points.push({ month: m, monthId: cur, currentJpy, previousJpy })
+    if (currentJpy !== null && previousJpy !== null) {
+      currentTotal += currentJpy
+      previousTotal += previousJpy
+      comparable += 1
+    }
+  }
+
+  return {
+    year,
+    points,
+    currentTotal,
+    previousTotal,
+    ratio: previousTotal > 0 ? currentTotal / previousTotal - 1 : 0,
+    comparable,
+  }
+}
+
+/* ------------------------------------------------------------------ *
  * Rankings
  * ------------------------------------------------------------------ */
 

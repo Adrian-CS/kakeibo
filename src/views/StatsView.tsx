@@ -3,6 +3,7 @@ import { useStore } from '../state/store'
 import {
   activeCategories,
   computeStats,
+  computeYoy,
   datedCount,
   monthBurn,
   monthTotals,
@@ -17,6 +18,7 @@ import {
   fmtMonth,
   fmtMonthAxis,
   fmtNumber,
+  fmtPercent,
   fmtSignedPercent,
 } from '../lib/format'
 import { seriesVar } from '../lib/palette'
@@ -101,6 +103,11 @@ export function StatsView({ monthId }: { monthId: string }) {
     label: fmtMonth(m.monthId, lang),
     values: { day: m.perDayJpy },
   }))
+
+  const yoy = computeYoy(data, focusId, { excludeExtraordinary: excludeExtra })
+  const monthNames = Array.from({ length: 12 }, (_, i) =>
+    fmtMonthAxis(`${yoy.year}-${String(i + 1).padStart(2, '0')}`, lang),
+  )
 
   const burn = monthBurn(data, focusId)
   const hasDays = datedCount(data, focusId) > 0
@@ -302,6 +309,70 @@ export function StatsView({ monthId }: { monthId: string }) {
           )}
         </Card>
       </div>
+
+      {/* comparacion con el ano anterior */}
+      <Card
+        title={`${t('stats.yoy')} · ${yoy.year}`}
+        hint={t('stats.yoyHint')}
+        actions={
+          yoy.comparable > 0 ? (
+            <span
+              className="text-sm font-semibold tabular-nums"
+              style={{ color: yoy.ratio <= 0 ? 'var(--good-text)' : 'var(--critical)' }}
+            >
+              {fmtSignedPercent(yoy.ratio, lang)}
+            </span>
+          ) : undefined
+        }
+      >
+        {yoy.comparable === 0 ? (
+          <p className="text-sm text-muted">{t('stats.yoyNoData')}</p>
+        ) : (
+          <>
+            <Lines
+              data={yoy.points.map((p) => ({
+                x: p.month,
+                label: monthNames[p.month - 1],
+                values: { current: p.currentJpy, previous: p.previousJpy },
+              }))}
+              series={[
+                { key: 'current', label: `${t('stats.thisYear')} (${yoy.year})`, color: seriesVar(0) },
+                {
+                  key: 'previous',
+                  label: `${t('stats.lastYear')} (${yoy.year - 1})`,
+                  color: seriesVar(1),
+                },
+              ]}
+              fmtValue={jpy}
+              fmtTick={compact}
+              fmtX={(_, label) => label}
+              title={t('stats.yoy')}
+            />
+            <p className="mt-2 text-xs text-muted">
+              {t('stats.thisYear')}: <span className="tabular-nums">{jpy(yoy.currentTotal)}</span> ·{' '}
+              {t('stats.lastYear')}: <span className="tabular-nums">{jpy(yoy.previousTotal)}</span> ·{' '}
+              {yoy.comparable} {t(yoy.comparable === 1 ? 'stats.monthsOne' : 'stats.months')}{' '}
+              ({fmtPercent(yoy.ratio, lang)} {t('stats.yoyDelta')})
+            </p>
+            {tables && (
+              <DataTable
+                caption={t('stats.yoy')}
+                columns={[t('common.month'), String(yoy.year), String(yoy.year - 1), t('stats.yoyDelta')]}
+                rows={yoy.points
+                  .filter((p) => p.currentJpy !== null || p.previousJpy !== null)
+                  .map((p) => [
+                    monthNames[p.month - 1],
+                    p.currentJpy === null ? '—' : fmtNumber(p.currentJpy, lang),
+                    p.previousJpy === null ? '—' : fmtNumber(p.previousJpy, lang),
+                    p.currentJpy !== null && p.previousJpy
+                      ? fmtSignedPercent(p.currentJpy / p.previousJpy - 1, lang)
+                      : '—',
+                  ])}
+              />
+            )}
+          </>
+        )}
+      </Card>
 
       {/* gastos mas grandes */}
       <Card title={t('stats.topExpenses')}>

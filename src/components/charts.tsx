@@ -627,6 +627,29 @@ export function Lines({
             />
           ))}
 
+          {/* un punto aislado entre huecos no dibuja linea: se marca con un dot */}
+          {series.flatMap((s) =>
+            data.map((p, i) => {
+              const v = p.values[s.key]
+              if (v === null || v === undefined) return null
+              const prev = data[i - 1]?.values[s.key]
+              const next = data[i + 1]?.values[s.key]
+              const lonely = (prev === null || prev === undefined) && (next === null || next === undefined)
+              if (!lonely) return null
+              return (
+                <circle
+                  key={`lonely-${s.key}-${i}`}
+                  cx={xOf(i)}
+                  cy={yOf(v)}
+                  r="4"
+                  fill={s.color}
+                  stroke="var(--surface-1)"
+                  strokeWidth="2"
+                />
+              )
+            }),
+          )}
+
           {data.map((p, i) =>
             // el ultimo siempre; el resto solo si no choca con el ultimo
             i === n - 1 || (i % labelEvery === 0 && n - 1 - i >= labelEvery) ? (

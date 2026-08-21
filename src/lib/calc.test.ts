@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   accountToJpy,
   computeStats,
+  computeYoy,
   daysInMonth,
   isValidMonthId,
   median,
@@ -190,6 +191,76 @@ describe('ritmo del mes', () => {
     expect(p).toBeCloseTo((86000 / 10) * 31, 6)
     // un mes pasado no se proyecta
     expect(projectMonth(data, '2026-07', new Date('2026-08-10T12:00:00'))).toBe(194590)
+  })
+})
+
+describe('comparacion con el ano anterior', () => {
+  function twoYears(): AppData {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    const months = ['2025-06', '2025-07', '2026-06', '2026-07', '2026-08'].map((id) => ({
+      id,
+      rentJpy: 0,
+      extras: [],
+      fxRate: 0.0056,
+      limitJpy: 200000,
+    }))
+    const amounts: Record<string, number> = {
+      '2025-06': 100000,
+      '2025-07': 120000,
+      '2026-06': 90000,
+      '2026-07': 150000,
+      '2026-08': 80000,
+    }
+    return {
+      ...base,
+      months,
+      expenses: Object.entries(amounts).map(([monthId, amount]) => ({
+        id: `e-${monthId}`,
+        monthId,
+        categoryId: 'eating_out',
+        label: 'x',
+        amount,
+        kind: 'normal' as const,
+      })),
+    }
+  }
+
+  it('devuelve doce meses, con huecos donde no hay datos', () => {
+    const y = computeYoy(twoYears(), '2026-08')
+    expect(y.year).toBe(2026)
+    expect(y.points).toHaveLength(12)
+    expect(y.points[5]).toMatchObject({ month: 6, currentJpy: 90000, previousJpy: 100000 })
+    expect(y.points[7]).toMatchObject({ month: 8, currentJpy: 80000, previousJpy: null })
+    expect(y.points[0]).toMatchObject({ currentJpy: null, previousJpy: null })
+  })
+
+  it('solo compara meses que existen en los dos anos', () => {
+    const y = computeYoy(twoYears(), '2026-08')
+    // junio y julio: 90000+150000 frente a 100000+120000
+    expect(y.comparable).toBe(2)
+    expect(y.currentTotal).toBe(240000)
+    expect(y.previousTotal).toBe(220000)
+    expect(y.ratio).toBeCloseTo(240000 / 220000 - 1, 6)
+  })
+
+  it('sin ano anterior la variacion es cero', () => {
+    const y = computeYoy(twoYears(), '2025-07')
+    expect(y.comparable).toBe(0)
+    expect(y.ratio).toBe(0)
+  })
+
+  it('puede excluir los extraordinarios', () => {
+    const data = twoYears()
+    data.expenses.push({
+      id: 'extra',
+      monthId: '2026-06',
+      categoryId: 'home',
+      label: 'mudanza',
+      amount: 300000,
+      kind: 'extraordinary',
+    })
+    expect(computeYoy(data, '2026-08').points[5].currentJpy).toBe(390000)
+    expect(computeYoy(data, '2026-08', { excludeExtraordinary: true }).points[5].currentJpy).toBe(90000)
   })
 })
 
