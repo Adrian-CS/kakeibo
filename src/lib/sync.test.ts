@@ -172,6 +172,55 @@ describe('mergeData', () => {
     expect(signature(doc([exp('a', 100, T1)], T1))).not.toBe(signature(a))
   })
 
+  it('la huella cambia con una edicion pura, sin alta ni baja', () => {
+    // bug real: antes la huella solo miraba recuentos/sumas, asi que editar
+    // un apunte que ya existia (sin tocar el importe) no cambiaba nada, y ni
+    // la subida se disparaba ni la fusion se llegaba a aplicar en el otro lado
+    const base = doc([exp('a', 100, T1)], T1)
+    const relabelled = doc([{ ...exp('a', 100, T1), label: 'otro nombre' }], T1)
+    const reNoted = doc([{ ...exp('a', 100, T1), note: 'nota nueva' }], T1)
+    const reDayed = doc([{ ...exp('a', 100, T1), day: 5 }], T1)
+    const reKinded = doc([{ ...exp('a', 100, T1), kind: 'recurring' }], T1)
+    expect(signature(relabelled)).not.toBe(signature(base))
+    expect(signature(reNoted)).not.toBe(signature(base))
+    expect(signature(reDayed)).not.toBe(signature(base))
+    expect(signature(reKinded)).not.toBe(signature(base))
+  })
+
+  it('la huella cambia al editar el mes, una categoria, los ajustes o un ahorro', () => {
+    const base = doc([], T1)
+    const month = { id: '2026-08', rentJpy: 80000, extras: [], fxRate: 0.005, limitJpy: 150000 }
+    const withRent = doc([], T1, { months: [{ ...month, rentJpy: 90000 }] })
+    const withoutRent = doc([], T1, { months: [month] })
+    expect(signature(withRent)).not.toBe(signature(withoutRent))
+
+    const cat = base.categories[0]
+    const renamed = doc([], T1, { categories: [{ ...cat, name: 'Otro nombre' }] })
+    expect(signature(renamed)).not.toBe(signature(base))
+
+    const settingsChanged = doc([], T1, { settings: { ...base.settings, defaultLimitJpy: 999999 } })
+    expect(signature(settingsChanged)).not.toBe(signature(base))
+
+    const withSnapshot = doc([], T1, {
+      snapshots: [{ id: 's', date: '2026-08-01', accounts: [{ id: 'a', name: 'x', amount: 100, currency: 'JPY' }] }],
+    })
+    const withEditedSnapshot = doc([], T1, {
+      snapshots: [{ id: 's', date: '2026-08-01', accounts: [{ id: 'a', name: 'x', amount: 200, currency: 'JPY' }] }],
+    })
+    expect(signature(withSnapshot)).not.toBe(signature(withEditedSnapshot))
+  })
+
+  it('una edicion que llega de otro dispositivo se refleja al fusionar (no solo altas y bajas)', () => {
+    // reproduce el bug de verdad: el otro dispositivo edito el importe de un
+    // apunte que ya existia aqui, sin anadir ni borrar ninguno
+    const local = doc([exp('a', 100, T1)], T1)
+    const remote = doc([exp('a', 250, T2)], T2)
+    const merged = mergeData(local, remote)
+    expect(merged.expenses[0].amount).toBe(250)
+    // esto es justo lo que decide si se aplica la fusion en state/sync.tsx
+    expect(signature(merged)).not.toBe(signature(local))
+  })
+
   it('needsPush', () => {
     const local = doc([exp('a', 100, T1)], T2)
     expect(needsPush(local, null)).toBe(true)

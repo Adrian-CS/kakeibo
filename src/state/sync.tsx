@@ -29,7 +29,7 @@ import {
   type Session,
   type SupabaseConfig,
 } from '../lib/supabase'
-import { isBlankDevice, mergeData, mergeReport, needsPush, nowIso, signature } from '../lib/sync'
+import { isBlankDevice, mergeData, needsPush, nowIso, signature } from '../lib/sync'
 import { monthIdOf } from '../lib/defaults'
 import type { AppData } from '../lib/types'
 
@@ -128,8 +128,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'ensureMonth', monthId: monthIdOf() })
       } else if (remote) {
         merged = mergeData(local, remote.data)
-        const report = mergeReport(local, merged)
-        if (report.addedExpenses || report.removedExpenses || report.addedMonths) {
+        // solo aplicamos si el contenido cambia de verdad: comparar solo
+        // altas/bajas de gastos dejaba fuera cualquier edicion pura (importe,
+        // alquiler, ajustes, categorias...) que llegara de otro dispositivo
+        if (signature(merged) !== signature(local)) {
           dispatch({ type: 'applyMerge', data: { ...merged, sync: local.sync } })
         }
       }

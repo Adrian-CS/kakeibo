@@ -157,20 +157,51 @@ export function mergeData(local: AppData, remote: AppData): AppData {
 
 /**
  * Huella del contenido, insensible al orden: sirve para decidir si hay que
- * subir el documento sin comparar dos JSON enteros.
+ * subir o aplicar el documento sin comparar dos JSON enteros campo a campo.
+ *
+ * Incluye el valor de cada campo mutable (no solo recuentos o sumas), para
+ * que una edicion sin alta ni baja -cambiar el alquiler, renombrar una
+ * categoria, corregir el importe o la nota de un gasto que ya existia-
+ * tambien cambie la huella. Antes solo miraba cantidades (numero de gastos,
+ * suma de importes...), asi que esas ediciones se quedaban sin subir o sin
+ * aplicar al fusionar con otro dispositivo.
  */
 export function signature(d: AppData): string {
-  const total = d.expenses.reduce((a, e) => a + e.amount, 0)
-  const extras = d.months.reduce((a, m) => a + m.extras.length, 0)
-  return [
-    d.expenses.length,
-    Math.round(total * 100),
-    d.months.length,
-    extras,
-    d.snapshots.length,
-    d.categories.length,
-    (d.deleted ?? []).length,
-  ].join(':')
+  const byId = <T extends { id: string }>(xs: T[]) => [...xs].sort((a, b) => a.id.localeCompare(b.id))
+
+  const expenses = byId(d.expenses)
+    .map((e) => [e.id, e.categoryId, e.label, e.amount, e.day ?? '', e.kind, e.note ?? ''].join('|'))
+    .join(';')
+
+  const categories = byId(d.categories)
+    .map((c) =>
+      [c.id, c.name, c.nameJa ?? '', c.bucket, c.colorSlot, c.archived ? 1 : 0, c.limitJpy ?? ''].join('|'),
+    )
+    .join(';')
+
+  const months = byId(d.months)
+    .map((m) => {
+      const extras = byId(m.extras)
+        .map((x) => [x.id, x.label, x.amount].join(':'))
+        .join(',')
+      return [m.id, m.rentJpy, m.fxRate, m.limitJpy, m.note ?? '', extras].join('|')
+    })
+    .join(';')
+
+  const snapshots = byId(d.snapshots)
+    .map((s) => {
+      const accounts = byId(s.accounts)
+        .map((a) => [a.id, a.amount, a.currency, a.isDebt ? 1 : 0].join(':'))
+        .join(',')
+      return [s.id, s.date, s.note ?? '', accounts].join('|')
+    })
+    .join(';')
+
+  const deleted = byId(d.deleted ?? [])
+    .map((t) => `${t.id}:${t.at}`)
+    .join(';')
+
+  return [expenses, categories, months, snapshots, deleted, JSON.stringify(d.settings)].join('##')
 }
 
 /** Hay que subir si el remoto no existe, es mas viejo o le falta contenido. */
