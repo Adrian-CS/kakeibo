@@ -469,7 +469,7 @@ export function MonthView({
 
       {totals.incomeJpy > 0 && (
         <Card title={t('totals.savingsForecast')} hint={t('totals.savingsForecastHint')}>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <StatTile
               label={t('totals.savingsWorstLimit')}
               value={fmtJpy(savingsWorstCaseJpy, lang)}

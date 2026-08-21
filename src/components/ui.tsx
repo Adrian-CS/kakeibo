@@ -366,7 +366,10 @@ export function StatTile({
   children?: ReactNode
 }) {
   return (
-    <div className="rounded-xl border border-hairline bg-surface p-3">
+    // min-w-0: sin esto, un valor largo (importes grandes de varias cifras)
+    // puede desbordar la celda en vez de encogerse, y en una rejilla de
+    // varias columnas eso se ve como el numero cortado por el borde
+    <div className="min-w-0 rounded-xl border border-hairline bg-surface p-3">
       <div className="flex items-center gap-1.5">
         {accent && (
           <span
@@ -377,7 +380,7 @@ export function StatTile({
         )}
         <span className="truncate text-xs text-ink-2">{label}</span>
       </div>
-      <div className="mt-1 text-2xl leading-tight font-semibold text-ink">{value}</div>
+      <div className="mt-1 text-2xl leading-tight font-semibold break-words text-ink">{value}</div>
       <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
         {secondary && <span className="text-xs text-muted">{secondary}</span>}
         {delta && (
