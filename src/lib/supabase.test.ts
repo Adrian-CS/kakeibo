@@ -13,6 +13,7 @@ import {
   saveConfig,
   saveSession,
   sessionFromTokens,
+  setUserPassword,
   signInWithPassword,
   signUpWithPassword,
 } from './supabase'
@@ -129,6 +130,16 @@ describe('llamadas', () => {
     const f = vi.fn().mockResolvedValue(okJson({ msg: 'Invalid login credentials' }, 400))
     await expect(signInWithPassword(CFG, 'a@b.c', 'mala', f)).rejects.toThrow(/Invalid login/)
     await expect(signInWithPassword(CFG, 'a@b.c', 'mala', f)).rejects.toBeInstanceOf(SupabaseError)
+  })
+
+  it('pone la contraseña de la cuenta ya autenticada', async () => {
+    const f = vi.fn().mockResolvedValue(okJson({ id: 'user-1' }))
+    await setUserPassword(CFG, session(), 'clave-nueva', f)
+    const [url, init] = f.mock.calls[0]
+    expect(url).toBe('https://proyecto.supabase.co/auth/v1/user')
+    expect(init.method).toBe('PUT')
+    expect(init.headers.Authorization).toBe(`Bearer ${TOKEN}`)
+    expect(JSON.parse(init.body)).toEqual({ password: 'clave-nueva' })
   })
 
   it('no refresca una sesion que aun vale', async () => {

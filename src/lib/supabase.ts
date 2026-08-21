@@ -209,6 +209,30 @@ export async function signInWithPassword(
   return sessionFromTokens(t)
 }
 
+/**
+ * Pone (o cambia) la contraseña de la cuenta ya autenticada. Hace falta para
+ * las cuentas que se crearon antes con el enlace del correo, que nunca
+ * llegaron a tener una: con la sesion todavia abierta, esto les da la
+ * contraseña que les falta sin tener que borrar la cuenta ni perder datos.
+ */
+export async function setUserPassword(
+  cfg: SupabaseConfig,
+  session: Session,
+  password: string,
+  f: Fetcher = fetch,
+): Promise<void> {
+  await call<unknown>(
+    cfg,
+    '/auth/v1/user',
+    {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+      body: JSON.stringify({ password }),
+    },
+    f,
+  )
+}
+
 export async function refreshSession(
   cfg: SupabaseConfig,
   session: Session,

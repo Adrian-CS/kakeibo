@@ -25,6 +25,7 @@ import {
   pushDoc,
   saveConfig,
   saveSession,
+  setUserPassword,
   signInWithPassword,
   signOut,
   signUpWithPassword,
@@ -48,6 +49,7 @@ export interface SyncApi {
   setConfig: (c: SupabaseConfig | null) => void
   signUp: (email: string, password: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
+  setPassword: (password: string) => Promise<void>
   syncNow: () => Promise<void>
   logOut: () => Promise<void>
 }
@@ -191,6 +193,25 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [config, dispatch],
   )
 
+  const setPassword = useCallback(
+    async (password: string) => {
+      if (!config || !session) return
+      setStatus('working')
+      setMessage('')
+      try {
+        const fresh = await ensureFresh(config, session)
+        if (fresh !== session) setSession(fresh)
+        await setUserPassword(config, fresh, password)
+        setStatus('idle')
+        setMessage(t('sync.passwordSet'))
+      } catch (e) {
+        setStatus('error')
+        setMessage(e instanceof Error ? e.message : String(e))
+      }
+    },
+    [config, session, t],
+  )
+
   const logOut = useCallback(async () => {
     if (config && session) await signOut(config, session)
     saveSession(null)
@@ -232,10 +253,23 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setConfig,
       signUp,
       signIn,
+      setPassword,
       syncNow,
       logOut,
     }),
-    [status, message, config, session, data.sync?.lastSyncAt, setConfig, signUp, signIn, syncNow, logOut],
+    [
+      status,
+      message,
+      config,
+      session,
+      data.sync?.lastSyncAt,
+      setConfig,
+      signUp,
+      signIn,
+      setPassword,
+      syncNow,
+      logOut,
+    ],
   )
 
   return <SyncContext.Provider value={api}>{children}</SyncContext.Provider>

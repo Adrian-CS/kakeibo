@@ -139,6 +139,13 @@ correo de confirmación: ábrelo una vez y vuelve a la app para pulsar *Entrar*
 con tu contraseña. Si lo desactivas ahí, *Crear cuenta* deja la sesión
 abierta al momento, sin pasar por el correo en absoluto.
 
+**Si ya usabas la sincronización de antes** (por enlace de correo, sin
+contraseña): esa cuenta sigue abierta en el dispositivo donde ya habías
+entrado, así que verás la pantalla de "sesión activa" en vez del formulario
+de correo y contraseña. Ahí abajo hay un enlace *¿Sesión de un enlace de
+correo antiguo? Ponle contraseña*: ponle una y a partir de ahí ya puedes
+entrar con ella (correo + contraseña) en cualquier otro dispositivo.
+
 También puedes dejar URL y clave fijas en el build con `VITE_SUPABASE_URL` y
 `VITE_SUPABASE_ANON_KEY` (ver [`.env.example`](.env.example)); en un repositorio
 público quedarían a la vista, y por eso por defecto se escriben en Ajustes y se

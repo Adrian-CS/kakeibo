@@ -14,6 +14,8 @@ export function SyncCard() {
   const [email, setEmail] = useState(data.sync?.email ?? '')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn')
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
 
   const working = sync.status === 'working'
 
@@ -124,6 +126,39 @@ export function SyncCard() {
             </Button>
             <Button onClick={() => void sync.logOut()}>{t('sync.logOut')}</Button>
           </div>
+
+          {!showPasswordForm ? (
+            <button
+              type="button"
+              className="text-xs text-muted underline"
+              onClick={() => setShowPasswordForm(true)}
+            >
+              {t('sync.setPasswordLink')}
+            </button>
+          ) : (
+            <div className="grid gap-3 border-t border-hairline pt-3 sm:grid-cols-2">
+              <Field label={t('sync.password')} hint={t('sync.passwordHint')}>
+                <TextInput
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </Field>
+              <div className="flex items-end">
+                <Button
+                  disabled={newPassword.length < 6 || working}
+                  onClick={() => {
+                    void sync.setPassword(newPassword)
+                    setNewPassword('')
+                    setShowPasswordForm(false)
+                  }}
+                >
+                  {working ? t('sync.working') : t('sync.savePassword')}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
