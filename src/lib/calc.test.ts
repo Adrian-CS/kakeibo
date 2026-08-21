@@ -13,6 +13,7 @@ import {
   monthsWithData,
   noCostItems,
   normalizeLabel,
+  overspendDebt,
   projectMonth,
   projectSavings,
   recentActiveAverageJpy,
@@ -169,6 +170,32 @@ describe('totales del mes (formulas del Excel)', () => {
   it('reparte el total entre los dias del mes', () => {
     const t = monthTotals(data, '2026-08')
     expect(t.perDayJpy).toBeCloseTo(86000 / 31, 6)
+  })
+})
+
+describe('deuda por sobregasto', () => {
+  it('null si el mes no existe, o si no se paso del limite', () => {
+    const data = build()
+    expect(overspendDebt(data, '2030-01')).toBeNull()
+    // 2026-08: 86000 de total, limite 150000 -> no se paso
+    expect(overspendDebt(data, '2026-08')).toBeNull()
+  })
+
+  it('calcula cuanto se paso y la fecha del ultimo dia del mes', () => {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    const data: AppData = {
+      ...base,
+      months: [{ id: '2026-08', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 50000, incomeJpy: 0 }],
+      expenses: [
+        { id: 'e1', monthId: '2026-08', categoryId: 'eating_out', label: 'x', amount: 4000, kind: 'normal' },
+      ],
+    }
+    // total: 80000 + 4000 = 84000, limite 50000 -> se paso en 34000
+    expect(overspendDebt(data, '2026-08')).toEqual({
+      monthId: '2026-08',
+      amountJpy: 34000,
+      date: '2026-08-31',
+    })
   })
 })
 

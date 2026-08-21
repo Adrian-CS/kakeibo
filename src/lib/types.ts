@@ -120,6 +120,14 @@ export interface Settings {
   autoFxRate: boolean
   /** ISO del ultimo dia en que se actualizo el tipo de cambio */
   fxUpdatedAt?: string
+  /**
+   * Al cerrar un mes por encima del limite, apuntar la diferencia como deuda
+   * en Ahorros automaticamente. Solo mira hacia delante: no toca meses que ya
+   * estuvieran pasados de limite antes de encender esto.
+   */
+  autoDebtOnOverspend: boolean
+  /** Donde aterriza esa deuda: en la ultima foto que haya, o en una nueva */
+  autoDebtTarget: 'lastSnapshot' | 'newSnapshot'
 }
 
 /** Marca de borrado, para que al sincronizar no resucite lo que borraste. */

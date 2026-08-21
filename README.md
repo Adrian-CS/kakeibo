@@ -29,6 +29,11 @@ siempre en GitHub Pages.
   recurrentes del anterior. Para el primer mes (o cuando no hay uno anterior),
   Ajustes → Valores por defecto deja definir también una plantilla de facturas
   fijas (agua, luz...), además del alquiler.
+- **Deuda automática por sobregasto** (apagado por defecto, en Ajustes →
+  Automatismos): al abrir el mes siguiente, si el anterior cerró por encima
+  de su límite, apunta la diferencia como deuda en Ahorros — en tu última
+  foto, o en una nueva, a elegir. Solo mira hacia delante: no toca meses que
+  ya estuvieran pasados de límite antes de encenderlo.
 - **Tipo de cambio** al día desde el Banco Central Europeo, o a mano.
 - **Sincronización opcional** entre móvil y PC con Supabase (plan gratuito).
 - Funciona **sin conexión** (PWA instalable) y se ve bien en móvil y en PC.

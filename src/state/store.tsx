@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import type {
+  Account,
   AppData,
   Category,
   Expense,
@@ -20,7 +21,7 @@ import type {
 } from '../lib/types'
 import { loadData, saveData } from '../lib/storage'
 import { monthIdOf, newMonth } from '../lib/defaults'
-import { getMonth, shiftMonth } from '../lib/calc'
+import { getMonth, overspendDebt, shiftMonth } from '../lib/calc'
 import { translator, type TFunc } from '../lib/i18n'
 import { uid } from '../lib/id'
 import { nowIso } from '../lib/sync'
@@ -74,10 +75,54 @@ function tomb(data: AppData, ...ids: string[]): AppData['deleted'] {
 }
 
 /**
+ * Si esta encendido (`autoDebtOnOverspend`) y el mes anterior se paso de su
+ * limite, apunta la diferencia como deuda en Ahorros: en la ultima foto que
+ * haya, o en una nueva, segun `autoDebtTarget`. Se llama solo la primera vez
+ * que se crea el mes siguiente (nunca se repite), y solo mira ese mes
+ * anterior: no audita meses mas viejos ni el que se acaba de crear.
+ */
+function applyOverspendDebt(data: AppData, prevId: string): AppData {
+  if (!data.settings.autoDebtOnOverspend) return data
+  const debt = overspendDebt(data, prevId)
+  if (!debt) return data
+
+  const t = translator(data.settings.lang)
+  // fecha corta tipo "26-08-31": el idioma solo afecta a la palabra, no a la
+  // fecha, para que quede igual de legible en cualquier idioma
+  const account: Account = {
+    id: uid('a'),
+    name: `${t('savings.autoDebtLabel')} ${debt.date.slice(2)}`,
+    amount: debt.amountJpy,
+    currency: 'JPY',
+    isDebt: true,
+  }
+  const at = nowIso()
+  const last = [...data.snapshots].sort((a, b) => a.date.localeCompare(b.date)).at(-1)
+
+  if (data.settings.autoDebtTarget === 'newSnapshot' || !last) {
+    const snapshot: Snapshot = {
+      id: uid('s'),
+      date: debt.date,
+      accounts: [...(last?.accounts.map((a) => ({ ...a, id: uid('a') })) ?? []), account],
+      updatedAt: at,
+    }
+    return { ...data, snapshots: [...data.snapshots, snapshot] }
+  }
+
+  return {
+    ...data,
+    snapshots: data.snapshots.map((s) =>
+      s.id === last.id ? { ...s, accounts: [...s.accounts, account], updatedAt: at } : s,
+    ),
+  }
+}
+
+/**
  * Crea el mes si no existe. Con `autoFillFixed` copia del mes anterior el
  * alquiler, el ingreso previsto, los extras y los gastos recurrentes, para no
  * teclearlos cada mes. Solo rellena desde un mes anterior que exista, y nunca
- * meses muy futuros.
+ * meses muy futuros. Con `autoDebtOnOverspend`, de paso, apunta como deuda el
+ * sobregasto del mes anterior si lo hubo (ver `applyOverspendDebt`).
  */
 function ensureMonth(data: AppData, monthId: string): AppData {
   if (data.months.some((m) => m.id === monthId)) return data
@@ -86,9 +131,10 @@ function ensureMonth(data: AppData, monthId: string): AppData {
   const prevId = shiftMonth(monthId, -1)
   const prev = data.months.find((m) => m.id === prevId)
   const tooFar = monthId > shiftMonth(monthIdOf(), 1)
+  const withDebt = (d: AppData) => (prev ? applyOverspendDebt(d, prevId) : d)
 
   if (!data.settings.autoFillFixed || !prev || tooFar) {
-    return { ...data, months: [...data.months, fresh] }
+    return withDebt({ ...data, months: [...data.months, fresh] })
   }
 
   const at = nowIso()
@@ -96,7 +142,7 @@ function ensureMonth(data: AppData, monthId: string): AppData {
     .filter((e) => e.monthId === prevId && e.kind === 'recurring')
     .map((e) => ({ ...e, id: uid('e'), monthId, day: null, updatedAt: at }))
 
-  return {
+  return withDebt({
     ...data,
     expenses: [...data.expenses, ...recurring],
     months: [
@@ -111,7 +157,7 @@ function ensureMonth(data: AppData, monthId: string): AppData {
         updatedAt: at,
       },
     ],
-  }
+  })
 }
 
 function reducer(state: State, action: Action): State {

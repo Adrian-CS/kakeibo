@@ -26,6 +26,8 @@ export const DEFAULT_SETTINGS: Settings = {
   secondaryCurrency: 'EUR',
   autoFillFixed: true,
   autoFxRate: false,
+  autoDebtOnOverspend: false,
+  autoDebtTarget: 'lastSnapshot',
 }
 
 /** 'YYYY-MM' del mes indicado (por defecto, hoy). */

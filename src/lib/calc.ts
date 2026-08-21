@@ -161,6 +161,28 @@ export function monthTotals(data: AppData, monthId: string): MonthTotals {
   }
 }
 
+/** Lo que costaria apuntar como deuda un mes que se paso de su limite. */
+export interface OverspendDebt {
+  monthId: string
+  /** cuanto se paso, en yenes (siempre > 0) */
+  amountJpy: number
+  /** 'YYYY-MM-DD' del ultimo dia de ese mes */
+  date: string
+}
+
+/**
+ * Si un mes se paso de su limite, la deuda que generaria; null si no llego a
+ * pasarse (o si ni siquiera tiene un mes creado). Pura: no toca Ahorros, solo
+ * calcula cuanto y de que fecha seria.
+ */
+export function overspendDebt(data: AppData, monthId: string): OverspendDebt | null {
+  if (!getMonth(data, monthId)) return null
+  const t = monthTotals(data, monthId)
+  const amountJpy = t.totalJpy - t.limitJpy
+  if (amountJpy <= 0) return null
+  return { monthId, amountJpy, date: `${monthId}-${String(daysInMonth(monthId)).padStart(2, '0')}` }
+}
+
 /* ------------------------------------------------------------------ *
  * Estadisticas entre meses
  * ------------------------------------------------------------------ */

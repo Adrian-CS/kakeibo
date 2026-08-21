@@ -130,6 +130,30 @@ describe('la aplicacion', () => {
     expect(screen.queryByDisplayValue('seiyu')).not.toBeInTheDocument()
   })
 
+  it('con el ajuste de sobregasto activado, cerrar un mes pasado de limite genera una deuda en Ahorros', async () => {
+    const user = userEvent.setup()
+    const data = seed()
+    data.settings = { ...data.settings, autoDebtOnOverspend: true, autoDebtTarget: 'lastSnapshot' }
+    // agosto: 80000 (alquiler) + 4000 (seiyu) = 84000, por encima de un limite de 50000
+    data.months = data.months.map((m) => (m.id === '2026-08' ? { ...m, limitJpy: 50000 } : m))
+    render(<App initial={data} />)
+    await user.click(screen.getByLabelText('Mes siguiente'))
+    await user.click(screen.getAllByRole('button', { name: /Ahorros/ })[0])
+    expect(screen.getByDisplayValue(/Deuda generada 26-08-31/)).toBeInTheDocument()
+    // 84000 - 50000 = 34000 de deuda
+    expect(screen.getByDisplayValue('34000')).toBeInTheDocument()
+  })
+
+  it('con el ajuste de sobregasto apagado, pasarse de limite no toca Ahorros', async () => {
+    const user = userEvent.setup()
+    const data = seed()
+    data.months = data.months.map((m) => (m.id === '2026-08' ? { ...m, limitJpy: 50000 } : m))
+    render(<App initial={data} />)
+    await user.click(screen.getByLabelText('Mes siguiente'))
+    await user.click(screen.getAllByRole('button', { name: /Ahorros/ })[0])
+    expect(screen.queryByDisplayValue(/Deuda generada/)).not.toBeInTheDocument()
+  })
+
   it('con el ajuste desactivado el mes nuevo sale vacio', async () => {
     const user = userEvent.setup()
     const data = seed()

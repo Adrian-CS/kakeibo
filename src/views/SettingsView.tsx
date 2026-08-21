@@ -340,6 +340,31 @@ export function SettingsView() {
             </Button>
             {fxMsg && <span className="text-xs text-muted">{fxMsg}</span>}
           </div>
+          <div>
+            <Toggle
+              checked={data.settings.autoDebtOnOverspend}
+              onChange={(v) => dispatch({ type: 'patchSettings', patch: { autoDebtOnOverspend: v } })}
+              label={t('settings.autoDebt')}
+            />
+            <p className="mt-1 text-[11px] text-muted">{t('settings.autoDebtHint')}</p>
+            {data.settings.autoDebtOnOverspend && (
+              <Field label={t('settings.autoDebtTarget')} className="mt-2 max-w-xs">
+                <Select
+                  value={data.settings.autoDebtTarget}
+                  onChange={(v) =>
+                    dispatch({
+                      type: 'patchSettings',
+                      patch: { autoDebtTarget: v as 'lastSnapshot' | 'newSnapshot' },
+                    })
+                  }
+                  options={[
+                    { value: 'lastSnapshot', label: t('settings.autoDebtTarget.last') },
+                    { value: 'newSnapshot', label: t('settings.autoDebtTarget.new') },
+                  ]}
+                />
+              </Field>
+            )}
+          </div>
         </div>
       </Card>
 
