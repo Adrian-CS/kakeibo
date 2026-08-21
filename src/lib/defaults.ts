@@ -38,7 +38,7 @@ export function newMonth(id: string, settings: Settings): MonthData {
     rentJpy: settings.defaultRentJpy,
     // id nuevo por cada mes: si luego se copia a otro mes (o se vuelve a
     // generar aqui), cada extra tiene que quedar como un apunte distinto
-    extras: settings.defaultExtras.map((x) => ({ ...x, id: uid('x') })),
+    extras: (settings.defaultExtras ?? []).map((x) => ({ ...x, id: uid('x') })),
     fxRate: settings.defaultFxRate,
     limitJpy: settings.defaultLimitJpy,
   }

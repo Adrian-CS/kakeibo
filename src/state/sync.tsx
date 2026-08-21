@@ -31,6 +31,7 @@ import {
 } from '../lib/supabase'
 import { isBlankDevice, mergeData, needsPush, nowIso, signature } from '../lib/sync'
 import { monthIdOf } from '../lib/defaults'
+import { migrate } from '../lib/storage'
 import type { AppData } from '../lib/types'
 
 export type SyncStatus = 'unconfigured' | 'signedOut' | 'idle' | 'working' | 'error'
@@ -117,7 +118,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const fresh = await ensureFresh(config, session)
       if (fresh !== session) setSession(fresh)
 
-      const remote = await pullDoc(config, fresh)
+      const pulled = await pullDoc(config, fresh)
+      // la nube puede traer un documento mas viejo que este mismo build (le
+      // falten campos que no existian cuando se subio): lo pasamos por el
+      // mismo saneado que una copia importada a mano, para no arrastrar
+      // `undefined` a sitios que ya no lo esperan
+      const remote = pulled ? { ...pulled, data: migrate(pulled.data) } : null
       const local = dataRef.current
       let merged = local
 

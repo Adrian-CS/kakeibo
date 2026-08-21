@@ -53,6 +53,27 @@ describe('migracion', () => {
     expect(d.settings.defaultRentJpy).toBe(90000)
   })
 
+  it('conserva updatedAt, deleted y sync en vez de descartarlos', () => {
+    // bug real: se perdian al migrar, asi que una copia exportada y vuelta a
+    // importar olvidaba cuando se habia editado por ultima vez y que se
+    // habia borrado, y lo borrado podia resucitar al sincronizar
+    const d = migrate({
+      updatedAt: '2026-08-01T00:00:00.000Z',
+      deleted: [{ id: 'e1', at: '2026-08-01T00:00:00.000Z' }],
+      sync: { email: 'yo@ejemplo.com' },
+    })
+    expect(d.updatedAt).toBe('2026-08-01T00:00:00.000Z')
+    expect(d.deleted).toEqual([{ id: 'e1', at: '2026-08-01T00:00:00.000Z' }])
+    expect(d.sync).toEqual({ email: 'yo@ejemplo.com' })
+  })
+
+  it('sin esos campos, quedan sin definir en vez de inventar valores', () => {
+    const d = migrate({ expenses: [] })
+    expect(d.updatedAt).toBeUndefined()
+    expect(d.deleted).toBeUndefined()
+    expect(d.sync).toBeUndefined()
+  })
+
   it('descarta apuntes sin importe o sin mes', () => {
     const d = migrate({
       expenses: [

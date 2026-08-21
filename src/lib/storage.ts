@@ -37,6 +37,12 @@ export function migrate(raw: unknown): AppData {
       ? d.snapshots.map((s) => ({ ...s, accounts: Array.isArray(s.accounts) ? s.accounts : [] }))
       : [],
     settings,
+    // antes se perdian al migrar: una copia exportada/re-importada olvidaba
+    // cuando se habia editado por ultima vez y que se habia borrado, asi que
+    // lo borrado podia resucitar al sincronizar
+    updatedAt: typeof d.updatedAt === 'string' ? d.updatedAt : undefined,
+    deleted: Array.isArray(d.deleted) ? d.deleted : undefined,
+    sync: d.sync && typeof d.sync === 'object' ? d.sync : undefined,
   }
 }
 

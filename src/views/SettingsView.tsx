@@ -97,6 +97,8 @@ function CategoryRow({ category }: { category: Category }) {
 export function SettingsView() {
   const { data, dispatch, t } = useStore()
   const lang = data.settings.lang
+  // por si llega de una copia mas vieja que el campo (import, o fusion de sync)
+  const defaultExtras = data.settings.defaultExtras ?? []
   const [importOpen, setImportOpen] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -219,7 +221,7 @@ export function SettingsView() {
           <p className="mb-1 text-xs font-medium text-ink-2">{t('fields.extras')}</p>
           <p className="mb-2 text-[11px] text-muted">{t('settings.defaultExtrasHint')}</p>
           <ul className="space-y-1">
-            {data.settings.defaultExtras.map((x) => (
+            {defaultExtras.map((x) => (
               <li key={x.id} className="flex items-center gap-1.5">
                 <TextInput
                   value={x.label}
@@ -227,7 +229,7 @@ export function SettingsView() {
                     dispatch({
                       type: 'patchSettings',
                       patch: {
-                        defaultExtras: data.settings.defaultExtras.map((y) =>
+                        defaultExtras: defaultExtras.map((y) =>
                           y.id === x.id ? { ...y, label: e.target.value } : y,
                         ),
                       },
@@ -243,7 +245,7 @@ export function SettingsView() {
                       dispatch({
                         type: 'patchSettings',
                         patch: {
-                          defaultExtras: data.settings.defaultExtras.map((y) =>
+                          defaultExtras: defaultExtras.map((y) =>
                             y.id === x.id ? { ...y, amount: n } : y,
                           ),
                         },
@@ -256,7 +258,7 @@ export function SettingsView() {
                   onClick={() =>
                     dispatch({
                       type: 'patchSettings',
-                      patch: { defaultExtras: data.settings.defaultExtras.filter((y) => y.id !== x.id) },
+                      patch: { defaultExtras: defaultExtras.filter((y) => y.id !== x.id) },
                     })
                   }
                   className="h-9 w-9 shrink-0"
@@ -272,7 +274,7 @@ export function SettingsView() {
             onClick={() =>
               dispatch({
                 type: 'patchSettings',
-                patch: { defaultExtras: [...data.settings.defaultExtras, { id: uid('x'), label: '', amount: 0 }] },
+                patch: { defaultExtras: [...defaultExtras, { id: uid('x'), label: '', amount: 0 }] },
               })
             }
           >
