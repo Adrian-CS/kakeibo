@@ -14,6 +14,11 @@ siempre en GitHub Pages.
 - **Importador del Excel original**: lee las hojas con las cabeceras japonesas
   (外食, スーパーマーケット, 服装と電車と毎月費消, 娯楽, 部屋のもの) y las
   convierte en meses de la aplicación.
+- **Topes por categoría** además del límite del mes, con su aviso al pasarse.
+- **Fijos automáticos**: al abrir un mes nuevo hereda alquiler, extras y gastos
+  recurrentes del anterior.
+- **Tipo de cambio** al día desde el Banco Central Europeo, o a mano.
+- **Sincronización opcional** entre móvil y PC con Supabase (plan gratuito).
 - Funciona **sin conexión** (PWA instalable) y se ve bien en móvil y en PC.
 - Interfaz en español, japonés e inglés.
 
@@ -76,16 +81,59 @@ la raíz.
 
 ## Dónde se guardan los datos
 
-En el `localStorage` del navegador, bajo la clave `kakeibo:data:v1`. Esto tiene
-consecuencias que conviene tener claras:
+Primero, siempre, en el navegador del dispositivo (`localStorage`, clave
+`kakeibo:data:v1`), con guardado automático 250 ms después de dejar de escribir
+y otro al cerrar la pestaña o cambiar de app. No hay botón de guardar.
 
-- Los datos **no salen del dispositivo** y nadie más los ve.
-- **No se sincronizan** entre el móvil y el PC.
-- Si borras los datos del navegador, se van.
+Eso hace que la app funcione sin cobertura, pero también que cada dispositivo
+tenga su copia. Hay dos formas de juntarlas:
 
-Por eso hay **Ajustes → Exportar datos**, que descarga un `.json` con todo, e
-**Importar datos** para restaurarlo en otro dispositivo. Un `.json` exportado es
-también la copia de seguridad recomendada.
+- **A mano**: Ajustes → *Exportar datos* descarga un `.json` con todo, e
+  *Importar datos* lo restaura en el otro dispositivo. Es también la copia de
+  seguridad recomendada.
+- **Automática**: la sincronización con Supabase que se describe abajo.
+
+## Sincronizar el móvil y el PC (Supabase, plan gratuito)
+
+1. Crea un proyecto en [supabase.com](https://supabase.com) (plan Free).
+2. En **SQL Editor**, pega y ejecuta [`supabase/schema.sql`](supabase/schema.sql).
+   Crea la tabla `kakeibo_docs` con RLS: cada usuario solo puede leer y escribir
+   su propia fila.
+3. En **Project Settings → API**, copia la *Project URL* y la clave *anon*.
+4. En **Authentication → URL Configuration**, añade la dirección de la app
+   (`https://USUARIO.github.io/kakeibo/`) a *Site URL* y a *Redirect URLs*, o el
+   enlace del correo no sabrá volver.
+5. En la app: **Ajustes → Sincronización**, pega URL y clave, escribe tu correo
+   y pulsa *Enviarme el acceso*. Llega un correo con un enlace; al pulsarlo
+   vuelves a la app ya con la sesión abierta. Repite en el otro dispositivo.
+
+Si prefieres el código de seis dígitos en lugar del enlace (más cómodo en el
+móvil), añade `{{ .Token }}` a la plantilla *Magic Link* en
+**Authentication → Email Templates**; la app tiene el campo para pegarlo.
+
+También puedes dejar URL y clave fijas en el build con `VITE_SUPABASE_URL` y
+`VITE_SUPABASE_ANON_KEY` (ver [`.env.example`](.env.example)); en un repositorio
+público quedarían a la vista, y por eso por defecto se escriben en Ajustes y se
+guardan solo en el dispositivo.
+
+### Cómo se fusionan los cambios
+
+Cada dispositivo sube el documento completo y, al bajar, se fusiona con el
+local (`src/lib/sync.ts`):
+
+- un apunte que solo está en un lado se queda;
+- un apunte que está en los dos: gana la versión editada más tarde;
+- lo que borras deja una marca con la fecha, así que no resucita al
+  sincronizar — salvo que se haya editado *después* de borrarlo, caso en el que
+  gana la edición, que es lo menos destructivo.
+
+La sincronización ocurre al abrir la app, al volver a ella, al recuperar la
+conexión y unos segundos después de cada cambio. Si falla, no pasa nada: los
+datos están en local y se reintenta a la siguiente.
+
+La clave *anon* es pública por diseño; lo que protege los datos es la política
+RLS del paso 2. Sin esa política, cualquiera con la clave podría leer la tabla:
+no te la salte.
 
 ## Cómo se calculan las cosas
 
@@ -99,6 +147,8 @@ Réplica de las fórmulas del Excel:
 | Otros gastos (別の費消) | total − gastos fijos |
 | Balance (上限) | límite − total |
 | Moneda secundaria | importe × tipo de cambio del mes |
+| Tope de categoría | suma de la categoría frente a su tope, si tiene |
+| Comparación anual | cada mes frente al mismo mes del año anterior, solo con los meses que existen en los dos años |
 
 Cada apunte tiene un tipo: **normal**, **recurrente** (cuenta como gasto fijo, y
 se puede copiar al mes siguiente) o **extraordinario** (puntual: la mudanza, un
@@ -109,13 +159,19 @@ ver la tendencia real.
 
 ```
 src/
-  lib/          calculos, formato, almacenamiento, lector de xlsx (sin React)
+  lib/          calculos, formato, almacenamiento, lector de xlsx,
+                fusion de copias y cliente de Supabase (sin React)
   components/   piezas de interfaz y graficos en SVG
-  state/        store con useReducer + guardado diferido
+  state/        store con useReducer + guardado diferido + motor de sync
   views/        Mes · Estadisticas · Ahorros · Ajustes
   test/         tests de interfaz y fixture del importador
 public/         manifest, iconos y service worker
+supabase/       schema.sql para la sincronizacion
 ```
+
+El cliente de Supabase está escrito con `fetch` (unas 300 líneas en
+`src/lib/supabase.ts`) en vez de usar la librería oficial: hacen falta cuatro
+llamadas y así el paquete que descarga el móvil no engorda 100 kB.
 
 Los gráficos son SVG escritos a mano (sin librería de charts) siguiendo una
 paleta validada para daltonismo: orden de colores fijo, leyenda siempre

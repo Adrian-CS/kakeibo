@@ -109,6 +109,84 @@ describe('la aplicacion', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
+  it('al abrir un mes nuevo copia los fijos del anterior', async () => {
+    const user = userEvent.setup()
+    const data = seed()
+    data.expenses.push({
+      id: 'e3',
+      monthId: '2026-08',
+      categoryId: 'fixed_transport',
+      label: 'netflix',
+      amount: 1590,
+      kind: 'recurring',
+    })
+    render(<App initial={data} />)
+    await user.click(screen.getByLabelText('Mes siguiente'))
+    // septiembre no existia: hereda alquiler y el gasto recurrente
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/septiembre|sept/i)
+    expect(screen.getByDisplayValue('netflix')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('80000')).toBeInTheDocument()
+    // pero no arrastra los gastos normales
+    expect(screen.queryByDisplayValue('seiyu')).not.toBeInTheDocument()
+  })
+
+  it('con el ajuste desactivado el mes nuevo sale vacio', async () => {
+    const user = userEvent.setup()
+    const data = seed()
+    data.settings = { ...data.settings, autoFillFixed: false }
+    data.expenses.push({
+      id: 'e3',
+      monthId: '2026-08',
+      categoryId: 'fixed_transport',
+      label: 'netflix',
+      amount: 1590,
+      kind: 'recurring',
+    })
+    render(<App initial={data} />)
+    await user.click(screen.getByLabelText('Mes siguiente'))
+    expect(screen.queryByDisplayValue('netflix')).not.toBeInTheDocument()
+  })
+
+  it('muestra el tope de una categoria', () => {
+    const data = seed()
+    data.categories = data.categories.map((c) =>
+      c.id === 'groceries' ? { ...c, limitJpy: 30000 } : c,
+    )
+    render(<App initial={data} />)
+    // 4000 gastados de 30000: quedan 26000
+    expect(screen.getByText(/26[.,\s]?000/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Tope mensual: Supermercado/)).toBeInTheDocument()
+  })
+
+  it('la comparacion anual aparece en estadisticas', async () => {
+    const user = userEvent.setup()
+    const data = seed()
+    data.months = [
+      ...data.months,
+      { id: '2025-08', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000 },
+    ]
+    data.expenses.push({
+      id: 'e-2025-08',
+      monthId: '2025-08',
+      categoryId: 'eating_out',
+      label: 'uber',
+      amount: 10000,
+      kind: 'normal',
+    })
+    render(<App initial={data} />)
+    await user.click(screen.getAllByRole('button', { name: /Estadísticas/ })[0])
+    expect(screen.getByText(/Comparado con el año pasado/)).toBeInTheDocument()
+  })
+
+  it('sincronizacion: sin configurar pide los datos del proyecto', async () => {
+    const user = userEvent.setup()
+    render(<App initial={seed()} />)
+    await user.click(screen.getAllByRole('button', { name: /Ajustes/ })[0])
+    expect(screen.getByText('Sincronización')).toBeInTheDocument()
+    expect(screen.getByLabelText('URL del proyecto')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Guardar configuración/ })).toBeDisabled()
+  })
+
   it('cambia el idioma desde ajustes', async () => {
     const user = userEvent.setup()
     render(<App initial={seed()} />)
