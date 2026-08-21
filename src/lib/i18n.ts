@@ -45,6 +45,8 @@ const es = {
     'Suma el tope de cada categoría más alquiler y extras (las categorías sin tope cuentan como gasto cero): ingresos {income} − {spend}',
   'totals.savingsRealistic': 'A tu ritmo habitual',
   'totals.savingsRealisticHint': 'Ingresos {income} − tu media reciente {avg}',
+  'totals.savingsRealisticNoData':
+    'Todavía no hay ningún mes reciente con gasto del día a día apuntado (solo fijos, o sin datos): falta historial para calcular esto',
 
   'fields.rent': 'Alquiler',
   'fields.extras': 'Extras fijos',
@@ -289,6 +291,8 @@ const ja: Partial<Record<Key, string>> = {
     '各カテゴリの上限＋家賃＋固定費の合計（上限がないカテゴリは0円）：見込み収入 {income} − {spend}',
   'totals.savingsRealistic': '普段のペースなら',
   'totals.savingsRealisticHint': '見込み収入 {income} − 最近の平均 {avg}',
+  'totals.savingsRealisticNoData':
+    '日々の買い物が記録された最近の月がまだありません（固定費だけ、またはデータなし）。計算に必要な記録が足りません',
   'fields.rent': '家賃',
   'fields.extras': '固定費',
   'fields.income': '見込み収入',
@@ -464,6 +468,8 @@ const en: Partial<Record<Key, string>> = {
     "Adds up each category's limit plus rent and extras (categories with no limit count as zero spending): income {income} − {spend}",
   'totals.savingsRealistic': 'At your usual pace',
   'totals.savingsRealisticHint': 'Income {income} − your recent average {avg}',
+  'totals.savingsRealisticNoData':
+    "No recent month has any day-to-day spending logged yet (only fixed costs, or no data): not enough history to calculate this",
   'fields.rent': 'Rent',
   'fields.extras': 'Fixed extras',
   'fields.income': 'Expected income',

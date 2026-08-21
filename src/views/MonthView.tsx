@@ -369,7 +369,7 @@ export function MonthView({
   // tienen), mas alquiler y extras del mes
   const categoryLimitsAndFixedJpy = categoryLimitsJpy(data.categories) + totals.rentJpy + totals.extrasJpy
   const savingsByCategoryLimitsJpy = totals.incomeJpy - categoryLimitsAndFixedJpy
-  const savingsRealisticJpy = totals.incomeJpy - recentAverageJpy
+  const savingsRealisticJpy = recentAverageJpy === null ? null : totals.incomeJpy - recentAverageJpy
 
   const eur = (jpy: number) => fmtMoney(jpy * totals.fxRate, cur, lang)
   const [fxBusy, setFxBusy] = useState(false)
@@ -488,11 +488,15 @@ export function MonthView({
             />
             <StatTile
               label={t('totals.savingsRealistic')}
-              value={fmtJpy(savingsRealisticJpy, lang)}
-              hint={t('totals.savingsRealisticHint', {
-                income: fmtJpy(totals.incomeJpy, lang),
-                avg: fmtJpy(recentAverageJpy, lang),
-              })}
+              value={savingsRealisticJpy === null ? t('common.none') : fmtJpy(savingsRealisticJpy, lang)}
+              hint={
+                recentAverageJpy === null
+                  ? t('totals.savingsRealisticNoData')
+                  : t('totals.savingsRealisticHint', {
+                      income: fmtJpy(totals.incomeJpy, lang),
+                      avg: fmtJpy(recentAverageJpy, lang),
+                    })
+              }
             />
           </div>
         </Card>

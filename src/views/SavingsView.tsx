@@ -291,12 +291,17 @@ export function SavingsView() {
                     </p>
                     <p
                       className="mt-1 text-[11px] text-muted"
-                      title={t('totals.savingsRealisticHint', {
-                        income: fmtJpy(projectedIncomeJpy, lang),
-                        avg: fmtJpy(recentAverageJpy, lang),
-                      })}
+                      title={
+                        recentAverageJpy === null
+                          ? t('totals.savingsRealisticNoData')
+                          : t('totals.savingsRealisticHint', {
+                              income: fmtJpy(projectedIncomeJpy, lang),
+                              avg: fmtJpy(recentAverageJpy, lang),
+                            })
+                      }
                     >
-                      {t('totals.savingsRealistic')}: {fmtJpy(h.realisticJpy, lang)}
+                      {t('totals.savingsRealistic')}:{' '}
+                      {h.realisticJpy === null ? t('common.none') : fmtJpy(h.realisticJpy, lang)}
                     </p>
                   </StatTile>
                 ))}

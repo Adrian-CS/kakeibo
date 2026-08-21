@@ -528,13 +528,18 @@ export interface SavingsHorizon {
    * como gasto cero) mas alquiler y extras: otro "peor caso", mas fino
    */
   worstCaseByCategoryJpy: number
-  /** al ritmo real de los ultimos meses (ver `lastMonths`) */
-  realisticJpy: number
+  /**
+   * al ritmo real de los ultimos meses (ver `lastMonths`); null si todavia no
+   * hay ningun mes con gasto real del que sacar una media de verdad
+   */
+  realisticJpy: number | null
 }
 
 /**
  * Media de gasto real de los ultimos `lastMonths` meses con datos, para el
- * escenario "realista" de la prevision de ahorro.
+ * escenario "realista" de la prevision de ahorro. Devuelve null si no hay
+ * ningun mes que cuente como gasto real (ver abajo): es mejor decir
+ * abiertamente que falta historial que inventar un numero con lo que haya.
  *
  * Dos tipos de mes no cuentan como "gasto real", aunque tengan un total
  * mayor que cero:
@@ -550,14 +555,18 @@ export interface SavingsHorizon {
  * meses con al menos un apunte normal o extraordinario, y se deja fuera el
  * mes en curso porque esta a medias (compararlo con meses completos tambien
  * rebaja la media sin motivo).
+ *
+ * Antes, si no quedaba ningun mes "activo", se volvia a la media sin filtrar
+ * -la misma que mezcla meses en blanco y de solo-fijos- colando el problema
+ * por la puerta de atras. Ahora, sin meses activos, no hay media que dar.
  */
-export function recentActiveAverageJpy(data: AppData, lastMonths = 6, today = new Date()): number {
+export function recentActiveAverageJpy(data: AppData, lastMonths = 6, today = new Date()): number | null {
   const currentId = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   const stats = computeStats(data, { lastMonths })
   const hasRealSpend = (monthId: string) =>
     expensesOfMonth(data, monthId).some((e) => e.kind === 'normal' || e.kind === 'extraordinary')
   const active = stats.months.filter((m) => m.monthId !== currentId && hasRealSpend(m.monthId))
-  if (!active.length) return stats.averageJpy
+  if (!active.length) return null
   return sum(active.map((m) => m.totalJpy)) / active.length
 }
 
@@ -597,13 +606,14 @@ export function projectSavings(
     data.settings.defaultRentJpy +
     sum(data.settings.defaultExtras.map((x) => x.amount))
   const worstCaseByCategoryDelta = income - byCategorySpend
-  const realisticDelta = income - recentActiveAverageJpy(data, lastMonths, today)
+  const recentAverage = recentActiveAverageJpy(data, lastMonths, today)
+  const realisticDelta = recentAverage === null ? null : income - recentAverage
 
   return horizons.map((months) => ({
     months,
     worstCaseJpy: last.netJpy + worstCaseDelta * months,
     worstCaseByCategoryJpy: last.netJpy + worstCaseByCategoryDelta * months,
-    realisticJpy: last.netJpy + realisticDelta * months,
+    realisticJpy: realisticDelta === null ? null : last.netJpy + realisticDelta * months,
   }))
 }
 

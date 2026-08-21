@@ -399,6 +399,22 @@ describe('ahorros', () => {
     ])
   })
 
+  it('projectSavings da realisticJpy null sin historial de gasto real, sin afectar a los otros escenarios', () => {
+    const today = new Date('2026-08-15T00:00:00')
+    const noRealSpend: AppData = {
+      ...withIncome(),
+      months: [{ id: '2026-07', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 }],
+      expenses: [
+        { id: 'e1', monthId: '2026-07', categoryId: 'fixed_transport', label: 'netflix', amount: 1500, kind: 'recurring' },
+      ],
+    }
+    const points = projectSavings(noRealSpend, [3], 6, today)
+    expect(points[0].realisticJpy).toBeNull()
+    // los otros dos escenarios no dependen del gasto real: siguen igual
+    expect(points[0].worstCaseJpy).toBe(500000 + 100000 * 3)
+    expect(points[0].worstCaseByCategoryJpy).toBe(500000 + 168000 * 3)
+  })
+
   it('categoryLimitsJpy suma los topes y cuenta como cero las categorias sin tope', () => {
     const cats: AppData['categories'] = [
       { id: 'a', name: 'a', bucket: 'daily', colorSlot: 0, limitJpy: 20000 },
@@ -452,6 +468,26 @@ describe('ahorros', () => {
     // 2026-06 (80000+1500=81500) se ignora: solo tiene alquiler+recurrente
     // solo cuenta 2026-07: 80000+1500+3000 = 84500
     expect(recentActiveAverageJpy(data, 6, today)).toBe(84500)
+  })
+
+  it('recentActiveAverageJpy devuelve null si ningun mes reciente tiene gasto real (bug real reportado)', () => {
+    // bug real: si NINGUN mes de la ventana tenia gasto real, se volvia a la
+    // media sin filtrar -la que mezcla meses en blanco y de solo-fijos- y
+    // colaba el mismo problema que se acababa de arreglar, por la puerta de
+    // atras. Ahora, sin ningun mes activo, no hay media que dar: null.
+    const today = new Date('2026-09-15T00:00:00')
+    const data: AppData = {
+      ...emptyData(today),
+      months: [
+        { id: '2026-07', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+        { id: '2026-08', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+      ],
+      expenses: [
+        { id: 'e1', monthId: '2026-07', categoryId: 'fixed_transport', label: 'netflix', amount: 1500, kind: 'recurring' },
+        { id: 'e2', monthId: '2026-08', categoryId: 'fixed_transport', label: 'netflix', amount: 1500, kind: 'recurring' },
+      ],
+    }
+    expect(recentActiveAverageJpy(data, 6, today)).toBeNull()
   })
 
   it('la media "realista" no cuenta un mes visitado y vacio ni el mes en curso', () => {

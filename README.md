@@ -264,7 +264,7 @@ Réplica de las fórmulas del Excel:
 | Moneda secundaria | importe × tipo de cambio del mes |
 | Tope de categoría | suma de la categoría frente a su tope, si tiene |
 | Comparación anual | cada mes frente al mismo mes del año anterior, solo con los meses que existen en los dos años |
-| Ahorro previsto (mes) | ingresos previstos − límite total, o − suma de topes de categoría (0 las que no tienen), o − media real de los últimos 6 meses (sin contar meses vacíos ni el mes en curso) |
+| Ahorro previsto (mes) | ingresos previstos − límite total, o − suma de topes de categoría (0 las que no tienen), o − media real de los últimos 6 meses con algún gasto del día a día apuntado (ni meses vacíos, ni de solo fijos, ni el mes en curso; sin ninguno así, no se calcula) |
 | Previsión de ahorro (Ahorros) | última foto de patrimonio + ahorro previsto de cada mes × meses vista |
 
 Cada apunte tiene un tipo: **normal**, **recurrente** (cuenta como gasto fijo, y
