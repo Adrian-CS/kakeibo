@@ -19,6 +19,9 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultFxRate: 0.0056,
   defaultLimitJpy: 200000,
   defaultRentJpy: 82000,
+  // 0 = sin configurar: la previsión de ahorro se queda oculta hasta que se
+  // ponga un valor real en Ajustes
+  defaultIncomeJpy: 0,
   defaultExtras: [],
   secondaryCurrency: 'EUR',
   autoFillFixed: true,
@@ -41,6 +44,7 @@ export function newMonth(id: string, settings: Settings): MonthData {
     extras: (settings.defaultExtras ?? []).map((x) => ({ ...x, id: uid('x') })),
     fxRate: settings.defaultFxRate,
     limitJpy: settings.defaultLimitJpy,
+    incomeJpy: settings.defaultIncomeJpy ?? 0,
   }
 }
 

@@ -69,6 +69,8 @@ export interface MonthData {
   fxRate: number
   /** limite de gasto del mes en yenes (上限) */
   limitJpy: number
+  /** ingresos previstos del mes, en yenes: base de la prevision de ahorro */
+  incomeJpy: number
   note?: string
   updatedAt?: string
 }
@@ -99,6 +101,8 @@ export interface Settings {
   defaultFxRate: number
   defaultLimitJpy: number
   defaultRentJpy: number
+  /** ingresos previstos por defecto, en yenes: base de la prevision de ahorro */
+  defaultIncomeJpy: number
   /**
    * Plantilla de facturas fijas (agua, luz...) para un mes que no tiene uno
    * anterior del que copiar. Si ya hay un mes anterior, manda lo que haya en

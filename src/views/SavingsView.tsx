@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../state/store'
-import { computeStats, snapshotSeries } from '../lib/calc'
+import { computeStats, projectSavings, snapshotSeries } from '../lib/calc'
 import { fmtDate, fmtJpy, fmtMoney, fmtNumber, parseAmount } from '../lib/format'
 import { seriesVar } from '../lib/palette'
 import {
@@ -162,6 +162,7 @@ export function SavingsView() {
   const last = series.at(-1)
   const prev = series.at(-2)
   const runway = last && stats.averageJpy > 0 ? last.netJpy / stats.averageJpy : 0
+  const projection = useMemo(() => projectSavings(data, [3, 6, 12]), [data])
 
   const addSnapshot = () => {
     const template = series.length ? data.snapshots.find((s) => s.id === last?.id) : undefined
@@ -251,6 +252,21 @@ export function SavingsView() {
               />
             )}
           </Card>
+
+          {projection.length > 0 && (
+            <Card title={t('savings.forecast')} hint={t('savings.forecastHint')}>
+              <div className="grid grid-cols-3 gap-2">
+                {projection.map((h) => (
+                  <StatTile
+                    key={h.months}
+                    label={t('savings.forecastIn', { n: h.months })}
+                    value={fmtJpy(h.worstCaseJpy, lang)}
+                    secondary={`${t('totals.savingsRealistic')}: ${fmtJpy(h.realisticJpy, lang)}`}
+                  />
+                ))}
+              </div>
+            </Card>
+          )}
         </>
       )}
 

@@ -53,6 +53,23 @@ describe('migracion', () => {
     expect(d.settings.defaultRentJpy).toBe(90000)
   })
 
+  it('una copia sin incomeJpy en los meses ni defaultIncomeJpy en ajustes no rompe la carga', () => {
+    const d = migrate({
+      settings: { lang: 'es', defaultLimitJpy: 180000 },
+      months: [{ id: '2026-07', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 180000 }],
+    })
+    expect(d.settings.defaultIncomeJpy).toBe(0)
+    expect(d.months[0].incomeJpy).toBe(0)
+  })
+
+  it('un mes sin incomeJpy hereda el ingreso por defecto ya configurado', () => {
+    const d = migrate({
+      settings: { lang: 'es', defaultIncomeJpy: 260000 },
+      months: [{ id: '2026-07', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000 }],
+    })
+    expect(d.months[0].incomeJpy).toBe(260000)
+  })
+
   it('conserva updatedAt, deleted y sync en vez de descartarlos', () => {
     // bug real: se perdian al migrar, asi que una copia exportada y vuelta a
     // importar olvidaba cuando se habia editado por ultima vez y que se

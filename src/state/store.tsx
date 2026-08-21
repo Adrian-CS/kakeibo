@@ -75,8 +75,9 @@ function tomb(data: AppData, ...ids: string[]): AppData['deleted'] {
 
 /**
  * Crea el mes si no existe. Con `autoFillFixed` copia del mes anterior el
- * alquiler, los extras y los gastos recurrentes, para no teclearlos cada mes.
- * Solo rellena desde un mes anterior que exista, y nunca meses muy futuros.
+ * alquiler, el ingreso previsto, los extras y los gastos recurrentes, para no
+ * teclearlos cada mes. Solo rellena desde un mes anterior que exista, y nunca
+ * meses muy futuros.
  */
 function ensureMonth(data: AppData, monthId: string): AppData {
   if (data.months.some((m) => m.id === monthId)) return data
@@ -105,6 +106,7 @@ function ensureMonth(data: AppData, monthId: string): AppData {
         rentJpy: prev.rentJpy,
         fxRate: prev.fxRate,
         limitJpy: prev.limitJpy,
+        incomeJpy: prev.incomeJpy,
         extras: prev.extras.map((x) => ({ ...x, id: uid('x') })),
         updatedAt: at,
       },

@@ -25,4 +25,10 @@ describe('newMonth', () => {
     const other = newMonth('2026-09', settings)
     expect(new Set([...m.extras, ...other.extras].map((x) => x.id)).size).toBe(4)
   })
+
+  it('arranca con el ingreso previsto por defecto de ajustes', () => {
+    expect(newMonth('2026-08', DEFAULT_SETTINGS).incomeJpy).toBe(0)
+    const settings = { ...DEFAULT_SETTINGS, defaultIncomeJpy: 280000 }
+    expect(newMonth('2026-08', settings).incomeJpy).toBe(280000)
+  })
 })

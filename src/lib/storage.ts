@@ -31,7 +31,11 @@ export function migrate(raw: unknown): AppData {
           .map((e) => ({ ...e, kind: e.kind ?? 'normal' }))
       : [],
     months: Array.isArray(d.months) && d.months.length
-      ? d.months.map((m) => ({ ...m, extras: Array.isArray(m.extras) ? m.extras : [] }))
+      ? d.months.map((m) => ({
+          ...m,
+          extras: Array.isArray(m.extras) ? m.extras : [],
+          incomeJpy: typeof m.incomeJpy === 'number' ? m.incomeJpy : settings.defaultIncomeJpy,
+        }))
       : base.months,
     snapshots: Array.isArray(d.snapshots)
       ? d.snapshots.map((s) => ({ ...s, accounts: Array.isArray(s.accounts) ? s.accounts : [] }))

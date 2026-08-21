@@ -76,6 +76,8 @@ export interface MonthTotals {
   noCostCount: number
   /** 上限 */
   limitJpy: number
+  /** ingresos previstos del mes: base de la prevision de ahorro */
+  incomeJpy: number
   /** balance = limite - total */
   balanceJpy: number
   /** porcentaje del limite consumido (0-Infinity) */
@@ -112,6 +114,7 @@ export function monthTotals(data: AppData, monthId: string): MonthTotals {
   const extrasJpy = sum((month?.extras ?? []).map((x) => x.amount))
   const fxRate = month?.fxRate ?? data.settings.defaultFxRate
   const limitJpy = month?.limitJpy ?? data.settings.defaultLimitJpy
+  const incomeJpy = month?.incomeJpy ?? data.settings.defaultIncomeJpy
 
   const items = expensesOfMonth(data, monthId)
   // los apuntes "sin coste" (regalos, etc.) son solo informativos: no cuentan
@@ -149,6 +152,7 @@ export function monthTotals(data: AppData, monthId: string): MonthTotals {
     noCostJpy,
     noCostCount: noCostItemsOfMonth.length,
     limitJpy,
+    incomeJpy,
     balanceJpy: limitJpy - totalJpy,
     usedRatio: limitJpy > 0 ? totalJpy / limitJpy : 0,
     fxRate,
@@ -504,6 +508,42 @@ export function snapshotSeries(data: AppData): SnapshotTotals[] {
   return [...data.snapshots]
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((s) => snapshotTotals(s, data.settings.defaultFxRate))
+}
+
+/** Patrimonio proyectado a un plazo, en dos escenarios. */
+export interface SavingsHorizon {
+  months: number
+  /** gastando hasta el limite del mes (el escenario mas conservador) */
+  worstCaseJpy: number
+  /** al ritmo real de los ultimos meses (ver `lastMonths`) */
+  realisticJpy: number
+}
+
+/**
+ * Proyecta el patrimonio neto unos meses hacia delante desde la ultima foto
+ * de ahorros, sumando cada mes el ahorro previsto: ingresos por defecto menos
+ * gasto. Dos escenarios porque uno solo no cuenta la historia completa:
+ *   - "peor caso": se gasta hasta el limite del mes (conservador, siempre hay
+ *     un limite porque cae al de Ajustes si no se pone uno).
+ *   - "realista": al ritmo real de los ultimos `lastMonths` meses con datos.
+ *
+ * Devuelve [] si todavia no hay ninguna foto de ahorros de la que partir, o
+ * si no hay ingresos previstos configurados (sin eso no hay nada que
+ * proyectar, solo ruido).
+ */
+export function projectSavings(data: AppData, horizons: number[], lastMonths = 6): SavingsHorizon[] {
+  const income = data.settings.defaultIncomeJpy
+  const last = snapshotSeries(data).at(-1)
+  if (!last || income <= 0) return []
+
+  const worstCaseDelta = income - data.settings.defaultLimitJpy
+  const realisticDelta = income - computeStats(data, { lastMonths }).averageJpy
+
+  return horizons.map((months) => ({
+    months,
+    worstCaseJpy: last.netJpy + worstCaseDelta * months,
+    realisticJpy: last.netJpy + realisticDelta * months,
+  }))
 }
 
 /* ------------------------------------------------------------------ *

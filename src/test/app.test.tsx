@@ -11,8 +11,8 @@ function seed(): AppData {
   return {
     ...base,
     months: [
-      { id: '2026-07', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000 },
-      { id: '2026-08', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000 },
+      { id: '2026-07', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+      { id: '2026-08', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
     ],
     expenses: [
       { id: 'e1', monthId: '2026-07', categoryId: 'eating_out', label: 'uber', amount: 3000, kind: 'normal' },
@@ -163,7 +163,7 @@ describe('la aplicacion', () => {
     const data = seed()
     data.months = [
       ...data.months,
-      { id: '2025-08', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000 },
+      { id: '2025-08', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
     ]
     data.expenses.push({
       id: 'e-2025-08',

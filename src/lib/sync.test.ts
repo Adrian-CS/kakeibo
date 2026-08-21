@@ -135,6 +135,7 @@ describe('mergeData', () => {
           rentJpy: 80000,
           fxRate: 0.0056,
           limitJpy: 200000,
+          incomeJpy: 0,
           extras: [{ id: 'luz', label: 'luz', amount: 4000 }],
           updatedAt: T2,
         },
@@ -149,6 +150,7 @@ describe('mergeData', () => {
           rentJpy: 80000,
           fxRate: 0.0056,
           limitJpy: 200000,
+          incomeJpy: 0,
           extras: [{ id: 'agua', label: 'agua', amount: 3000 }],
           updatedAt: T1,
         },
@@ -189,7 +191,7 @@ describe('mergeData', () => {
 
   it('la huella cambia al editar el mes, una categoria, los ajustes o un ahorro', () => {
     const base = doc([], T1)
-    const month = { id: '2026-08', rentJpy: 80000, extras: [], fxRate: 0.005, limitJpy: 150000 }
+    const month = { id: '2026-08', rentJpy: 80000, extras: [], fxRate: 0.005, limitJpy: 150000, incomeJpy: 0 }
     const withRent = doc([], T1, { months: [{ ...month, rentJpy: 90000 }] })
     const withoutRent = doc([], T1, { months: [month] })
     expect(signature(withRent)).not.toBe(signature(withoutRent))

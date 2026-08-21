@@ -10,7 +10,10 @@ siempre en GitHub Pages.
   cuentas que hacía el Excel.
 - Un apartado de **estadísticas**: evolución mensual, composición por categoría,
   reparto del mes, ranking de conceptos, gasto medio por día y ritmo del mes.
-- **Ahorros**: fotos del patrimonio por fechas, con deudas y varias divisas.
+- **Ahorros**: fotos del patrimonio por fechas, con deudas y varias divisas, y
+  una **previsión de ahorro** a 3/6/12 meses a partir de tus ingresos previstos
+  (Ajustes) y dos escenarios: gastando hasta el límite del mes, o a tu ritmo
+  real reciente. El mismo cálculo aparece también como indicador en cada mes.
 - **Importador del Excel original**: lee las hojas con las cabeceras japonesas
   (外食, スーパーマーケット, 服装と電車と毎月費消, 娯楽, 部屋のもの) y las
   convierte en meses de la aplicación.
@@ -219,6 +222,8 @@ Réplica de las fórmulas del Excel:
 | Moneda secundaria | importe × tipo de cambio del mes |
 | Tope de categoría | suma de la categoría frente a su tope, si tiene |
 | Comparación anual | cada mes frente al mismo mes del año anterior, solo con los meses que existen en los dos años |
+| Ahorro previsto (mes) | ingresos previstos − límite (peor caso) / − media real de los últimos 6 meses |
+| Previsión de ahorro (Ahorros) | última foto de patrimonio + ahorro previsto de cada mes × meses vista |
 
 Cada apunte tiene un tipo: **normal**, **recurrente** (cuenta como gasto fijo, y
 se puede copiar al mes siguiente), **extraordinario** (puntual: la mudanza, un

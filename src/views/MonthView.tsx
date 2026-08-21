@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import {
   activeCategories,
+  computeStats,
   daysInMonth,
   getMonth,
   monthTotals,
@@ -360,6 +361,10 @@ export function MonthView({
   const status = STATUS[limitStatus(totals.usedRatio)]
   const projection = projectMonth(data, monthId)
   const isCurrent = monthId === monthIdOf()
+  // media reciente, para el "segun tu ritmo habitual" del ahorro previsto
+  const recentStats = useMemo(() => computeStats(data, { lastMonths: 6 }), [data])
+  const savingsWorstCaseJpy = totals.incomeJpy - totals.limitJpy
+  const savingsRealisticJpy = totals.incomeJpy - recentStats.averageJpy
 
   const eur = (jpy: number) => fmtMoney(jpy * totals.fxRate, cur, lang)
   const [fxBusy, setFxBusy] = useState(false)
@@ -455,6 +460,14 @@ export function MonthView({
               : eur(totals.perDayJpy)
           }
         />
+        {totals.incomeJpy > 0 && (
+          <StatTile
+            label={t('totals.savingsForecast')}
+            value={fmtJpy(savingsWorstCaseJpy, lang)}
+            secondary={`${t('totals.savingsRealistic')}: ${fmtJpy(savingsRealisticJpy, lang)}`}
+            hint={t('totals.savingsForecastHint')}
+          />
+        )}
       </div>
 
       {/* categorias */}
@@ -602,6 +615,15 @@ export function MonthView({
                 onChange={(e) => {
                   const n = parseAmount(e.target.value)
                   if (n !== null) patch({ limitJpy: n })
+                }}
+              />
+            </Field>
+            <Field label={t('fields.income')} hint={t('fields.incomeHint')}>
+              <NumberInput
+                value={month?.incomeJpy ?? 0}
+                onChange={(e) => {
+                  const n = parseAmount(e.target.value)
+                  if (n !== null) patch({ incomeJpy: n })
                 }}
               />
             </Field>

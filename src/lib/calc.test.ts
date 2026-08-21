@@ -13,6 +13,7 @@ import {
   noCostItems,
   normalizeLabel,
   projectMonth,
+  projectSavings,
   shiftMonth,
   snapshotTotals,
   topExpenses,
@@ -35,8 +36,8 @@ function build(): AppData {
   return {
     ...base,
     months: [
-      { id: '2026-07', rentJpy: 82000, extras: [{ id: 'x1', label: 'luz', amount: 5000 }], fxRate: 0.0056, limitJpy: 200000 },
-      { id: '2026-08', rentJpy: 80000, extras: [], fxRate: 0.005, limitJpy: 150000 },
+      { id: '2026-07', rentJpy: 82000, extras: [{ id: 'x1', label: 'luz', amount: 5000 }], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+      { id: '2026-08', rentJpy: 80000, extras: [], fxRate: 0.005, limitJpy: 150000, incomeJpy: 0 },
     ],
     expenses: [
       e('2026-07', 'eating_out', 'mcdonals', 1000),
@@ -109,6 +110,25 @@ describe('totales del mes (formulas del Excel)', () => {
     expect(t.limitJpy).toBe(150000)
     expect(t.balanceJpy).toBe(150000 - 86000)
     expect(t.usedRatio).toBeCloseTo(86000 / 150000, 6)
+  })
+
+  it('el ingreso del mes cae al valor por defecto de ajustes si no se pone uno', () => {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    const withDefault: AppData = {
+      ...base,
+      settings: { ...base.settings, defaultIncomeJpy: 300000 },
+      months: [{ id: '2026-08', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 }],
+    }
+    expect(monthTotals(withDefault, '2026-08').incomeJpy).toBe(0)
+
+    const withOverride: AppData = {
+      ...withDefault,
+      months: [{ id: '2026-08', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 350000 }],
+    }
+    expect(monthTotals(withOverride, '2026-08').incomeJpy).toBe(350000)
+
+    // un mes que ni siquiera existe aun: cae al valor por defecto de ajustes
+    expect(monthTotals(withDefault, '2030-01').incomeJpy).toBe(300000)
   })
 
   it('los apuntes "sin coste" no cuentan en ningun total, pero se listan aparte', () => {
@@ -245,6 +265,7 @@ describe('comparacion con el ano anterior', () => {
       extras: [],
       fxRate: 0.0056,
       limitJpy: 200000,
+      incomeJpy: 0,
     }))
     const amounts: Record<string, number> = {
       '2025-06': 100000,
@@ -325,5 +346,40 @@ describe('ahorros', () => {
     expect(totals.assetsJpy).toBe(28644 + 923 / 0.005)
     expect(totals.debtsJpy).toBe(165900)
     expect(totals.netJpy).toBe(totals.assetsJpy - 165900)
+  })
+
+  function withIncome(): AppData {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    return {
+      ...base,
+      settings: { ...base.settings, defaultIncomeJpy: 250000, defaultLimitJpy: 150000 },
+      snapshots: [
+        { id: 's1', date: '2026-08-01', accounts: [{ id: 'a', name: 'x', amount: 500000, currency: 'JPY' }] },
+      ],
+      months: [{ id: '2026-07', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 }],
+      expenses: [
+        { id: 'e1', monthId: '2026-07', categoryId: 'eating_out', label: 'x', amount: 100000, kind: 'normal' },
+      ],
+    }
+  }
+
+  it('sin ninguna foto de ahorros no hay nada que proyectar', () => {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    expect(projectSavings({ ...base, settings: { ...base.settings, defaultIncomeJpy: 250000 } }, [3])).toEqual([])
+  })
+
+  it('sin ingresos previstos configurados no hay nada que proyectar', () => {
+    const data = withIncome()
+    expect(projectSavings({ ...data, settings: { ...data.settings, defaultIncomeJpy: 0 } }, [3])).toEqual([])
+  })
+
+  it('proyecta el patrimonio en los dos escenarios', () => {
+    const points = projectSavings(withIncome(), [3, 6])
+    // peor caso: 250000 (ingreso) - 150000 (limite) = 100000 ahorrados/mes
+    // realista: 250000 - 100000 (media de julio, unico mes con datos) = 150000/mes
+    expect(points).toEqual([
+      { months: 3, worstCaseJpy: 500000 + 100000 * 3, realisticJpy: 500000 + 150000 * 3 },
+      { months: 6, worstCaseJpy: 500000 + 100000 * 6, realisticJpy: 500000 + 150000 * 6 },
+    ])
   })
 })

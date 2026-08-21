@@ -190,6 +190,15 @@ export function SettingsView() {
               }}
             />
           </Field>
+          <Field label={t('fields.income')} hint={t('fields.incomeHint')}>
+            <NumberInput
+              value={data.settings.defaultIncomeJpy}
+              onChange={(e) => {
+                const n = parseAmount(e.target.value)
+                if (n !== null) dispatch({ type: 'patchSettings', patch: { defaultIncomeJpy: n } })
+              }}
+            />
+          </Field>
           <Field label={t('fields.fx')} hint={t('fields.fxHint')}>
             <NumberInput
               value={data.settings.defaultFxRate}
