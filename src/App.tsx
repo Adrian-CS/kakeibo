@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { StoreProvider, useCurrentMonth, useStore } from './state/store'
+import { SyncProvider } from './state/sync'
 import { MonthView } from './views/MonthView'
 import { StatsView } from './views/StatsView'
 import { SavingsView } from './views/SavingsView'
 import { SettingsView } from './views/SettingsView'
 import type { AppData } from './lib/types'
+import { fetchFxRate, needsFxUpdate } from './lib/fx'
 
 type Tab = 'month' | 'stats' | 'savings' | 'settings'
 
@@ -33,9 +35,41 @@ function TabIcon({ d }: { d: string }) {
   )
 }
 
+/**
+ * Trae el tipo de cambio una vez al dia si el ajuste esta activo. Falla en
+ * silencio: sin red, se sigue usando el ultimo cambio conocido.
+ */
+function useAutoFxRate(monthId: string) {
+  const { data, dispatch } = useStore()
+  const { autoFxRate, fxUpdatedAt, secondaryCurrency } = data.settings
+  const done = useRef(false)
+
+  useEffect(() => {
+    if (!autoFxRate || done.current || !needsFxUpdate(fxUpdatedAt)) return
+    done.current = true
+    let alive = true
+    void fetchFxRate(secondaryCurrency)
+      .then((r) => {
+        if (!alive) return
+        dispatch({
+          type: 'patchSettings',
+          patch: { defaultFxRate: r.rate, fxUpdatedAt: r.date || undefined },
+        })
+        dispatch({ type: 'patchMonth', monthId, patch: { fxRate: r.rate } })
+      })
+      .catch(() => {
+        /* sin conexion o servicio caido: se queda el cambio anterior */
+      })
+    return () => {
+      alive = false
+    }
+  }, [autoFxRate, fxUpdatedAt, secondaryCurrency, monthId, dispatch])
+}
+
 function Shell() {
   const { t } = useStore()
   const [monthId, setMonthId] = useCurrentMonth()
+  useAutoFxRate(monthId)
   const [tab, setTab] = useState<Tab>(() =>
     window.location.hash.includes('stats')
       ? 'stats'
@@ -121,7 +155,9 @@ function Shell() {
 export function App({ initial }: { initial?: AppData }) {
   return (
     <StoreProvider initial={initial}>
-      <Shell />
+      <SyncProvider>
+        <Shell />
+      </SyncProvider>
     </StoreProvider>
   )
 }
