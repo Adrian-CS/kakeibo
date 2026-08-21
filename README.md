@@ -9,7 +9,9 @@ siempre en GitHub Pages.
   moneda secundaria, alquiler, extras fijos, límite y balance — las mismas
   cuentas que hacía el Excel.
 - Un apartado de **estadísticas**: evolución mensual, composición por categoría,
-  reparto del mes, ranking de conceptos, gasto medio por día y ritmo del mes.
+  ranking de conceptos y gasto medio por día del periodo elegido (6/12/24
+  meses o todo), más un **mes en foco** con su propia navegación (reparto,
+  ritmo del mes y gastos más grandes de ese mes en concreto).
 - **Ahorros**: fotos del patrimonio por fechas, con deudas y varias divisas, y
   una **previsión de ahorro** a 3/6/12 meses a partir de tus ingresos previstos
   (Ajustes), en tres escenarios: gastando hasta el límite total, gastando

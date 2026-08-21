@@ -123,7 +123,7 @@ function Shell() {
 
       <main>
         {tab === 'month' && <MonthView monthId={monthId} setMonthId={setMonthId} />}
-        {tab === 'stats' && <StatsView monthId={monthId} />}
+        {tab === 'stats' && <StatsView monthId={monthId} setMonthId={setMonthId} />}
         {tab === 'savings' && <SavingsView />}
         {tab === 'settings' && <SettingsView />}
       </main>

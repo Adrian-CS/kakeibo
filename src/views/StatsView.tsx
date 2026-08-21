@@ -9,6 +9,7 @@ import {
   monthTotals,
   monthsWithData,
   noCostItems,
+  shiftMonth,
   topExpenses,
   topLabels,
 } from '../lib/calc'
@@ -23,12 +24,19 @@ import {
   fmtSignedPercent,
 } from '../lib/format'
 import { seriesVar } from '../lib/palette'
-import { Card, Segmented, StatTile, Toggle } from '../components/ui'
+import { Card, Icon, IconButton, Segmented, StatTile, Toggle } from '../components/ui'
 import { DataTable, Donut, HBars, Lines, Sparkline, StackedColumns, type StackDatum } from '../components/charts'
 
 type Range = '6' | '12' | '24' | 'all'
+type BiggestScope = 'period' | 'month'
 
-export function StatsView({ monthId }: { monthId: string }) {
+export function StatsView({
+  monthId,
+  setMonthId,
+}: {
+  monthId: string
+  setMonthId: (id: string) => void
+}) {
   const { data, t } = useStore()
   const lang = data.settings.lang
   const cur = data.settings.secondaryCurrency
@@ -36,9 +44,20 @@ export function StatsView({ monthId }: { monthId: string }) {
   const [range, setRange] = useState<Range>('12')
   const [excludeExtra, setExcludeExtra] = useState(false)
   const [tables, setTables] = useState(false)
+  const [biggestScope, setBiggestScope] = useState<BiggestScope>('period')
 
   const lastMonths = range === 'all' ? 0 : Number(range)
   const cats = activeCategories(data.categories)
+
+  // el mes en foco: el que se elige aqui mismo (o el que ya estaba
+  // seleccionado en Mes). "Reparto del mes", "Ritmo del mes" y el primer
+  // indicador de arriba son siempre sobre este mes, tenga datos o no.
+  const focusId = monthId
+  const focus = monthTotals(data, focusId)
+  const focusPrevId = shiftMonth(focusId, -1)
+  const focusPrev = monthTotals(data, focusPrevId)
+  const hasFocusPrev = monthsWithData(data).includes(focusPrevId) && focusPrev.totalJpy > 0
+  const focusMomRatio = hasFocusPrev ? focus.totalJpy / focusPrev.totalJpy - 1 : 0
 
   const stats = useMemo(
     () => computeStats(data, { lastMonths, excludeExtraordinary: excludeExtra }),
@@ -51,10 +70,11 @@ export function StatsView({ monthId }: { monthId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, excludeExtra, monthIds.join(',')],
   )
+  const biggestMonthIds = biggestScope === 'month' ? [focusId] : monthIds
   const biggest = useMemo(
-    () => topExpenses(data, { limit: 8, monthIds, excludeExtraordinary: excludeExtra }),
+    () => topExpenses(data, { limit: 8, monthIds: biggestMonthIds, excludeExtraordinary: excludeExtra }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, excludeExtra, monthIds.join(',')],
+    [data, excludeExtra, biggestMonthIds.join(',')],
   )
   const gifts = useMemo(
     () => noCostItems(data, { monthIds }),
@@ -81,10 +101,6 @@ export function StatsView({ monthId }: { monthId: string }) {
     values: m.byCategory,
     reference: m.limitJpy || undefined,
   }))
-
-  // el mes que se esta viendo, o el ultimo con datos
-  const focusId = monthsWithData(data).includes(monthId) ? monthId : (stats.months.at(-1)?.monthId ?? monthId)
-  const focus = monthTotals(data, focusId)
 
   const donutData = cats
     .map((c) => ({
@@ -118,10 +134,22 @@ export function StatsView({ monthId }: { monthId: string }) {
   const burn = monthBurn(data, focusId)
   const hasDays = datedCount(data, focusId) > 0
 
-  const momGood = stats.momRatio <= 0
-
   return (
     <div className="space-y-3">
+      {/* mes en foco: el que se ve arriba, en "Reparto del mes", "Ritmo del
+          mes" y en "Gastos mas grandes" si esta en modo "este mes" */}
+      <div className="flex items-center gap-1">
+        <IconButton label={t('month.prev')} onClick={() => setMonthId(shiftMonth(focusId, -1))}>
+          <Icon name="left" />
+        </IconButton>
+        <h2 className="min-w-[8.5rem] text-center text-sm font-semibold text-ink">
+          {fmtMonth(focusId, lang, true)}
+        </h2>
+        <IconButton label={t('month.next')} onClick={() => setMonthId(shiftMonth(focusId, 1))}>
+          <Icon name="right" />
+        </IconButton>
+      </div>
+
       {/* una sola fila de filtros, encima de todo lo que afecta */}
       <div className="flex flex-wrap items-center gap-3">
         <Segmented<Range>
@@ -146,15 +174,11 @@ export function StatsView({ monthId }: { monthId: string }) {
       {/* indicadores del periodo */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <StatTile
-          label={`${t('totals.total')} · ${fmtMonth(stats.months.at(-1)!.monthId, lang)}`}
-          value={jpy(stats.currentJpy)}
-          secondary={fmtMoney(stats.currentJpy * (stats.months.at(-1)?.fxRate ?? 0), cur, lang)}
-          delta={
-            stats.previousJpy > 0
-              ? `${fmtSignedPercent(stats.momRatio, lang)} ${t('stats.vsPrev')}`
-              : undefined
-          }
-          deltaGood={momGood}
+          label={`${t('totals.total')} · ${fmtMonth(focusId, lang)}`}
+          value={jpy(focus.totalJpy)}
+          secondary={fmtMoney(focus.totalJpy * focus.fxRate, cur, lang)}
+          delta={hasFocusPrev ? `${fmtSignedPercent(focusMomRatio, lang)} ${t('stats.vsPrev')}` : undefined}
+          deltaGood={focusMomRatio <= 0}
         >
           <Sparkline values={stats.months.map((m) => m.totalJpy)} />
         </StatTile>
@@ -381,7 +405,20 @@ export function StatsView({ monthId }: { monthId: string }) {
       </Card>
 
       {/* gastos mas grandes */}
-      <Card title={t('stats.topExpenses')}>
+      <Card
+        title={t('stats.topExpenses')}
+        actions={
+          <Segmented<BiggestScope>
+            label={t('stats.topExpenses')}
+            value={biggestScope}
+            onChange={setBiggestScope}
+            options={[
+              { id: 'period', label: t('stats.scopePeriod') },
+              { id: 'month', label: `${t('stats.scopeMonth')} (${fmtMonth(focusId, lang)})` },
+            ]}
+          />
+        }
+      >
         <DataTable
           caption={t('stats.topExpenses')}
           columns={[t('fields.label'), t('common.month'), t('common.category'), t('common.jpy')]}
