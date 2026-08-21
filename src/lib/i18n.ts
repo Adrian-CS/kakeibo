@@ -136,6 +136,8 @@ const es = {
   'settings.color': 'Color',
   'settings.archived': 'Archivada',
   'settings.defaults': 'Valores por defecto',
+  'settings.defaultExtrasHint':
+    'Se usan solo al crear un mes que no tiene uno anterior del que copiar (el primero, o tras borrar todo)',
   'settings.data': 'Datos',
   'settings.dataHint':
     'Todo se guarda en este dispositivo, en el navegador. Exporta de vez en cuando para tener copia.',
@@ -345,6 +347,7 @@ const ja: Partial<Record<Key, string>> = {
   'settings.color': '色',
   'settings.archived': '非表示',
   'settings.defaults': '既定値',
+  'settings.defaultExtrasHint': '前の月がない場合だけ使う（最初の月、または全部消したあと）',
   'settings.data': 'データ',
   'settings.about': 'について',
   'import.title': 'Excelを読み込む',
@@ -501,6 +504,8 @@ const en: Partial<Record<Key, string>> = {
   'settings.color': 'Colour',
   'settings.archived': 'Archived',
   'settings.defaults': 'Defaults',
+  'settings.defaultExtrasHint':
+    'Only used when a month has no previous one to copy from (the first ever, or after deleting everything)',
   'settings.data': 'Data',
   'settings.about': 'About',
   'import.title': 'Import the Excel file',

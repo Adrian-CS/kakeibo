@@ -1,4 +1,5 @@
 import { DATA_VERSION, type AppData, type Category, type MonthData, type Settings } from './types'
+import { uid } from './id'
 
 /**
  * Las cinco categorias del Excel original. El orden de `colorSlot` respeta
@@ -18,6 +19,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultFxRate: 0.0056,
   defaultLimitJpy: 200000,
   defaultRentJpy: 82000,
+  defaultExtras: [],
   secondaryCurrency: 'EUR',
   autoFillFixed: true,
   autoFxRate: false,
@@ -34,7 +36,9 @@ export function newMonth(id: string, settings: Settings): MonthData {
   return {
     id,
     rentJpy: settings.defaultRentJpy,
-    extras: [],
+    // id nuevo por cada mes: si luego se copia a otro mes (o se vuelve a
+    // generar aqui), cada extra tiene que quedar como un apunte distinto
+    extras: settings.defaultExtras.map((x) => ({ ...x, id: uid('x') })),
     fxRate: settings.defaultFxRate,
     limitJpy: settings.defaultLimitJpy,
   }

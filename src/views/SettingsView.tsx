@@ -214,6 +214,72 @@ export function SettingsView() {
             />
           </Field>
         </div>
+
+        <div className="mt-4">
+          <p className="mb-1 text-xs font-medium text-ink-2">{t('fields.extras')}</p>
+          <p className="mb-2 text-[11px] text-muted">{t('settings.defaultExtrasHint')}</p>
+          <ul className="space-y-1">
+            {data.settings.defaultExtras.map((x) => (
+              <li key={x.id} className="flex items-center gap-1.5">
+                <TextInput
+                  value={x.label}
+                  onChange={(e) =>
+                    dispatch({
+                      type: 'patchSettings',
+                      patch: {
+                        defaultExtras: data.settings.defaultExtras.map((y) =>
+                          y.id === x.id ? { ...y, label: e.target.value } : y,
+                        ),
+                      },
+                    })
+                  }
+                  className="flex-1"
+                />
+                <NumberInput
+                  value={x.amount}
+                  onChange={(e) => {
+                    const n = parseAmount(e.target.value)
+                    if (n !== null)
+                      dispatch({
+                        type: 'patchSettings',
+                        patch: {
+                          defaultExtras: data.settings.defaultExtras.map((y) =>
+                            y.id === x.id ? { ...y, amount: n } : y,
+                          ),
+                        },
+                      })
+                  }}
+                  className="w-[92px] shrink-0"
+                />
+                <IconButton
+                  label={t('action.delete')}
+                  onClick={() =>
+                    dispatch({
+                      type: 'patchSettings',
+                      patch: { defaultExtras: data.settings.defaultExtras.filter((y) => y.id !== x.id) },
+                    })
+                  }
+                  className="h-9 w-9 shrink-0"
+                >
+                  <Icon name="trash" />
+                </IconButton>
+              </li>
+            ))}
+          </ul>
+          <Button
+            size="sm"
+            className="mt-1.5"
+            onClick={() =>
+              dispatch({
+                type: 'patchSettings',
+                patch: { defaultExtras: [...data.settings.defaultExtras, { id: uid('x'), label: '', amount: 0 }] },
+              })
+            }
+          >
+            <Icon name="plus" />
+            {t('action.add')}
+          </Button>
+        </div>
       </Card>
 
       <Card title={t('settings.categories')} hint={`${t('settings.bucket')} · ${t('settings.color')} · ${t('cat.limit')}`}>

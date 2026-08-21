@@ -19,7 +19,9 @@ siempre en GitHub Pages.
   cuentas (un regalo dado o recibido, por ejemplo): se ven en el mes y en
   estadísticas, pero no suman al total ni al límite.
 - **Fijos automáticos**: al abrir un mes nuevo hereda alquiler, extras y gastos
-  recurrentes del anterior.
+  recurrentes del anterior. Para el primer mes (o cuando no hay uno anterior),
+  Ajustes → Valores por defecto deja definir también una plantilla de facturas
+  fijas (agua, luz...), además del alquiler.
 - **Tipo de cambio** al día desde el Banco Central Europeo, o a mano.
 - **Sincronización opcional** entre móvil y PC con Supabase (plan gratuito).
 - Funciona **sin conexión** (PWA instalable) y se ve bien en móvil y en PC.

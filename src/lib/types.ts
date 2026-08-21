@@ -99,6 +99,12 @@ export interface Settings {
   defaultFxRate: number
   defaultLimitJpy: number
   defaultRentJpy: number
+  /**
+   * Plantilla de facturas fijas (agua, luz...) para un mes que no tiene uno
+   * anterior del que copiar. Si ya hay un mes anterior, manda lo que haya en
+   * el (ver `autoFillFixed`): esto solo evita arrancar en blanco el primero.
+   */
+  defaultExtras: FixedItem[]
   /** codigo de la moneda secundaria (la principal siempre es JPY) */
   secondaryCurrency: 'EUR' | 'USD' | 'GBP'
   /**

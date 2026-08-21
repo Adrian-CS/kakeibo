@@ -47,6 +47,12 @@ describe('migracion', () => {
     expect(d.snapshots).toEqual([])
   })
 
+  it('una copia sin defaultExtras (de antes de que existiera) no rompe la carga', () => {
+    const d = migrate({ settings: { lang: 'es', defaultRentJpy: 90000 } })
+    expect(d.settings.defaultExtras).toEqual([])
+    expect(d.settings.defaultRentJpy).toBe(90000)
+  })
+
   it('descarta apuntes sin importe o sin mes', () => {
     const d = migrate({
       expenses: [
