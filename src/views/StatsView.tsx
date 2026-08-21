@@ -8,6 +8,7 @@ import {
   monthBurn,
   monthTotals,
   monthsWithData,
+  noCostItems,
   topExpenses,
   topLabels,
 } from '../lib/calc'
@@ -54,6 +55,11 @@ export function StatsView({ monthId }: { monthId: string }) {
     () => topExpenses(data, { limit: 8, monthIds, excludeExtraordinary: excludeExtra }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, excludeExtra, monthIds.join(',')],
+  )
+  const gifts = useMemo(
+    () => noCostItems(data, { monthIds }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, monthIds.join(',')],
   )
 
   const series = cats.map((c) => ({ key: c.id, label: c.name, color: seriesVar(c.colorSlot) }))
@@ -386,6 +392,24 @@ export function StatsView({ monthId }: { monthId: string }) {
             fmtNumber(e.amount, lang),
           ])}
         />
+      </Card>
+
+      {/* apuntes "sin coste" (regalos, etc.): informativo, no cuentan en el gasto */}
+      <Card title={`🎁 ${t('stats.noCost')}`} hint={t('stats.noCostHint')}>
+        {gifts.length === 0 ? (
+          <p className="text-sm text-muted">{t('stats.noCostEmpty')}</p>
+        ) : (
+          <DataTable
+            caption={t('stats.noCost')}
+            columns={[t('fields.label'), t('common.month'), t('common.category'), t('common.jpy')]}
+            rows={gifts.map((e) => [
+              e.label || '—',
+              fmtMonth(e.monthId, lang),
+              cats.find((c) => c.id === e.categoryId)?.name ?? e.categoryId,
+              fmtNumber(e.amount, lang),
+            ])}
+          />
+        )}
       </Card>
     </div>
   )

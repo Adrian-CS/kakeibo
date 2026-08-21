@@ -10,6 +10,7 @@ import {
   monthRange,
   monthTotals,
   monthsWithData,
+  noCostItems,
   normalizeLabel,
   projectMonth,
   shiftMonth,
@@ -110,6 +111,32 @@ describe('totales del mes (formulas del Excel)', () => {
     expect(t.usedRatio).toBeCloseTo(86000 / 150000, 6)
   })
 
+  it('los apuntes "sin coste" no cuentan en ningun total, pero se listan aparte', () => {
+    const withGift: AppData = {
+      ...data,
+      expenses: [
+        ...data.expenses,
+        {
+          id: 'gift-1',
+          monthId: '2026-07',
+          categoryId: 'eating_out',
+          label: 'regalo cumpleanos',
+          amount: 5000,
+          kind: 'noCost',
+        },
+      ],
+    }
+    const before = monthTotals(data, '2026-07')
+    const after = monthTotals(withGift, '2026-07')
+    expect(after.totalJpy).toBe(before.totalJpy)
+    expect(after.itemsJpy).toBe(before.itemsJpy)
+    expect(after.dailyLifeJpy).toBe(before.dailyLifeJpy)
+    expect(after.byCategory.eating_out).toBe(before.byCategory.eating_out)
+    expect(after.count).toBe(before.count)
+    expect(after.noCostJpy).toBe(5000)
+    expect(after.noCostCount).toBe(1)
+  })
+
   it('un mes sin datos no rompe nada', () => {
     const t = monthTotals(data, '2030-01')
     expect(t.totalJpy).toBe(0)
@@ -167,6 +194,21 @@ describe('estadisticas', () => {
   it('filtra rankings por mes', () => {
     const top = topLabels(data, { monthIds: ['2026-08'] })
     expect(top.map((l) => l.label.toLowerCase())).toEqual(['uber', 'steam'])
+  })
+
+  it('los "sin coste" quedan fuera de los rankings de gasto, pero se pueden listar aparte', () => {
+    const withGift: AppData = {
+      ...data,
+      expenses: [
+        ...data.expenses,
+        { id: 'gift-2', monthId: '2026-08', categoryId: 'leisure', label: 'regalo', amount: 9000, kind: 'noCost' },
+      ],
+    }
+    expect(topExpenses(withGift, { limit: 1 })[0].amount).toBe(100000)
+    expect(topLabels(withGift).find((l) => l.label === 'regalo')).toBeUndefined()
+    const gifts = noCostItems(withGift, { monthIds: ['2026-08'] })
+    expect(gifts).toHaveLength(1)
+    expect(gifts[0].label).toBe('regalo')
   })
 })
 

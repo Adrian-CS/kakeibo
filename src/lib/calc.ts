@@ -70,6 +70,10 @@ export interface MonthTotals {
   otherJpy: number
   /** gastos marcados como extraordinarios (informativo) */
   extraordinaryJpy: number
+  /** gastos marcados como "sin coste" (informativo, no suman al total) */
+  noCostJpy: number
+  /** numero de apuntes "sin coste" */
+  noCostCount: number
   /** 上限 */
   limitJpy: number
   /** balance = limite - total */
@@ -110,20 +114,26 @@ export function monthTotals(data: AppData, monthId: string): MonthTotals {
   const limitJpy = month?.limitJpy ?? data.settings.defaultLimitJpy
 
   const items = expensesOfMonth(data, monthId)
+  // los apuntes "sin coste" (regalos, etc.) son solo informativos: no cuentan
+  // en ningun total, tope de categoria ni ranking, aunque se listan igual
+  const costItems = items.filter((e) => e.kind !== 'noCost')
+  const noCostItemsOfMonth = items.filter((e) => e.kind === 'noCost')
+
   const byCategory: Record<string, number> = {}
   for (const c of data.categories) byCategory[c.id] = 0
-  for (const e of items) {
+  for (const e of costItems) {
     byCategory[e.categoryId] = (byCategory[e.categoryId] ?? 0) + e.amount
   }
 
   const dailyIds = new Set(data.categories.filter((c) => c.bucket === 'daily').map((c) => c.id))
 
-  const itemsJpy = sum(items.map((e) => e.amount))
+  const itemsJpy = sum(costItems.map((e) => e.amount))
   const totalJpy = itemsJpy + rentJpy + extrasJpy
-  const dailyLifeJpy = sum(items.filter((e) => dailyIds.has(e.categoryId)).map((e) => e.amount))
-  const recurringJpy = sum(items.filter((e) => e.kind === 'recurring').map((e) => e.amount))
+  const dailyLifeJpy = sum(costItems.filter((e) => dailyIds.has(e.categoryId)).map((e) => e.amount))
+  const recurringJpy = sum(costItems.filter((e) => e.kind === 'recurring').map((e) => e.amount))
   const fixedJpy = recurringJpy + rentJpy + extrasJpy
-  const extraordinaryJpy = sum(items.filter((e) => e.kind === 'extraordinary').map((e) => e.amount))
+  const extraordinaryJpy = sum(costItems.filter((e) => e.kind === 'extraordinary').map((e) => e.amount))
+  const noCostJpy = sum(noCostItemsOfMonth.map((e) => e.amount))
 
   return {
     monthId,
@@ -136,11 +146,13 @@ export function monthTotals(data: AppData, monthId: string): MonthTotals {
     fixedJpy,
     otherJpy: totalJpy - fixedJpy,
     extraordinaryJpy,
+    noCostJpy,
+    noCostCount: noCostItemsOfMonth.length,
     limitJpy,
     balanceJpy: limitJpy - totalJpy,
     usedRatio: limitJpy > 0 ? totalJpy / limitJpy : 0,
     fxRate,
-    count: items.length,
+    count: costItems.length,
     perDayJpy: totalJpy / daysInMonth(monthId),
   }
 }
@@ -201,10 +213,14 @@ export interface Stats {
   perDayJpy: number
 }
 
-/** Filtra los gastos segun las opciones y devuelve una copia de los datos. */
+/**
+ * Filtra los gastos segun las opciones y devuelve una copia de los datos.
+ * Los apuntes "sin coste" se excluyen siempre: son informativos, no gasto real.
+ */
 function filtered(data: AppData, opts: StatsOptions): AppData {
-  if (!opts.excludeExtraordinary) return data
-  return { ...data, expenses: data.expenses.filter((e) => e.kind !== 'extraordinary') }
+  let expenses = data.expenses.filter((e) => e.kind !== 'noCost')
+  if (opts.excludeExtraordinary) expenses = expenses.filter((e) => e.kind !== 'extraordinary')
+  return expenses.length === data.expenses.length ? data : { ...data, expenses }
 }
 
 export function computeStats(data: AppData, opts: StatsOptions = {}): Stats {
@@ -294,9 +310,7 @@ export interface Yoy {
  * variacion no salga distorsionada por meses vacios.
  */
 export function computeYoy(data: AppData, monthId: string, opts: StatsOptions = {}): Yoy {
-  const src = opts.excludeExtraordinary
-    ? { ...data, expenses: data.expenses.filter((e) => e.kind !== 'extraordinary') }
-    : data
+  const src = filtered(data, opts)
   const year = Number(monthId.slice(0, 4))
   const have = new Set(monthsWithData(src))
 
@@ -392,6 +406,14 @@ export function topExpenses(
     .filter((e) => !allow || allow.has(e.monthId))
     .sort((a, b) => b.amount - a.amount)
     .slice(0, opts.limit ?? 10)
+}
+
+/** Apuntes marcados como "sin coste" (regalos, etc.): informativo, no es ranking de gasto. */
+export function noCostItems(data: AppData, opts: { monthIds?: string[] } = {}): Expense[] {
+  const allow = opts.monthIds ? new Set(opts.monthIds) : null
+  return data.expenses
+    .filter((e) => e.kind === 'noCost' && (!allow || allow.has(e.monthId)))
+    .sort((a, b) => b.monthId.localeCompare(a.monthId) || b.amount - a.amount)
 }
 
 /* ------------------------------------------------------------------ *

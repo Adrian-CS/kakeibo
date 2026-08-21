@@ -56,7 +56,21 @@ function ExpenseRow({ expense }: { expense: Expense }) {
 
   const lang = data.settings.lang
   const kindMark =
-    expense.kind === 'recurring' ? '↻' : expense.kind === 'extraordinary' ? '★' : null
+    expense.kind === 'recurring'
+      ? '↻'
+      : expense.kind === 'extraordinary'
+        ? '★'
+        : expense.kind === 'noCost'
+          ? '🎁'
+          : null
+  const kindTitle =
+    expense.kind === 'recurring'
+      ? t('kind.recurring')
+      : expense.kind === 'extraordinary'
+        ? t('kind.extraordinary')
+        : expense.kind === 'noCost'
+          ? `${t('kind.noCost')} — ${t('kind.noCost.hint')}`
+          : undefined
 
   return (
     <li className="group flex items-center gap-1.5 py-0.5">
@@ -70,10 +84,7 @@ function ExpenseRow({ expense }: { expense: Expense }) {
         className="min-w-0 flex-1 rounded-md bg-transparent px-1.5 py-1.5 text-sm text-ink placeholder:text-muted hover:bg-surface-2 focus:bg-surface-2"
       />
       {kindMark && (
-        <span
-          className="shrink-0 text-[11px] text-muted"
-          title={t(expense.kind === 'recurring' ? 'kind.recurring' : 'kind.extraordinary')}
-        >
+        <span className="shrink-0 text-[11px] text-muted" title={kindTitle}>
           {kindMark}
         </span>
       )}
@@ -120,7 +131,10 @@ function ExpenseRow({ expense }: { expense: Expense }) {
               options={activeCategories(data.categories).map((c) => ({ value: c.id, label: c.name }))}
             />
           </Field>
-          <Field label={t('fields.kind')}>
+          <Field
+            label={t('fields.kind')}
+            hint={expense.kind === 'noCost' ? t('kind.noCost.hint') : undefined}
+          >
             <Select
               value={expense.kind}
               onChange={(v) =>
@@ -130,6 +144,7 @@ function ExpenseRow({ expense }: { expense: Expense }) {
                 { value: 'normal', label: t('kind.normal') },
                 { value: 'recurring', label: t('kind.recurring') },
                 { value: 'extraordinary', label: t('kind.extraordinary') },
+                { value: 'noCost', label: t('kind.noCost') },
               ]}
             />
           </Field>
@@ -156,7 +171,7 @@ function ExpenseRow({ expense }: { expense: Expense }) {
         </div>
         <p className="mt-3 text-xs text-muted">
           {t('kind.recurring')}: {t('kind.recurring.hint')} · {t('kind.extraordinary')}:{' '}
-          {t('kind.extraordinary.hint')}
+          {t('kind.extraordinary.hint')} · {t('kind.noCost')}: {t('kind.noCost.hint')}
         </p>
         <p className="mt-1 text-xs text-muted">
           {fmtJpy(expense.amount, lang)} ·{' '}
@@ -302,7 +317,11 @@ function QuickAdd({ monthId }: { monthId: string }) {
           <Field label={`${t('fields.day')} (${t('common.optional')})`}>
             <NumberInput value={day} placeholder="—" onChange={(e) => setDay(e.target.value)} />
           </Field>
-          <Field label={t('fields.kind')} className="col-span-2">
+          <Field
+            label={t('fields.kind')}
+            className="col-span-2"
+            hint={kind === 'noCost' ? t('kind.noCost.hint') : undefined}
+          >
             <Select
               value={kind}
               onChange={(v) => setKind(v as ExpenseKind)}
@@ -310,6 +329,7 @@ function QuickAdd({ monthId }: { monthId: string }) {
                 { value: 'normal', label: t('kind.normal') },
                 { value: 'recurring', label: t('kind.recurring') },
                 { value: 'extraordinary', label: t('kind.extraordinary') },
+                { value: 'noCost', label: t('kind.noCost') },
               ]}
             />
           </Field>
@@ -622,6 +642,12 @@ export function MonthView({
             <p className="mt-3 text-xs text-muted">
               ★ {t('totals.extraordinary')}:{' '}
               <span className="tabular-nums text-ink-2">{fmtJpy(totals.extraordinaryJpy, lang)}</span>
+            </p>
+          )}
+          {totals.noCostCount > 0 && (
+            <p className="mt-1 text-xs text-muted" title={t('kind.noCost.hint')}>
+              🎁 {t('totals.noCost')}: {totals.noCostCount} ·{' '}
+              <span className="tabular-nums text-ink-2">{fmtJpy(totals.noCostJpy, lang)}</span>
             </p>
           )}
         </Card>

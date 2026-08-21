@@ -15,6 +15,9 @@ siempre en GitHub Pages.
   (外食, スーパーマーケット, 服装と電車と毎月費消, 娯楽, 部屋のもの) y las
   convierte en meses de la aplicación.
 - **Topes por categoría** además del límite del mes, con su aviso al pasarse.
+- **Apuntes sin coste** para dejar constancia de algo sin que afecte a las
+  cuentas (un regalo dado o recibido, por ejemplo): se ven en el mes y en
+  estadísticas, pero no suman al total ni al límite.
 - **Fijos automáticos**: al abrir un mes nuevo hereda alquiler, extras y gastos
   recurrentes del anterior.
 - **Tipo de cambio** al día desde el Banco Central Europeo, o a mano.
@@ -203,9 +206,12 @@ Réplica de las fórmulas del Excel:
 | Comparación anual | cada mes frente al mismo mes del año anterior, solo con los meses que existen en los dos años |
 
 Cada apunte tiene un tipo: **normal**, **recurrente** (cuenta como gasto fijo, y
-se puede copiar al mes siguiente) o **extraordinario** (puntual: la mudanza, un
-hotel, un vuelo). En las estadísticas se pueden excluir los extraordinarios para
-ver la tendencia real.
+se puede copiar al mes siguiente), **extraordinario** (puntual: la mudanza, un
+hotel, un vuelo) o **sin coste** (para dejar constancia de algo sin que afecte
+a las cuentas: un regalo dado o recibido, por ejemplo). En las estadísticas se
+pueden excluir los extraordinarios para ver la tendencia real; los apuntes sin
+coste siempre quedan fuera de los totales, límites y rankings de gasto, pero se
+listan en su categoría y en un apartado propio de las estadísticas.
 
 ## Estructura
 

@@ -11,6 +11,8 @@ export type ExpenseKind =
   | 'recurring'
   /** gasto extraordinario / puntual (mudanza, hotel, billetes de avion...) */
   | 'extraordinary'
+  /** sin coste real: solo para dejar constancia (un regalo dado o recibido...) */
+  | 'noCost'
 
 /** Un "bucket" agrupa categorias para los indicadores del mes. */
 export type Bucket =
