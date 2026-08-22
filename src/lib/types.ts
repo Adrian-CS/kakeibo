@@ -33,6 +33,8 @@ export interface Category {
   archived?: boolean
   /** tope mensual de esta categoria, en yenes (0 o vacio = sin tope) */
   limitJpy?: number
+  /** ISO. Lo usa la fusion al sincronizar para saber que version es mas nueva */
+  updatedAt?: string
 }
 
 export interface Expense {

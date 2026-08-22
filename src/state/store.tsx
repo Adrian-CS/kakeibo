@@ -313,11 +313,12 @@ function reducer(state: State, action: Action): State {
 
     case 'upsertCategory': {
       const exists = data.categories.some((c) => c.id === action.category.id)
+      const category = { ...action.category, updatedAt: nowIso() }
       return withHistory(state, {
         ...data,
         categories: exists
-          ? data.categories.map((c) => (c.id === action.category.id ? action.category : c))
-          : [...data.categories, action.category],
+          ? data.categories.map((c) => (c.id === category.id ? category : c))
+          : [...data.categories, category],
       })
     }
 
@@ -335,6 +336,7 @@ function reducer(state: State, action: Action): State {
       // "Otros" se borra teniendo gastos, se recrea al momento para ellos.
       const hasOther = remaining.some((c) => c.id === OTHER_CATEGORY_ID)
       const t = translator(data.settings.lang)
+      const at = nowIso()
       const categories = hasOther
         ? remaining
         : [
@@ -344,10 +346,10 @@ function reducer(state: State, action: Action): State {
               name: t('category.other'),
               bucket: 'other',
               colorSlot: remaining.length % MAX_SLOTS,
+              updatedAt: at,
             } satisfies Category,
           ]
 
-      const at = nowIso()
       return withHistory(state, {
         ...data,
         categories,

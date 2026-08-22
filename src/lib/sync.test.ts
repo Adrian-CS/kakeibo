@@ -12,7 +12,7 @@ import {
   stampAsNew,
 } from './sync'
 import { emptyData } from './defaults'
-import type { AppData, Expense } from './types'
+import type { AppData, Category, Expense } from './types'
 
 const T1 = '2026-08-01T10:00:00.000Z'
 const T2 = '2026-08-02T10:00:00.000Z'
@@ -34,6 +34,10 @@ function doc(expenses: Expense[], updatedAt: string, extra: Partial<AppData> = {
   return { ...emptyData(new Date('2026-08-15T00:00:00')), expenses, updatedAt, ...extra }
 }
 
+function cat(id: string, updatedAt?: string): Category {
+  return { id, name: id, bucket: 'other', colorSlot: 0, updatedAt }
+}
+
 describe('utilidades', () => {
   it('newestIso', () => {
     expect(newestIso(T1, T2)).toBe(T2)
@@ -53,16 +57,18 @@ describe('utilidades', () => {
     expect(out.find((e) => e.id === 'c')!.amount).toBe(300)
   })
 
-  it('stampAsNew marca el documento y cada gasto, mes y foto con la misma fecha', () => {
+  it('stampAsNew marca el documento y cada gasto, mes, categoria y foto con la misma fecha', () => {
     const base = doc([exp('a', 100, T1)], T1, {
       months: [{ id: '2026-08', rentJpy: 0, extras: [], fxRate: 1, limitJpy: 0, incomeJpy: 0, updatedAt: T1 }],
       snapshots: [{ id: 's1', date: '2026-08-01', accounts: [], updatedAt: T1 }],
+      categories: [cat('home', T1)],
     })
     const out = stampAsNew(base, T3)
     expect(out.updatedAt).toBe(T3)
     expect(out.expenses[0].updatedAt).toBe(T3)
     expect(out.months[0].updatedAt).toBe(T3)
     expect(out.snapshots[0].updatedAt).toBe(T3)
+    expect(out.categories[0].updatedAt).toBe(T3)
   })
 
   it('una copia importada con apuntes viejos no pierde el pulso del merge frente a la nube', () => {
@@ -129,6 +135,32 @@ describe('mergeData', () => {
     const local = doc([], T1, { deleted: [{ id: 'a', at: T1 }] })
     const remote = doc([exp('a', 100, T3)], T3)
     expect(mergeData(local, remote).expenses).toHaveLength(1)
+  })
+
+  it('una categoria borrada puede resucitar si se vuelve a crear despues (p.ej. al importar una copia)', () => {
+    // bug real: las categorias no llevaban fecha propia, asi que una vez
+    // borrada (con su marca en la nube) nunca podia distinguirse "nunca se
+    // volvio a tocar" de "se recreo a proposito" -Importar datos con esa
+    // misma categoria la traia de vuelta localmente, pero el siguiente
+    // sincronizar la volvia a hacer desaparecer para siempre
+    const local = doc([], T1, {
+      deleted: [{ id: 'home', at: T1 }],
+      categories: [cat('eating_out')],
+    })
+    // "remote" hace de nube: tiene la marca de borrado de antes, pero la
+    // copia importada (mas nueva) trae "home" de vuelta con fecha propia
+    const remote = doc([], T2, {
+      deleted: [{ id: 'home', at: T1 }],
+      categories: [cat('eating_out'), cat('home', T3)],
+    })
+    const merged = mergeData(local, remote)
+    expect(merged.categories.map((c) => c.id).sort()).toEqual(['eating_out', 'home'])
+  })
+
+  it('sin fecha propia, una categoria borrada sigue sin volver (comportamiento previo intacto)', () => {
+    const local = doc([], T1, { deleted: [{ id: 'home', at: T2 }], categories: [] })
+    const remote = doc([], T1, { categories: [cat('home')] }) // sin updatedAt propio
+    expect(mergeData(local, remote).categories).toEqual([])
   })
 
   it('es simetrico', () => {

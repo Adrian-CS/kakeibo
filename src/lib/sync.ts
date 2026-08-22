@@ -26,19 +26,25 @@ export function newestIso(a?: string, b?: string): string {
 }
 
 /**
- * Marca el documento entero -y cada gasto, mes y foto de ahorros que
- * contiene- como editado justo ahora. Hace falta al restaurar una copia
+ * Marca el documento entero -y cada gasto, mes, categoria y foto de ahorros
+ * que contiene- como editado justo ahora. Hace falta al restaurar una copia
  * completa (Importar datos, Borrar todo): sin esto, los apuntes conservan la
  * fecha de edicion que tenian cuando se exportaron, y la siguiente
  * sincronizacion los compara con la version de la nube por esa fecha vieja.
  * Si la nube tiene algo mas reciente con el mismo id, la copia recien
  * importada pierde el pulso del merge y vuelve a lo que habia antes de
  * importar, deshaciendo la restauracion sin avisar.
+ *
+ * Las categorias entran tambien: si una categoria se borro en algun momento
+ * (con su marca de borrado ya en la nube) y la copia que se importa la trae
+ * de vuelta, necesita una fecha mas nueva que esa marca para poder
+ * resucitar en el siguiente merge -si no, `alive()` la descarta siempre.
  */
 export function stampAsNew(data: AppData, at: string = nowIso()): AppData {
   return {
     ...data,
     updatedAt: at,
+    categories: data.categories.map((c) => ({ ...c, updatedAt: at })),
     expenses: data.expenses.map((e) => ({ ...e, updatedAt: at })),
     snapshots: data.snapshots.map((s) => ({ ...s, updatedAt: at })),
     months: data.months.map((m) => ({ ...m, updatedAt: at })),
@@ -151,18 +157,15 @@ export function mergeData(local: AppData, remote: AppData): AppData {
     localNewer ? localAt : remoteAt,
   )
 
-  // las categorias no llevan fecha propia: gana la copia mas nueva, y las que
-  // solo existen en un lado se mantienen (salvo que esten borradas)
+  // igual que gastos/fotos: la categoria editada mas tarde gana un conflicto,
+  // y las que faltan por fecha propia caen al reloj del documento entero. Sin
+  // fecha propia, una categoria borrada (con su marca) no podia distinguir
+  // "nunca se volvio a tocar" de "se volvio a crear a proposito" y se perdia
+  // para siempre aunque una copia importada la trajera de vuelta
   const categories = alive<Category>(
-    mergeById<Category & Identified>(
-      (localNewer ? local.categories : remote.categories) as (Category & Identified)[],
-      (localNewer ? remote.categories : local.categories) as (Category & Identified)[],
-      localNewer ? localAt : remoteAt,
-      // la copia mas antigua nunca gana un conflicto de categoria
-      '',
-    ),
+    mergeById(local.categories, remote.categories, localAt, remoteAt),
     deletedMap,
-    '',
+    localNewer ? localAt : remoteAt,
   )
 
   // los meses se fusionan por id; los extras, uno a uno
