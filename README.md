@@ -118,7 +118,10 @@ tenga su copia. Hay dos formas de juntarlas:
   dispositivo, mientras que *Importar Excel* deja elegir mes a mes. Si ese
   dispositivo sincroniza, la copia importada también se marca como la más
   reciente para el próximo `Sincronizar`, así que gana el pulso frente a la
-  nube en vez de deshacerse sola justo después de importar.
+  nube en vez de deshacerse sola justo después de importar. Lo mismo pasa con
+  *Borrar todo*: deja una marca de borrado de cada apunte que había, así que
+  la sincronización se entera de que es un borrado a propósito y no baja la
+  copia vieja de la nube para "recuperar" lo que se acaba de borrar.
 - **Automática**: la sincronización con Supabase que se describe abajo.
 
 ## Sincronizar el móvil y el PC (Supabase, plan gratuito)

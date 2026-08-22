@@ -199,10 +199,13 @@ export function SavingsView() {
   // el colchon se mide al ritmo real de gasto (recentAverageJpy), no con la
   // media sin filtrar de `stats`: esa cuenta meses vacios o solo de gasto fijo
   // (por ejemplo el mes en curso, recien creado) y hunde la media, inflando
-  // los meses de colchon muy por encima de lo real. Solo cae al promedio sin
-  // filtrar si no hay ningun mes con gasto real en la ventana.
+  // los meses de colchon muy por encima de lo real. Solo cae al promedio de
+  // `stats` (ya filtrado igual, ver `computeStats`) si no hay ningun mes con
+  // gasto real en la ventana de `recentActiveAverageJpy`.
   const runwayBaseJpy = recentAverageJpy ?? stats.averageJpy
-  const runway = last && runwayBaseJpy > 0 ? last.netJpy / runwayBaseJpy : 0
+  // sin ninguna base fiable, "0 meses" leeria como "sin colchon" en vez de
+  // "no hay suficiente historial": mejor no dar un numero que confunda
+  const runway = last && runwayBaseJpy > 0 ? last.netJpy / runwayBaseJpy : null
   const projection = useMemo(
     () =>
       isTogether
@@ -284,8 +287,8 @@ export function SavingsView() {
             <StatTile label={t('savings.debts')} value={fmtJpy(last?.debtsJpy ?? 0, lang)} />
             <StatTile
               label={t('savings.months')}
-              value={fmtNumber(runway, lang, 1)}
-              hint={t('savings.monthsHint')}
+              value={runway === null ? t('common.none') : fmtNumber(runway, lang, 1)}
+              hint={runway === null ? t('savings.monthsUnknownHint') : t('savings.monthsHint')}
             />
           </div>
 

@@ -20,7 +20,7 @@ import type {
   SyncState,
 } from '../lib/types'
 import { loadData, saveData } from '../lib/storage'
-import { monthIdOf, newMonth } from '../lib/defaults'
+import { emptyData, monthIdOf, newMonth } from '../lib/defaults'
 import { getMonth, overspendDebt, shiftMonth } from '../lib/calc'
 import { translator, type TFunc } from '../lib/i18n'
 import { uid } from '../lib/id'
@@ -47,6 +47,7 @@ type Action =
   | { type: 'deleteSnapshot'; id: string }
   | { type: 'patchSettings'; patch: Partial<Settings> }
   | { type: 'patchSync'; patch: Partial<SyncState> }
+  | { type: 'resetAll' }
   | { type: 'undo' }
 
 interface State {
@@ -172,6 +173,30 @@ function reducer(state: State, action: Action): State {
     // justo despues de importar
     case 'replace':
       return withHistory(state, stampAsNew(action.data))
+
+    // "Borrar todo": vacia el dispositivo Y dejar marcas de borrado de todo
+    // lo que habia, para que la sincronizacion se entere de que es un borrado
+    // a proposito y no un dispositivo nuevo. Sin esto, en cuanto sincroniza
+    // el propio `isBlankDevice` interpretaba "no tengo nada" como "aun no me
+    // he sincronizado nunca" y volvia a bajar la copia vieja de la nube,
+    // deshaciendo el borrado.
+    case 'resetAll': {
+      const fresh = emptyData()
+      // las categorias por defecto y el mes en curso los vuelve a crear
+      // `emptyData()` con el mismo id de siempre: si se marcan como borrados
+      // igualmente, nacen ya con su propia marca de borrado encima
+      const freshIds = new Set([
+        ...fresh.categories.map((c) => c.id),
+        ...fresh.months.map((m) => m.id),
+      ])
+      const oldIds = [
+        ...data.categories.map((c) => c.id),
+        ...data.expenses.map((e) => e.id),
+        ...data.months.map((m) => m.id),
+        ...data.snapshots.map((s) => s.id),
+      ].filter((id) => !freshIds.has(id))
+      return withHistory(state, stampAsNew({ ...fresh, deleted: tomb(data, ...oldIds) }))
+    }
 
     case 'applyMerge':
       return {

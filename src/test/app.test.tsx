@@ -236,6 +236,28 @@ describe('la aplicacion', () => {
     expect(screen.getByText('Otros')).toBeInTheDocument()
   })
 
+  it('borrar todo deja marcas de borrado, para que la sincronizacion no lo resucite', async () => {
+    // regresion: un dispositivo recien vaciado se veia igual que uno recien
+    // instalado (isBlankDevice), asi que la sincronizacion volvia a bajar la
+    // copia vieja de la nube en cuanto se sincronizaba, deshaciendo el borrado
+    const user = userEvent.setup()
+    render(<App initial={seed()} />)
+    await user.click(screen.getAllByRole('button', { name: /Ajustes/ })[0])
+    await user.click(screen.getByRole('button', { name: 'Borrar todo' }))
+    await user.click(screen.getByRole('button', { name: /Borrar todo — Confirmar/ }))
+
+    await new Promise((r) => setTimeout(r, 400))
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)!)
+    expect(saved.expenses).toHaveLength(0)
+    expect(saved.deleted.map((d: { id: string }) => d.id)).toEqual(expect.arrayContaining(['e1', 'e2']))
+    // las categorias por defecto vuelven a crearse con el mismo id de
+    // siempre: no deben nacer ya marcadas como borradas
+    const defaultIds = saved.categories.map((c: { id: string }) => c.id)
+    for (const id of defaultIds) {
+      expect(saved.deleted.map((d: { id: string }) => d.id)).not.toContain(id)
+    }
+  })
+
   it('borra un gasto desde su ficha', async () => {
     const user = userEvent.setup()
     render(<App initial={seed()} />)

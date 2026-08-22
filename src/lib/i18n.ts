@@ -139,6 +139,7 @@ const es = {
   'savings.evolution': 'Evolución',
   'savings.months': 'Meses de colchón',
   'savings.monthsHint': 'Patrimonio / gasto medio mensual',
+  'savings.monthsUnknownHint': 'Aún no hay ningún mes con gasto real del que sacar el ritmo',
   'savings.forecast': 'Previsión de ahorro',
   'savings.forecastHint':
     'Desde tu última foto. El número grande es el peor caso por el límite total; debajo, el peor caso por límites de categoría y la cifra más realista, a tu ritmo habitual',
@@ -412,6 +413,8 @@ const ja: Partial<Record<Key, string>> = {
   'savings.autoDebtLabel': '発生した負債',
   'savings.evolution': '推移',
   'savings.months': '生活できる月数',
+  'savings.monthsHint': '純資産 ÷ 月の平均支出',
+  'savings.monthsUnknownHint': '実際の出費がある月がまだ無い',
   'savings.forecast': '貯金の見込み',
   'savings.forecastHint':
     '最後の記録から。大きい数字は上限全体での最悪の場合。下にカテゴリの上限での最悪の場合と、より現実的な普段のペースの額',
@@ -639,6 +642,8 @@ const en: Partial<Record<Key, string>> = {
   'savings.autoDebtLabel': 'Debt generated',
   'savings.evolution': 'Evolution',
   'savings.months': 'Months of runway',
+  'savings.monthsHint': 'Net worth / average monthly spend',
+  'savings.monthsUnknownHint': "No month with real spending yet to base this on",
   'savings.forecast': 'Savings forecast',
   'savings.forecastHint':
     'From your last snapshot. The big number is the worst case by the overall limit; below, the worst case by category limits and the more realistic figure, at your usual pace',

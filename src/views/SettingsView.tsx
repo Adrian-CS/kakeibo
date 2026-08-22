@@ -2,7 +2,6 @@ import { useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import { LANGS } from '../lib/i18n'
 import { clearData, deserialize, exportFileName, serialize, storageSize } from '../lib/storage'
-import { emptyData } from '../lib/defaults'
 import { fmtNumber, parseAmount } from '../lib/format'
 import { MAX_SLOTS, seriesVar } from '../lib/palette'
 import type { Bucket, Category, Lang, ThemePref } from '../lib/types'
@@ -409,7 +408,7 @@ export function SettingsView() {
             confirmLabel={`${t('action.reset')} — ${t('action.confirm')}`}
             onConfirm={() => {
               clearData()
-              dispatch({ type: 'replace', data: emptyData() })
+              dispatch({ type: 'resetAll' })
             }}
           >
             {t('action.reset')}
