@@ -63,6 +63,19 @@ export function SyncCard() {
       {/* 2. entrar con correo y contraseña */}
       {sync.config && !sync.session && (
         <div className="grid gap-3 sm:grid-cols-2">
+          {mode === 'signUp' &&
+            (sync.redirectTo ? (
+              <p className="text-xs text-muted sm:col-span-2">
+                {t('sync.returnTo')}{' '}
+                <code className="rounded bg-surface-2 px-1 py-0.5 text-ink-2">{sync.redirectTo}</code>
+                <br />
+                {t('sync.siteUrlHint')}
+              </p>
+            ) : (
+              <p className="text-xs sm:col-span-2" style={{ color: 'var(--serious)' }}>
+                {t('sync.noReturn')}
+              </p>
+            ))}
           <Field label={t('sync.email')}>
             <TextInput
               type="email"

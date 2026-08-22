@@ -122,14 +122,20 @@ tenga su copia. Hay dos formas de juntarlas:
    Crea la tabla `kakeibo_docs` con RLS: cada usuario solo puede leer y escribir
    su propia fila.
 3. En **Project Settings → API**, copia la *Project URL* y la clave *anon*.
-4. En la app: **Ajustes → Sincronización**, pega URL y clave, escribe tu correo
+4. En **Authentication → URL Configuration**, añade la dirección de la app
+   (`https://USUARIO.github.io/kakeibo/`) a *Site URL* y a *Redirect URLs*. El
+   acceso ya no usa enlaces para entrar, pero Supabase sigue mandando un
+   correo de confirmación al crear la cuenta (si tienes *Confirm email*
+   activado), y ese correo sí lleva un enlace; sin este paso apunta a
+   `localhost` y da "página no encontrada".
+5. En la app: **Ajustes → Sincronización**, pega URL y clave, escribe tu correo
    y una contraseña, y pulsa *Crear cuenta*. En el otro dispositivo, pega la
    misma URL y clave, escribe el mismo correo y contraseña, y pulsa *Entrar*.
 
-El acceso es con correo y contraseña normales — sin enlaces ni códigos por
-correo de por medio — así que funciona igual en cualquier navegador o
+El acceso del día a día es con correo y contraseña normales — sin enlaces ni
+códigos de por medio — así que funciona igual en cualquier navegador o
 dispositivo, incluido un icono que hayas añadido a la pantalla de inicio del
-móvil (esos icono "instalados" no comparten sesión con el navegador normal;
+móvil (esos iconos "instalados" no comparten sesión con el navegador normal;
 con contraseña no hace falta que la compartan, porque entras directamente
 dentro de cada uno).
 
@@ -138,6 +144,12 @@ Si en **Authentication → Providers → Email** tienes activado *Confirm email*
 correo de confirmación: ábrelo una vez y vuelve a la app para pulsar *Entrar*
 con tu contraseña. Si lo desactivas ahí, *Crear cuenta* deja la sesión
 abierta al momento, sin pasar por el correo en absoluto.
+
+Si ya creaste la cuenta antes de configurar *Site URL*/*Redirect URLs* y el
+correo de confirmación te llevó a una página no encontrada: añade la
+dirección ahora en Supabase y pide que te reenvíen el correo (o, si el
+proyecto no exige confirmar el correo, prueba directamente a *Entrar* con tu
+contraseña — puede que la cuenta ya esté activa igualmente).
 
 **Si ya usabas la sincronización de antes** (por enlace de correo, sin
 contraseña): esa cuenta sigue abierta en el dispositivo donde ya habías

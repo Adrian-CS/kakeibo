@@ -176,16 +176,25 @@ export async function call<T>(
  * correo antes de dejar entrar, la respuesta no trae sesion todavia (solo el
  * usuario recien creado): hay que avisar de que revise el correo y luego
  * entre con `signInWithPassword`.
+ *
+ * `redirectTo` es a donde vuelve el enlace de ESE correo de confirmacion
+ * (Supabase sigue mandando uno aunque el acceso normal ya no use enlaces).
+ * Puede ser null: si la app se abre desde un fichero local no hay direccion a
+ * la que volver, y mandar una invalida hace que Supabase caiga en el "Site
+ * URL" del proyecto (que por defecto es localhost). Mejor no mandar nada y
+ * que use el Site URL a proposito.
  */
 export async function signUpWithPassword(
   cfg: SupabaseConfig,
   email: string,
   password: string,
+  redirectTo: string | null,
   f: Fetcher = fetch,
 ): Promise<Session | null> {
+  const query = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : ''
   const t = await call<Partial<TokenResponse>>(
     cfg,
-    '/auth/v1/signup',
+    `/auth/v1/signup${query}`,
     { method: 'POST', body: JSON.stringify({ email, password }) },
     f,
   )

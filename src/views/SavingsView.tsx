@@ -192,7 +192,17 @@ export function SavingsView() {
   )
   const last = series.at(-1)
   const prev = series.at(-2)
-  const runway = last && stats.averageJpy > 0 ? last.netJpy / stats.averageJpy : 0
+  const recentAverageJpy = useMemo(
+    () => (isTogether ? null : recentActiveAverageJpy(source, 6)),
+    [isTogether, source],
+  )
+  // el colchon se mide al ritmo real de gasto (recentAverageJpy), no con la
+  // media sin filtrar de `stats`: esa cuenta meses vacios o solo de gasto fijo
+  // (por ejemplo el mes en curso, recien creado) y hunde la media, inflando
+  // los meses de colchon muy por encima de lo real. Solo cae al promedio sin
+  // filtrar si no hay ningun mes con gasto real en la ventana.
+  const runwayBaseJpy = recentAverageJpy ?? stats.averageJpy
+  const runway = last && runwayBaseJpy > 0 ? last.netJpy / runwayBaseJpy : 0
   const projection = useMemo(
     () =>
       isTogether
@@ -207,10 +217,6 @@ export function SavingsView() {
     categoryLimitsJpy(source.categories) +
     source.settings.defaultRentJpy +
     sum(source.settings.defaultExtras.map((x) => x.amount))
-  const recentAverageJpy = useMemo(
-    () => (isTogether ? null : recentActiveAverageJpy(source, 6)),
-    [isTogether, source],
-  )
 
   const addSnapshot = () => {
     const template = series.length ? data.snapshots.find((s) => s.id === last?.id) : undefined

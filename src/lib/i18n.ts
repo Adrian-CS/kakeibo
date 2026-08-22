@@ -217,6 +217,11 @@ const es = {
   'sync.haveAccount': '¿Ya tienes cuenta? Entra',
   'sync.confirmEmailSent':
     'Te hemos enviado un correo de confirmación. Ábrelo y vuelve aquí para entrar con tu contraseña.',
+  'sync.returnTo': 'El enlace del correo de confirmación volverá a',
+  'sync.noReturn':
+    'Estás abriendo la app desde un archivo local, así que el enlace de confirmación no puede volver aquí (te llevará al Site URL del proyecto, que por defecto es localhost y da "página no encontrada"). Publica la app y crea la cuenta desde su dirección.',
+  'sync.siteUrlHint':
+    'Si al crear la cuenta el correo de confirmación lleva a una página no encontrada, en Supabase → Authentication → URL Configuration pon esa misma dirección en Site URL y añádela a Redirect URLs.',
   'sync.setPasswordLink': '¿Sesión de un enlace de correo antiguo? Ponle contraseña',
   'sync.savePassword': 'Guardar contraseña',
   'sync.passwordSet': 'Contraseña guardada. Ya puedes entrar con ella en cualquier dispositivo.',
@@ -445,6 +450,11 @@ const ja: Partial<Record<Key, string>> = {
   'sync.needAccount': 'アカウントがない場合はこちらで作成',
   'sync.haveAccount': 'アカウントがある場合はこちらでログイン',
   'sync.confirmEmailSent': '確認メールを送りました。開いてから戻り、パスワードでログインしてください。',
+  'sync.returnTo': '確認メールのリンクの戻り先',
+  'sync.noReturn':
+    'ローカルファイルからアプリを開いているため、確認メールのリンクは戻れません（プロジェクトの Site URL、初期値は localhost に飛び「ページが見つかりません」になります）。公開したアドレスからアカウントを作成してください。',
+  'sync.siteUrlHint':
+    '確認メールのリンクがページが見つからないに飛ぶ場合は、Supabase の Authentication → URL Configuration でそのアドレスを Site URL に設定し、Redirect URLs にも追加してください。',
   'sync.setPasswordLink': '前のメールリンクのセッション？パスワードを設定',
   'sync.savePassword': 'パスワードを保存',
   'sync.passwordSet': 'パスワードを保存しました。どの端末でもこれでログインできます。',
@@ -671,6 +681,11 @@ const en: Partial<Record<Key, string>> = {
   'sync.haveAccount': 'Already have an account? Sign in',
   'sync.confirmEmailSent':
     'We sent you a confirmation email. Open it, then come back here to sign in with your password.',
+  'sync.returnTo': 'The confirmation email link will return to',
+  'sync.noReturn':
+    'You are opening the app from a local file, so the confirmation link cannot come back here (it will go to the project\'s Site URL, which defaults to localhost and shows "page not found"). Publish the app and create the account from its address.',
+  'sync.siteUrlHint':
+    'If the confirmation email leads to a page not found, set that same address as the Site URL in Supabase → Authentication → URL Configuration, and add it to Redirect URLs.',
   'sync.setPasswordLink': 'Session from an old email link? Set a password',
   'sync.savePassword': 'Save password',
   'sync.passwordSet': 'Password saved. You can now sign in with it on any device.',

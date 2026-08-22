@@ -278,7 +278,7 @@ function QuickAdd({ monthId }: { monthId: string }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label={t('action.quickAdd')}
-        className="no-print fixed right-4 bottom-[4.6rem] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--series-1)] text-white shadow-lg sm:hidden"
+        className="no-print fixed right-4 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--series-1)] text-white shadow-lg sm:hidden"
       >
         <Icon name="plus" size={22} />
       </button>

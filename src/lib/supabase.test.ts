@@ -98,21 +98,35 @@ describe('piezas puras', () => {
 })
 
 describe('llamadas', () => {
-  it('crea la cuenta con correo y contraseña', async () => {
+  it('crea la cuenta con correo y contraseña, con el redirect del correo de confirmacion', async () => {
     const f = vi
       .fn()
       .mockResolvedValue(okJson({ access_token: TOKEN, refresh_token: 'r', expires_in: 3600 }))
-    const s = await signUpWithPassword(CFG, 'yo@ejemplo.com', 'clave-segura', f)
+    const s = await signUpWithPassword(
+      CFG,
+      'yo@ejemplo.com',
+      'clave-segura',
+      'https://usuario.github.io/kakeibo/',
+      f,
+    )
     const [url, init] = f.mock.calls[0]
-    expect(url).toBe('https://proyecto.supabase.co/auth/v1/signup')
+    expect(url).toBe(
+      'https://proyecto.supabase.co/auth/v1/signup?redirect_to=https%3A%2F%2Fusuario.github.io%2Fkakeibo%2F',
+    )
     expect(JSON.parse(init.body)).toEqual({ email: 'yo@ejemplo.com', password: 'clave-segura' })
     expect(init.headers.apikey).toBe('anon-123')
     expect(s?.userId).toBe('user-1')
   })
 
+  it('sin direccion de vuelta no manda redirect_to', async () => {
+    const f = vi.fn().mockResolvedValue(okJson({ access_token: TOKEN, refresh_token: 'r' }))
+    await signUpWithPassword(CFG, 'yo@ejemplo.com', 'clave-segura', null, f)
+    expect(f.mock.calls[0][0]).toBe('https://proyecto.supabase.co/auth/v1/signup')
+  })
+
   it('si el proyecto exige confirmar el correo, signUp no trae sesion', async () => {
     const f = vi.fn().mockResolvedValue(okJson({ id: 'user-1', email: 'yo@ejemplo.com' }))
-    expect(await signUpWithPassword(CFG, 'yo@ejemplo.com', 'clave-segura', f)).toBeNull()
+    expect(await signUpWithPassword(CFG, 'yo@ejemplo.com', 'clave-segura', null, f)).toBeNull()
   })
 
   it('entra con correo y contraseña', async () => {
