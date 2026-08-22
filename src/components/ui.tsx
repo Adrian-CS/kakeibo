@@ -209,8 +209,30 @@ export function TextInput({ className = '', ...rest }: InputHTMLAttributes<HTMLI
   return <input type="text" className={`${inputBase} ${withWidth(className)}`} {...rest} />
 }
 
-/** Entrada numerica: teclado numerico en movil y alineada a la derecha. */
-export function NumberInput({ className = '', ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+/**
+ * Entrada numerica: teclado numerico en movil y alineada a la derecha.
+ *
+ * Lleva su propio texto en local, en vez de mostrar directamente `value`:
+ * quien la usa solo confirma el cambio cuando el texto ya se puede convertir
+ * en numero (`parseAmount` devuelve null con "" o con un signo suelto), asi
+ * que si el campo se controlase con `value` a pelo, en cuanto se borrara del
+ * todo (o quedase a medio escribir) React lo devolveria de golpe al numero
+ * de antes en la siguiente tecla -en movil eso se siente como que no deja
+ * borrar ni sustituir la ultima cifra, porque el borrado nunca llega a
+ * verse. Aqui se ve tal cual se escribe, y solo se resincroniza con `value`
+ * cuando cambia por una razon ajena (otro dispositivo, deshacer, o porque el
+ * propio dueño del campo confirmo un numero valido).
+ */
+export function NumberInput({
+  value,
+  onChange,
+  onBlur,
+  className = '',
+  ...rest
+}: InputHTMLAttributes<HTMLInputElement>) {
+  const [text, setText] = useState(value == null ? '' : String(value))
+  useEffect(() => setText(value == null ? '' : String(value)), [value])
+
   return (
     <input
       type="text"
@@ -218,6 +240,18 @@ export function NumberInput({ className = '', ...rest }: InputHTMLAttributes<HTM
       autoComplete="off"
       className={`${inputBase} text-right tabular-nums ${withWidth(className)}`}
       {...rest}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value)
+        onChange?.(e)
+      }}
+      onBlur={(e) => {
+        // si lo que quedaba escrito no llego a confirmarse (vacio, un signo
+        // suelto...), se vuelve a lo ultimo valido en vez de dejar el campo
+        // enseñando algo que no es lo que hay guardado
+        setText(value == null ? '' : String(value))
+        onBlur?.(e)
+      }}
     />
   )
 }

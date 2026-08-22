@@ -34,6 +34,24 @@ describe('la aplicacion', () => {
     expect(screen.getByText(/84[.,\s]?000/)).toBeInTheDocument()
   })
 
+  it('borrar del todo un campo numerico y escribir otro numero no revierte al valor anterior', async () => {
+    // regresion: NumberInput se controlaba directamente con el numero
+    // guardado; en cuanto el campo quedaba vacio a medio borrar, React lo
+    // devolvia de golpe al numero de antes en la siguiente tecla, y en
+    // movil eso se sentia como que no dejaba borrar ni sustituir la ultima
+    // cifra
+    const user = userEvent.setup()
+    render(<App initial={seed()} />)
+    const rent = screen.getByLabelText('Alquiler')
+    await user.clear(rent)
+    expect(rent).toHaveValue('')
+    await user.type(rent, '60000')
+    expect(rent).toHaveValue('60000')
+    await user.tab() // confirma el cambio (patch en el blur)
+    // 60000 (alquiler nuevo) + 4000 (seiyu) = 64000
+    expect(screen.getByText(/64[.,\s]?000/)).toBeInTheDocument()
+  })
+
   it('anade un gasto y actualiza el total', async () => {
     const user = userEvent.setup()
     render(<App initial={seed()} />)
