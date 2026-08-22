@@ -118,6 +118,20 @@ export function isBlankDevice(d: AppData): boolean {
 }
 
 /**
+ * Si al sincronizar toca adoptar la copia de la nube entera en vez de
+ * fusionarla. Solo la primera vez: si el dispositivo ya sincronizo antes
+ * (`sync.lastSyncAt`), sigue siendo "en blanco" segun `isBlankDevice` en
+ * cuanto una cuenta apenas acumula gastos o fotos (por ejemplo, una que solo
+ * se usa para vincular la pareja) - adoptar la nube en cada ciclo se comeria
+ * cualquier ajuste que solo exista en local (un enlace de categoria, un
+ * cambio de ajustes...) que la nube todavia no conozca. Pasado el primer
+ * sincronizado, toca fusionar siempre, por vacio que siga el dispositivo.
+ */
+export function shouldAdoptRemote(local: AppData): boolean {
+  return isBlankDevice(local) && !local.sync?.lastSyncAt
+}
+
+/**
  * Un dispositivo que ya se sincronizo antes con una cuenta, y ahora se acaba
  * de iniciar sesion con OTRA distinta. Fusionar sin avisar mezclaria (o
  * subiria de golpe) los datos de una persona a la cuenta de otra: el correo

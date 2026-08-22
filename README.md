@@ -217,7 +217,10 @@ local (`src/lib/sync.ts`):
 
 La primera vez que entras en un dispositivo nuevo no se fusiona nada: como no
 tiene apuntes, adopta la copia de la nube tal cual (categorías, ajustes,
-idioma). A partir de ahí sí se fusiona.
+idioma). A partir de esa primera vez ya se fusiona siempre — aunque la cuenta
+apenas acumule gastos o fotos (por ejemplo, una que uses sobre todo para
+vincular a tu pareja), para que un ajuste que solo exista en local (un enlace
+de categoría, por ejemplo) no se pierda en el siguiente ciclo.
 
 La sincronización ocurre al abrir la app, al volver a ella, al recuperar la
 conexión y unos segundos después de cada cambio. Si falla, no pasa nada: los

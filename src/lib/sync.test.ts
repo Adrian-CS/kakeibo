@@ -8,6 +8,7 @@ import {
   mergeTombstones,
   needsPush,
   newestIso,
+  shouldAdoptRemote,
   signature,
   stampAsNew,
 } from './sync'
@@ -315,6 +316,19 @@ describe('mergeData', () => {
         months: [{ ...blank.months[0], extras: [{ id: 'x', label: 'luz', amount: 4000 }] }],
       }),
     ).toBe(false)
+  })
+
+  it('shouldAdoptRemote: solo adopta la nube entera la primera vez, no en cada ciclo', () => {
+    // bug real: una cuenta que apenas acumula gastos o fotos (por ejemplo,
+    // una que solo se usa para vincular la pareja) seguia siendo "en blanco"
+    // para siempre segun isBlankDevice, asi que CADA sincronizacion adoptaba
+    // la nube entera y se comia cualquier ajuste que solo existiera en local
+    // (un enlace de categoria recien guardado) que la nube aun no conociera
+    const blank = emptyData(new Date('2026-08-15T00:00:00'))
+    expect(shouldAdoptRemote(blank)).toBe(true) // primera vez: nunca sincronizo
+    const yaSincronizado = { ...blank, sync: { lastSyncAt: T1 } }
+    expect(shouldAdoptRemote(yaSincronizado)).toBe(false) // ya sincronizo antes, aunque siga vacio
+    expect(shouldAdoptRemote(doc([exp('a', 100, T1)], T1))).toBe(false) // con datos, tampoco
   })
 
   it('detecta un cambio de cuenta en un dispositivo con datos de otra', () => {

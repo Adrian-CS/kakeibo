@@ -32,7 +32,7 @@ import {
   type Session,
   type SupabaseConfig,
 } from '../lib/supabase'
-import { isAccountMismatch, isBlankDevice, mergeData, needsPush, nowIso, signature } from '../lib/sync'
+import { isAccountMismatch, mergeData, needsPush, nowIso, shouldAdoptRemote, signature } from '../lib/sync'
 import { monthIdOf } from '../lib/defaults'
 import { migrate } from '../lib/storage'
 import type { AppData } from '../lib/types'
@@ -123,7 +123,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       const remote = pulled ? { ...pulled, data: migrate(pulled.data) } : null
       let merged = local
 
-      if (remote && isBlankDevice(local)) {
+      if (remote && shouldAdoptRemote(local)) {
         // primer acceso en este dispositivo: se adopta la copia de la nube
         merged = { ...remote.data, sync: local.sync }
         dispatch({ type: 'applyMerge', data: merged })
