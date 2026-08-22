@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, newMonth } from './defaults'
+import { DEFAULT_CATEGORIES, DEFAULT_SETTINGS, newMonth } from './defaults'
+import { categoryLabel } from './calc'
 
 describe('newMonth', () => {
   it('sin facturas fijas por defecto, arranca con los extras vacios', () => {
@@ -30,5 +31,12 @@ describe('newMonth', () => {
     expect(newMonth('2026-08', DEFAULT_SETTINGS).incomeJpy).toBe(0)
     const settings = { ...DEFAULT_SETTINGS, defaultIncomeJpy: 280000 }
     expect(newMonth('2026-08', settings).incomeJpy).toBe(280000)
+  })
+})
+
+describe('DEFAULT_CATEGORIES', () => {
+  it('en japones, una cuenta nueva ve las cinco categorias del Excel original en japones', () => {
+    const names = DEFAULT_CATEGORIES.map((c) => categoryLabel(c, 'ja'))
+    expect(names).toEqual(['外食', 'スーパーマーケット', '服装と電車と毎月消費', '娯楽', '部屋のもの'])
   })
 })

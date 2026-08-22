@@ -23,6 +23,8 @@ const HEADER_ALIASES: Record<string, string> = {
   compra: 'groceries',
   服装と電車と毎月費消: 'fixed_transport',
   服装と電車と毎月の費消: 'fixed_transport',
+  服装と電車と毎月消費: 'fixed_transport',
+  服装と電車と毎月の消費: 'fixed_transport',
   'ropa y transporte': 'fixed_transport',
   transporte: 'fixed_transport',
   娯楽: 'leisure',
