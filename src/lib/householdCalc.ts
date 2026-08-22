@@ -11,21 +11,32 @@
  */
 import {
   computeStats,
+  computeYoy,
+  datedCount,
   daysInMonth,
   hasRealSpend,
   median,
+  monthBurn,
   monthTotals,
+  noCostItems,
+  normalizeLabel,
   projectSavings,
   snapshotSeries,
   sum,
+  topExpenses,
+  topLabels,
+  type BurnPoint,
+  type LabelStat,
   type MonthPoint,
   type MonthTotals,
   type SavingsHorizon,
   type SnapshotTotals,
   type Stats,
   type StatsOptions,
+  type Yoy,
+  type YoyPoint,
 } from './calc'
-import type { AppData, Category, CategoryLink } from './types'
+import type { AppData, Category, CategoryLink, Expense } from './types'
 
 /**
  * Une mi lista de categorias con las de mi pareja que no tengan equivalente
@@ -229,4 +240,143 @@ export function combinedProjectSavings(
           : (ha?.realisticJpy ?? 0) + (hb?.realisticJpy ?? 0),
     }
   })
+}
+
+/** Traduce el `categoryId` de cada resultado (gasto o ranking de conceptos) al esquema combinado. */
+function remapCategoryId<T extends { categoryId: string }>(
+  items: T[],
+  isMine: boolean,
+  partnerToMine: Map<string, string>,
+): T[] {
+  return items.map((it) => ({ ...it, categoryId: combinedKey(it.categoryId, isMine, partnerToMine) }))
+}
+
+/**
+ * Ranking de comercios/conceptos de los dos, sumando lo que coincide por
+ * nombre normalizado. Pide el ranking completo (sin limite) de cada lado
+ * para no perder aportes que quedarian fuera del top individual de cada
+ * uno, junta por nombre y solo entonces recorta al limite pedido.
+ */
+export function combinedTopLabels(
+  mine: AppData,
+  partner: AppData | null,
+  links: CategoryLink[],
+  opts: StatsOptions & { limit?: number; monthIds?: string[] } = {},
+): LabelStat[] {
+  const partnerToMine = new Map(links.map((l) => [l.partnerCategoryId, l.categoryId]))
+  const a = remapCategoryId(topLabels(mine, { ...opts, limit: undefined }), true, partnerToMine)
+  const b = partner ? remapCategoryId(topLabels(partner, { ...opts, limit: undefined }), false, partnerToMine) : []
+
+  const map = new Map<string, LabelStat>()
+  for (const l of [...a, ...b]) {
+    const key = normalizeLabel(l.label)
+    const cur = map.get(key)
+    if (cur) {
+      cur.totalJpy += l.totalJpy
+      cur.count += l.count
+      cur.avgJpy = cur.totalJpy / cur.count
+    } else {
+      map.set(key, { ...l })
+    }
+  }
+  const out = [...map.values()].sort((x, y) => y.totalJpy - x.totalJpy)
+  return opts.limit ? out.slice(0, opts.limit) : out
+}
+
+/** Gastos individuales mas grandes de los dos, mezclados y recortados juntos. */
+export function combinedTopExpenses(
+  mine: AppData,
+  partner: AppData | null,
+  links: CategoryLink[],
+  opts: StatsOptions & { limit?: number; monthIds?: string[] } = {},
+): Expense[] {
+  const partnerToMine = new Map(links.map((l) => [l.partnerCategoryId, l.categoryId]))
+  const a = remapCategoryId(topExpenses(mine, { ...opts, limit: Infinity }), true, partnerToMine).map((e) => ({
+    ...e,
+    id: `mine:${e.id}`,
+  }))
+  const b = partner
+    ? remapCategoryId(topExpenses(partner, { ...opts, limit: Infinity }), false, partnerToMine).map((e) => ({
+        ...e,
+        id: `partner:${e.id}`,
+      }))
+    : []
+  return [...a, ...b].sort((x, y) => y.amount - x.amount).slice(0, opts.limit ?? 10)
+}
+
+/** Apuntes "sin coste" de los dos, mezclados con el mismo orden que la version individual. */
+export function combinedNoCostItems(
+  mine: AppData,
+  partner: AppData | null,
+  links: CategoryLink[],
+  opts: { monthIds?: string[] } = {},
+): Expense[] {
+  const partnerToMine = new Map(links.map((l) => [l.partnerCategoryId, l.categoryId]))
+  const a = remapCategoryId(noCostItems(mine, opts), true, partnerToMine).map((e) => ({ ...e, id: `mine:${e.id}` }))
+  const b = partner
+    ? remapCategoryId(noCostItems(partner, opts), false, partnerToMine).map((e) => ({
+        ...e,
+        id: `partner:${e.id}`,
+      }))
+    : []
+  return [...a, ...b].sort((x, y) => y.monthId.localeCompare(x.monthId) || y.amount - x.amount)
+}
+
+/** `monthBurn` de los dos lados, sumado dia a dia (el ritmo ideal tambien suma los dos limites). */
+export function combinedMonthBurn(mine: AppData, partner: AppData | null, monthId: string): BurnPoint[] {
+  const a = monthBurn(mine, monthId)
+  if (!partner) return a
+  const b = monthBurn(partner, monthId)
+  return a.map((p, i) => ({
+    day: p.day,
+    cumulativeJpy: p.cumulativeJpy + (b[i]?.cumulativeJpy ?? 0),
+    paceJpy: p.paceJpy + (b[i]?.paceJpy ?? 0),
+  }))
+}
+
+/** Cuantos gastos del mes (de los dos) tienen dia asignado. */
+export function combinedDatedCount(mine: AppData, partner: AppData | null, monthId: string): number {
+  return datedCount(mine, monthId) + (partner ? datedCount(partner, monthId) : 0)
+}
+
+/**
+ * Comparacion con el ano anterior de los dos: mes a mes, un lado cuenta
+ * aunque al otro le falte ese año-mes (null solo si a NINGUNO de los dos le
+ * consta), igual que hace `combinedProjectSavings` con `realisticJpy`.
+ */
+export function combinedYoy(
+  mine: AppData,
+  partner: AppData | null,
+  monthId: string,
+  opts: StatsOptions = {},
+): Yoy {
+  const a = computeYoy(mine, monthId, opts)
+  if (!partner) return a
+  const b = computeYoy(partner, monthId, opts)
+
+  let currentTotal = 0
+  let previousTotal = 0
+  let comparable = 0
+  const points: YoyPoint[] = a.points.map((pa, i) => {
+    const pb = b.points[i]
+    const currentJpy =
+      pa.currentJpy === null && pb.currentJpy === null ? null : (pa.currentJpy ?? 0) + (pb.currentJpy ?? 0)
+    const previousJpy =
+      pa.previousJpy === null && pb.previousJpy === null ? null : (pa.previousJpy ?? 0) + (pb.previousJpy ?? 0)
+    if (currentJpy !== null && previousJpy !== null) {
+      currentTotal += currentJpy
+      previousTotal += previousJpy
+      comparable += 1
+    }
+    return { month: pa.month, monthId: pa.monthId, currentJpy, previousJpy }
+  })
+
+  return {
+    year: a.year,
+    points,
+    currentTotal,
+    previousTotal,
+    ratio: previousTotal > 0 ? currentTotal / previousTotal - 1 : 0,
+    comparable,
+  }
 }

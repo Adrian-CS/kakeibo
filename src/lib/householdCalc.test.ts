@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
   combinedCategories,
+  combinedDatedCount,
+  combinedMonthBurn,
   combinedMonthTotals,
+  combinedNoCostItems,
   combinedProjectSavings,
   combinedSnapshotSeries,
   combinedStats,
+  combinedTopExpenses,
+  combinedTopLabels,
+  combinedYoy,
 } from './householdCalc'
 import { emptyData } from './defaults'
 import type { AppData, CategoryLink } from './types'
@@ -170,5 +176,142 @@ describe('combinedProjectSavings', () => {
     // peor caso mio: 500000 + (250000-150000)*3 = 800000
     // peor caso pareja: 300000 + (200000-100000)*3 = 600000
     expect(points[0].worstCaseJpy).toBe(800000 + 600000)
+  })
+})
+
+describe('combinedTopLabels', () => {
+  it('suma lo que coincide por nombre entre los dos, con la categoria ya traducida', () => {
+    const mine: AppData = {
+      ...withMonth(),
+      expenses: [
+        { id: 'e1', monthId: '2026-08', categoryId: 'eating_out', label: 'uber', amount: 3000, kind: 'normal' },
+        { id: 'e2', monthId: '2026-08', categoryId: 'eating_out', label: 'starbucks', amount: 500, kind: 'normal' },
+      ],
+    }
+    const partner: AppData = {
+      ...withMonth(),
+      expenses: [
+        { id: 'e3', monthId: '2026-08', categoryId: 'eating_out_p', label: 'Uber', amount: 2000, kind: 'normal' },
+      ],
+      categories: [{ id: 'eating_out_p', name: 'x', bucket: 'daily', colorSlot: 0 }],
+    }
+    const links: CategoryLink[] = [{ categoryId: 'eating_out', partnerCategoryId: 'eating_out_p' }]
+    const out = combinedTopLabels(mine, partner, links, { limit: 10 })
+    const uber = out.find((l) => l.label.toLowerCase() === 'uber')!
+    expect(uber.totalJpy).toBe(3000 + 2000)
+    expect(uber.count).toBe(2)
+    // enlazada: cae bajo mi categoria, no aparte
+    expect(uber.categoryId).toBe('mine:eating_out')
+  })
+
+  it('junta antes de recortar, para no perder lo que solo suma entre los dos', () => {
+    const mine: AppData = {
+      ...withMonth(),
+      expenses: [{ id: 'e1', monthId: '2026-08', categoryId: 'eating_out', label: 'a', amount: 100, kind: 'normal' }],
+    }
+    const partner: AppData = {
+      ...withMonth(),
+      expenses: [{ id: 'e2', monthId: '2026-08', categoryId: 'eating_out', label: 'b', amount: 50, kind: 'normal' }],
+    }
+    const out = combinedTopLabels(mine, partner, [], { limit: 1 })
+    expect(out).toHaveLength(1)
+    expect(out[0].label).toBe('a')
+  })
+})
+
+describe('combinedTopExpenses', () => {
+  it('mezcla los gastos de los dos y recorta al limite ya combinado', () => {
+    const mine: AppData = {
+      ...withMonth(),
+      expenses: [
+        { id: 'e1', monthId: '2026-08', categoryId: 'eating_out', label: 'grande', amount: 9000, kind: 'normal' },
+      ],
+    }
+    const partner: AppData = {
+      ...withMonth(),
+      expenses: [
+        {
+          id: 'e2',
+          monthId: '2026-08',
+          categoryId: 'eating_out',
+          label: 'mas grande',
+          amount: 15000,
+          kind: 'normal',
+        },
+      ],
+    }
+    const out = combinedTopExpenses(mine, partner, [], { limit: 1 })
+    expect(out).toHaveLength(1)
+    expect(out[0].label).toBe('mas grande')
+    expect(out[0].id).toBe('partner:e2')
+    // sin enlace: la categoria de la pareja queda aparte, no bajo la mia
+    expect(out[0].categoryId).toBe('partner:eating_out')
+  })
+})
+
+describe('combinedNoCostItems', () => {
+  it('mezcla los apuntes sin coste de los dos, mas reciente primero', () => {
+    const mine: AppData = {
+      ...withMonth(),
+      expenses: [
+        { id: 'e1', monthId: '2026-07', categoryId: 'home', label: 'regalo mio', amount: 3000, kind: 'noCost' },
+      ],
+    }
+    const partner: AppData = {
+      ...withMonth(),
+      expenses: [
+        { id: 'e2', monthId: '2026-08', categoryId: 'home', label: 'regalo pareja', amount: 2000, kind: 'noCost' },
+      ],
+    }
+    const out = combinedNoCostItems(mine, partner, [])
+    expect(out.map((e) => e.label)).toEqual(['regalo pareja', 'regalo mio'])
+  })
+})
+
+describe('combinedMonthBurn y combinedDatedCount', () => {
+  it('suma dia a dia el acumulado y el ritmo ideal (limite) de los dos', () => {
+    const mine: AppData = {
+      ...withMonth(),
+      expenses: [
+        { id: 'e1', monthId: '2026-08', categoryId: 'eating_out', label: 'x', amount: 1000, kind: 'normal', day: 5 },
+      ],
+    }
+    const partner: AppData = {
+      ...withMonth(),
+      months: [{ id: '2026-08', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 62000, incomeJpy: 0 }],
+      expenses: [
+        { id: 'e2', monthId: '2026-08', categoryId: 'eating_out', label: 'y', amount: 2000, kind: 'normal', day: 5 },
+      ],
+    }
+    const burn = combinedMonthBurn(mine, partner, '2026-08')
+    const day5 = burn.find((b) => b.day === 5)!
+    // mio: alquiler 80000 (dia 1) + 1000 (dia 5); pareja: 2000 (dia 5), sin alquiler
+    expect(day5.cumulativeJpy).toBe(80000 + 1000 + 2000)
+    // ritmo ideal: los dos limites juntos, repartidos linealmente
+    expect(day5.paceJpy).toBeCloseTo(((150000 + 62000) * 5) / 31, 6)
+
+    expect(combinedDatedCount(mine, partner, '2026-08')).toBe(2)
+  })
+})
+
+describe('combinedYoy', () => {
+  it('suma mes a mes; un lado cuenta aunque al otro le falte ese ano', () => {
+    const mine: AppData = {
+      ...emptyData(new Date('2026-08-15T00:00:00')),
+      months: [
+        { id: '2025-08', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 },
+        { id: '2026-08', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 },
+      ],
+    }
+    const partner: AppData = {
+      ...emptyData(new Date('2026-08-15T00:00:00')),
+      // solo tiene el ano en curso, no el anterior
+      months: [{ id: '2026-08', rentJpy: 90000, extras: [], fxRate: 0.0056, limitJpy: 100000, incomeJpy: 0 }],
+    }
+    const yoy = combinedYoy(mine, partner, '2026-08', {})
+    const august = yoy.points.find((p) => p.month === 8)!
+    expect(august.currentJpy).toBe(80000 + 90000)
+    expect(august.previousJpy).toBe(80000) // la pareja no tiene agosto 2025
+    expect(yoy.comparable).toBe(1)
   })
 })
