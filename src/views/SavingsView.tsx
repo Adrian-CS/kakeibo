@@ -213,13 +213,33 @@ export function SavingsView() {
         : projectSavings(source, [3, 6, 12]),
     [isTogether, data, household.partnerData, source],
   )
-  // mismas bases que usa projectSavings, solo para mostrar el desglose: en
-  // "Juntos" no hay un unico ingreso/limite que enseñar, asi que se omite
+  // mismas bases que usa projectSavings, solo para mostrar el desglose. En
+  // "Juntos" no hay un unico ingreso/limite/tope de cada uno: se enseñan los
+  // dos por separado (el tuyo + el de tu pareja), ya que el total del
+  // pronostico tambien es la suma de los dos por separado
   const projectedIncomeJpy = source.settings.defaultIncomeJpy
   const projectedCategorySpendJpy =
     categoryLimitsJpy(source.categories) +
     source.settings.defaultRentJpy +
     sum(source.settings.defaultExtras.map((x) => x.amount))
+  const partnerIncomeJpy = household.partnerData?.settings.defaultIncomeJpy ?? 0
+  const partnerLimitJpy = household.partnerData?.settings.defaultLimitJpy ?? 0
+  const partnerCategorySpendJpy = household.partnerData
+    ? categoryLimitsJpy(household.partnerData.categories) +
+      household.partnerData.settings.defaultRentJpy +
+      sum(household.partnerData.settings.defaultExtras.map((x) => x.amount))
+    : 0
+  // "tuyo + de tu pareja" en vez de un solo numero, para que el desglose de
+  // "Juntos" siga siendo trazable en vez de ocultarse sin mas
+  const incomeText = isTogether
+    ? `${fmtJpy(projectedIncomeJpy, lang)} + ${fmtJpy(partnerIncomeJpy, lang)}`
+    : fmtJpy(projectedIncomeJpy, lang)
+  const limitText = isTogether
+    ? `${fmtJpy(source.settings.defaultLimitJpy, lang)} + ${fmtJpy(partnerLimitJpy, lang)}`
+    : fmtJpy(source.settings.defaultLimitJpy, lang)
+  const spendText = isTogether
+    ? `${fmtJpy(projectedCategorySpendJpy, lang)} + ${fmtJpy(partnerCategorySpendJpy, lang)}`
+    : fmtJpy(projectedCategorySpendJpy, lang)
 
   const addSnapshot = () => {
     const template = series.length ? data.snapshots.find((s) => s.id === last?.id) : undefined
@@ -338,39 +358,23 @@ export function SavingsView() {
                     key={h.months}
                     label={t('savings.forecastIn', { n: h.months })}
                     value={fmtJpy(h.worstCaseJpy, lang)}
-                    hint={
-                      isTogether
-                        ? undefined
-                        : t('totals.savingsWorstLimitHint', {
-                            income: fmtJpy(projectedIncomeJpy, lang),
-                            limit: fmtJpy(source.settings.defaultLimitJpy, lang),
-                          })
-                    }
+                    hint={t('totals.savingsWorstLimitHint', { income: incomeText, limit: limitText })}
                   >
                     <p
                       className="mt-1 text-[11px] text-muted"
-                      title={
-                        isTogether
-                          ? undefined
-                          : t('totals.savingsWorstCategoryLimitsHint', {
-                              income: fmtJpy(projectedIncomeJpy, lang),
-                              spend: fmtJpy(projectedCategorySpendJpy, lang),
-                            })
-                      }
+                      title={t('totals.savingsWorstCategoryLimitsHint', {
+                        income: incomeText,
+                        spend: spendText,
+                      })}
                     >
                       {t('totals.savingsWorstCategoryLimits')}: {fmtJpy(h.worstCaseByCategoryJpy, lang)}
                     </p>
                     <p
                       className="mt-1 text-[11px] text-muted"
                       title={
-                        isTogether
-                          ? undefined
-                          : recentAverageJpy === null
-                            ? t('totals.savingsRealisticNoData')
-                            : t('totals.savingsRealisticHint', {
-                                income: fmtJpy(projectedIncomeJpy, lang),
-                                avg: fmtJpy(recentAverageJpy, lang),
-                              })
+                        isTogether || recentAverageJpy === null
+                          ? t('totals.savingsRealisticNoData')
+                          : t('totals.savingsRealisticHint', { income: incomeText, avg: fmtJpy(recentAverageJpy, lang) })
                       }
                     >
                       {t('totals.savingsRealistic')}:{' '}
