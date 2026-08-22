@@ -24,7 +24,7 @@ import { monthIdOf, newMonth } from '../lib/defaults'
 import { getMonth, overspendDebt, shiftMonth } from '../lib/calc'
 import { translator, type TFunc } from '../lib/i18n'
 import { uid } from '../lib/id'
-import { nowIso } from '../lib/sync'
+import { nowIso, stampAsNew } from '../lib/sync'
 import { MAX_SLOTS } from '../lib/palette'
 
 type Action =
@@ -166,8 +166,12 @@ function ensureMonth(data: AppData, monthId: string): AppData {
 function reducer(state: State, action: Action): State {
   const { data } = state
   switch (action.type) {
+    // se marca como recien editado entero: si no, los apuntes conservan la
+    // fecha que tenian al exportarlos y la sincronizacion los compara con la
+    // nube por esa fecha vieja, perdiendo el pulso y deshaciendo el reemplazo
+    // justo despues de importar
     case 'replace':
-      return withHistory(state, action.data)
+      return withHistory(state, stampAsNew(action.data))
 
     case 'applyMerge':
       return {

@@ -25,6 +25,26 @@ export function newestIso(a?: string, b?: string): string {
   return a > b ? a : b
 }
 
+/**
+ * Marca el documento entero -y cada gasto, mes y foto de ahorros que
+ * contiene- como editado justo ahora. Hace falta al restaurar una copia
+ * completa (Importar datos, Borrar todo): sin esto, los apuntes conservan la
+ * fecha de edicion que tenian cuando se exportaron, y la siguiente
+ * sincronizacion los compara con la version de la nube por esa fecha vieja.
+ * Si la nube tiene algo mas reciente con el mismo id, la copia recien
+ * importada pierde el pulso del merge y vuelve a lo que habia antes de
+ * importar, deshaciendo la restauracion sin avisar.
+ */
+export function stampAsNew(data: AppData, at: string = nowIso()): AppData {
+  return {
+    ...data,
+    updatedAt: at,
+    expenses: data.expenses.map((e) => ({ ...e, updatedAt: at })),
+    snapshots: data.snapshots.map((s) => ({ ...s, updatedAt: at })),
+    months: data.months.map((m) => ({ ...m, updatedAt: at })),
+  }
+}
+
 interface Identified {
   id: string
   updatedAt?: string

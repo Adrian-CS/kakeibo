@@ -9,6 +9,7 @@ import {
   needsPush,
   newestIso,
   signature,
+  stampAsNew,
 } from './sync'
 import { emptyData } from './defaults'
 import type { AppData, Expense } from './types'
@@ -50,6 +51,34 @@ describe('utilidades', () => {
     expect(out.find((e) => e.id === 'a')!.amount).toBe(999)
     expect(out.find((e) => e.id === 'b')!.amount).toBe(200)
     expect(out.find((e) => e.id === 'c')!.amount).toBe(300)
+  })
+
+  it('stampAsNew marca el documento y cada gasto, mes y foto con la misma fecha', () => {
+    const base = doc([exp('a', 100, T1)], T1, {
+      months: [{ id: '2026-08', rentJpy: 0, extras: [], fxRate: 1, limitJpy: 0, incomeJpy: 0, updatedAt: T1 }],
+      snapshots: [{ id: 's1', date: '2026-08-01', accounts: [], updatedAt: T1 }],
+    })
+    const out = stampAsNew(base, T3)
+    expect(out.updatedAt).toBe(T3)
+    expect(out.expenses[0].updatedAt).toBe(T3)
+    expect(out.months[0].updatedAt).toBe(T3)
+    expect(out.snapshots[0].updatedAt).toBe(T3)
+  })
+
+  it('una copia importada con apuntes viejos no pierde el pulso del merge frente a la nube', () => {
+    // regresion: "Importar datos" reemplazaba el documento local, pero cada
+    // gasto conservaba la fecha de edicion de cuando se exporto; al
+    // sincronizar, un gasto mas reciente en la nube con el mismo id ganaba el
+    // merge y la restauracion se deshacia justo despues de importar
+    const imported = doc([exp('a', 100, T1)], T1) // "backup" con fecha vieja
+    const cloud = doc([exp('a', 999, T2)], T2) // la nube se edito despues del backup
+
+    const withoutFix = mergeData(imported, cloud)
+    expect(withoutFix.expenses[0].amount).toBe(999) // el bug: gana la nube
+
+    const stamped = stampAsNew(imported, T3)
+    const withFix = mergeData(stamped, cloud)
+    expect(withFix.expenses[0].amount).toBe(100) // arreglado: gana lo importado
   })
 
   it('mergeById usa la fecha del documento si el apunte no la lleva', () => {

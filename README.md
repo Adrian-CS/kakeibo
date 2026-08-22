@@ -115,7 +115,10 @@ tenga su copia. Hay dos formas de juntarlas:
 - **A mano**: Ajustes → *Exportar datos* descarga un `.json` con todo, e
   *Importar datos* lo restaura en el otro dispositivo. Es también la copia de
   seguridad recomendada. Ojo: *Importar datos* **reemplaza** lo que haya en ese
-  dispositivo, mientras que *Importar Excel* deja elegir mes a mes.
+  dispositivo, mientras que *Importar Excel* deja elegir mes a mes. Si ese
+  dispositivo sincroniza, la copia importada también se marca como la más
+  reciente para el próximo `Sincronizar`, así que gana el pulso frente a la
+  nube en vez de deshacerse sola justo después de importar.
 - **Automática**: la sincronización con Supabase que se describe abajo.
 
 ## Sincronizar el móvil y el PC (Supabase, plan gratuito)
