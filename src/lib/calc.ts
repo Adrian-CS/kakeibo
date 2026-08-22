@@ -214,6 +214,8 @@ export interface StatsOptions {
   excludeExtraordinary?: boolean
   /** mes de referencia (por defecto el ultimo con datos) */
   upTo?: string
+  /** "hoy", para no contar meses futuros (ver computeStats). Solo hace falta pasarlo en pruebas. */
+  today?: Date
 }
 
 export interface MonthPoint {
@@ -264,7 +266,15 @@ function filtered(data: AppData, opts: StatsOptions): AppData {
 
 export function computeStats(data: AppData, opts: StatsOptions = {}): Stats {
   const src = filtered(data, opts)
-  let ids = monthsWithData(src)
+  const today = opts.today ?? new Date()
+  const currentId = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  // los meses futuros al de hoy no cuentan: son huecos que deja `ensureMonth`
+  // al navegar hacia delante (heredan alquiler y fijos, pero ningun gasto
+  // real todavia). Sin este corte, unos pocos clics en "mes siguiente"
+  // desplazan "los ultimos N meses" hacia el futuro en vez de coger los
+  // ultimos meses de verdad vividos, y la media/mediana/colchon salen vacios
+  // aunque haya historial real reciente.
+  let ids = monthsWithData(src).filter((id) => id <= currentId)
   if (opts.upTo) ids = ids.filter((id) => id <= opts.upTo!)
   if (opts.lastMonths && opts.lastMonths > 0) ids = ids.slice(-opts.lastMonths)
 
@@ -600,13 +610,19 @@ export interface SavingsHorizon {
  * mes en curso porque esta a medias (compararlo con meses completos tambien
  * rebaja la media sin motivo).
  *
+ * Ademas, `computeStats` ya deja fuera los meses posteriores a `today`: sin
+ * eso, unos clics de mas en "mes siguiente" (que crean meses en blanco por
+ * delante, heredando alquiler y fijos) desplazarian la ventana de "ultimos N
+ * meses" hacia ese futuro vacio en vez del pasado reciente con gasto de
+ * verdad.
+ *
  * Antes, si no quedaba ningun mes "activo", se volvia a la media sin filtrar
  * -la misma que mezcla meses en blanco y de solo-fijos- colando el problema
  * por la puerta de atras. Ahora, sin meses activos, no hay media que dar.
  */
 export function recentActiveAverageJpy(data: AppData, lastMonths = 6, today = new Date()): number | null {
   const currentId = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
-  const stats = computeStats(data, { lastMonths })
+  const stats = computeStats(data, { lastMonths, today })
   const active = stats.months.filter((m) => m.monthId !== currentId && hasRealSpend(data, m.monthId))
   if (!active.length) return null
   return sum(active.map((m) => m.totalJpy)) / active.length

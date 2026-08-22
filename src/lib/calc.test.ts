@@ -262,7 +262,9 @@ describe('estadisticas', () => {
         },
       ],
     }
-    const s = computeStats(withBlanks)
+    // '2026-09' es futuro respecto a "hoy" real: se le pasa un "hoy" de
+    // pruebas para que cuente, que es justo lo que se quiere probar aqui
+    const s = computeStats(withBlanks, { today: new Date('2026-10-01T00:00:00') })
     expect(s.months.map((m) => m.monthId)).toEqual(['2026-06', '2026-07', '2026-08', '2026-09'])
     // sigue siendo la media de solo julio y agosto, como sin los meses en blanco
     expect(s.averageJpy).toBeCloseTo((194590 + 86000) / 2, 6)
@@ -561,6 +563,41 @@ describe('ahorros', () => {
       ],
     }
     expect(recentActiveAverageJpy(data, 6, today)).toBeNull()
+  })
+
+  it('unos meses futuros en blanco (varios "mes siguiente" de mas) no tapan el gasto real reciente', () => {
+    // bug real reportado: navegar varios meses hacia delante crea meses en
+    // blanco por delante del actual (heredan alquiler/fijos via
+    // autoFillFixed, pero ningun gasto real); antes, esos meses futuros
+    // ocupaban el final de "los ultimos N meses con datos" y desplazaban la
+    // ventana lejos del gasto real reciente, dando "sin datos" pese a haber
+    // historial de sobra
+    const today = new Date('2026-08-15T00:00:00')
+    const data: AppData = {
+      ...emptyData(today),
+      months: [
+        { id: '2026-08', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+        // meses futuros, abiertos de pasada al navegar hacia delante
+        { id: '2026-09', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+        { id: '2026-10', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+        { id: '2026-11', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+        { id: '2026-12', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+        { id: '2027-01', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+        { id: '2027-02', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+      ],
+      // 2026-08 (el mes en curso) es el unico con gasto real de verdad
+      expenses: [
+        { id: 'e1', monthId: '2026-08', categoryId: 'eating_out', label: 'x', amount: 3000, kind: 'normal' },
+      ],
+    }
+    // sin el corte de meses futuros, "los ultimos 6 con datos" habrian sido
+    // sep-2026..feb-2027 (todos en blanco): aqui la unica ventana valida es
+    // justo el mes en curso, que se excluye por estar a medias -> sin datos
+    expect(recentActiveAverageJpy(data, 6, today)).toBeNull()
+    // pero si "hoy" avanza al mes siguiente, agosto ya no es el mes en curso
+    // y su gasto real cuenta
+    const nextMonth = new Date('2026-09-15T00:00:00')
+    expect(recentActiveAverageJpy(data, 6, nextMonth)).toBe(83000)
   })
 
   it('la media "realista" no cuenta un mes visitado y vacio ni el mes en curso', () => {
