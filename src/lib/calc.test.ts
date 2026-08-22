@@ -5,6 +5,7 @@ import {
   computeStats,
   computeYoy,
   daysInMonth,
+  hasRealSpend,
   isValidMonthId,
   median,
   monthBurn,
@@ -223,6 +224,51 @@ describe('estadisticas', () => {
   it('respeta la ventana de ultimos N meses', () => {
     const s = computeStats(data, { lastMonths: 1 })
     expect(s.months.map((m) => m.monthId)).toEqual(['2026-08'])
+  })
+
+  it('hasRealSpend: cuenta normal/extraordinario, no recurrente ni sin coste', () => {
+    expect(hasRealSpend(data, '2026-07')).toBe(true) // tiene normales y un extraordinario
+    const soloFijos: AppData = {
+      ...data,
+      expenses: [
+        { id: 'r1', monthId: '2026-09', categoryId: 'fixed_transport', label: 'netflix', amount: 1590, kind: 'recurring' },
+        { id: 'r2', monthId: '2026-09', categoryId: 'home', label: 'regalo', amount: 3000, kind: 'noCost' },
+      ],
+    }
+    expect(hasRealSpend(soloFijos, '2026-09')).toBe(false)
+    expect(hasRealSpend(data, '2026-10')).toBe(false) // sin ningun apunte
+  })
+
+  it('media, mediana y extremos ignoran un mes abierto de pasada o de solo fijos', () => {
+    // '2026-06' se abrio sin apuntar nada (limite por defecto, total 0);
+    // '2026-09' solo tiene alquiler y un fijo recurrente, sin gasto del dia a
+    // dia: ninguno de los dos deberia contar como "mes real"
+    const withBlanks: AppData = {
+      ...data,
+      months: [
+        ...data.months,
+        { id: '2026-06', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 },
+        { id: '2026-09', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 },
+      ],
+      expenses: [
+        ...data.expenses,
+        {
+          id: '2026-09-netflix',
+          monthId: '2026-09',
+          categoryId: 'fixed_transport',
+          label: 'netflix',
+          amount: 1590,
+          kind: 'recurring',
+        },
+      ],
+    }
+    const s = computeStats(withBlanks)
+    expect(s.months.map((m) => m.monthId)).toEqual(['2026-06', '2026-07', '2026-08', '2026-09'])
+    // sigue siendo la media de solo julio y agosto, como sin los meses en blanco
+    expect(s.averageJpy).toBeCloseTo((194590 + 86000) / 2, 6)
+    expect(s.medianJpy).toBeCloseTo((194590 + 86000) / 2, 6)
+    expect(s.minMonth?.monthId).toBe('2026-08')
+    expect(s.maxMonth?.monthId).toBe('2026-07')
   })
 
   it('agrupa conceptos normalizando el nombre', () => {

@@ -238,7 +238,11 @@ export function StatsView({
           label={t('stats.avgMonth')}
           value={jpy(stats.averageJpy)}
           secondary={`${t('stats.median')}: ${compact(stats.medianJpy)} ¥`}
-          hint={`${stats.months.length} ${t(stats.months.length === 1 ? 'stats.monthsOne' : 'stats.months')}`}
+          hint={
+            stats.activeMonthCount === stats.months.length
+              ? `${stats.months.length} ${t(stats.months.length === 1 ? 'stats.monthsOne' : 'stats.months')}`
+              : t('stats.activeMonthsHint', { n: stats.activeMonthCount, total: stats.months.length })
+          }
         />
         <StatTile
           label={t('stats.perDay')}

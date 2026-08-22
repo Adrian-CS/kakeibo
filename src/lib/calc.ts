@@ -97,6 +97,16 @@ export function expensesOfMonth(data: AppData, monthId: string): Expense[] {
   return data.expenses.filter((e) => e.monthId === monthId)
 }
 
+/**
+ * Un mes cuenta como "gasto real" si tiene al menos un apunte normal o
+ * extraordinario. Ni un mes que solo se abrio de pasada (sin apuntar nada,
+ * con el limite por defecto) ni uno de solo alquiler/fijos cuentan, aunque su
+ * total sea mayor que cero: ver `recentActiveAverageJpy` para el porque.
+ */
+export function hasRealSpend(data: AppData, monthId: string): boolean {
+  return expensesOfMonth(data, monthId).some((e) => e.kind === 'normal' || e.kind === 'extraordinary')
+}
+
 export function getMonth(data: AppData, monthId: string): MonthData | undefined {
   return data.months.find((m) => m.id === monthId)
 }
@@ -226,10 +236,13 @@ export interface Stats {
   previousJpy: number
   /** variacion relativa frente al mes anterior (0 si no hay anterior) */
   momRatio: number
+  /** media, mediana y extremos solo cuentan meses con gasto real (ver `hasRealSpend`) */
   averageJpy: number
   medianJpy: number
   maxMonth?: MonthPoint
   minMonth?: MonthPoint
+  /** cuantos de `months` contaron para averageJpy/medianJpy/min/maxMonth */
+  activeMonthCount: number
   /** total por categoria en todo el rango */
   byCategory: Record<string, number>
   /** media mensual por categoria */
@@ -275,6 +288,14 @@ export function computeStats(data: AppData, opts: StatsOptions = {}): Stats {
   const current = months.at(-1)
   const previous = months.at(-2)
 
+  // media, mediana y extremos solo cuentan meses con gasto real: si no, un
+  // mes abierto de pasada o de solo alquiler/fijos (total bajo pero mayor que
+  // cero) rebaja la media/mediana sin motivo y gana trivialmente "mes mas
+  // barato" solo por no tener nada apuntado. El resto (meses, grafica, mes
+  // actual/anterior) sigue mostrando el rango tal cual, sin recortar nada.
+  const active = months.filter((m) => hasRealSpend(src, m.monthId))
+  const activeTotals = active.map((m) => m.totalJpy)
+
   const byCategory: Record<string, number> = {}
   for (const c of src.categories) byCategory[c.id] = 0
   for (const m of months) {
@@ -295,10 +316,11 @@ export function computeStats(data: AppData, opts: StatsOptions = {}): Stats {
     momRatio: previous && previous.totalJpy > 0 && current
       ? current.totalJpy / previous.totalJpy - 1
       : 0,
-    averageJpy: months.length ? totalJpy / months.length : 0,
-    medianJpy: median(totals),
-    maxMonth: months.length ? months.reduce((a, b) => (b.totalJpy > a.totalJpy ? b : a)) : undefined,
-    minMonth: months.length ? months.reduce((a, b) => (b.totalJpy < a.totalJpy ? b : a)) : undefined,
+    averageJpy: activeTotals.length ? sum(activeTotals) / activeTotals.length : 0,
+    medianJpy: median(activeTotals),
+    maxMonth: active.length ? active.reduce((a, b) => (b.totalJpy > a.totalJpy ? b : a)) : undefined,
+    minMonth: active.length ? active.reduce((a, b) => (b.totalJpy < a.totalJpy ? b : a)) : undefined,
+    activeMonthCount: active.length,
     byCategory,
     avgByCategory,
     totalJpy,
@@ -585,9 +607,7 @@ export interface SavingsHorizon {
 export function recentActiveAverageJpy(data: AppData, lastMonths = 6, today = new Date()): number | null {
   const currentId = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   const stats = computeStats(data, { lastMonths })
-  const hasRealSpend = (monthId: string) =>
-    expensesOfMonth(data, monthId).some((e) => e.kind === 'normal' || e.kind === 'extraordinary')
-  const active = stats.months.filter((m) => m.monthId !== currentId && hasRealSpend(m.monthId))
+  const active = stats.months.filter((m) => m.monthId !== currentId && hasRealSpend(data, m.monthId))
   if (!active.length) return null
   return sum(active.map((m) => m.totalJpy)) / active.length
 }

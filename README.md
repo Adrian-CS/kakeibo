@@ -279,8 +279,10 @@ Réplica de las fórmulas del Excel:
 | Moneda secundaria | importe × tipo de cambio del mes |
 | Tope de categoría | suma de la categoría frente a su tope, si tiene |
 | Comparación anual | cada mes frente al mismo mes del año anterior, solo con los meses que existen en los dos años |
+| Media y mediana mensual, mes más caro/barato (Estadísticas) | solo cuentan los meses con algún gasto del día a día apuntado — ni uno abierto de pasada (sin apuntar nada) ni uno de solo alquiler/fijos cuentan, aunque su total sea mayor que cero |
 | Ahorro previsto (mes) | ingresos previstos − límite total, o − suma de topes de categoría (0 las que no tienen), o − media real de los últimos 6 meses con algún gasto del día a día apuntado (ni meses vacíos, ni de solo fijos, ni el mes en curso; sin ninguno así, no se calcula) |
 | Previsión de ahorro (Ahorros) | última foto de patrimonio + ahorro previsto de cada mes × meses vista |
+| Meses de colchón (Ahorros) | patrimonio neto ÷ la misma media real de gasto que usa el ahorro previsto (cae al promedio sin filtrar solo si no hay ningún mes con gasto real) |
 
 Cada apunte tiene un tipo: **normal**, **recurrente** (cuenta como gasto fijo, y
 se puede copiar al mes siguiente), **extraordinario** (puntual: la mudanza, un

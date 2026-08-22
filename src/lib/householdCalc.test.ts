@@ -102,6 +102,28 @@ describe('combinedStats', () => {
     expect(stats.months[0].totalJpy).toBe(80000) // solo yo ese mes
     expect(stats.months[1].totalJpy).toBe(80000 + 90000)
   })
+
+  it('media, mediana y extremos ignoran un mes en que ninguno de los dos gasto de verdad', () => {
+    const mine: AppData = {
+      ...withMonth(),
+      months: [
+        { id: '2026-07', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 },
+        { id: '2026-08', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 },
+      ],
+      // julio: solo alquiler, ni un apunte real; agosto: gasto real de verdad
+      expenses: [
+        { id: 'e1', monthId: '2026-08', categoryId: 'eating_out', label: 'x', amount: 3000, kind: 'normal' },
+      ],
+    }
+    const partner: AppData = { ...withMonth(), expenses: [] } // solo agosto, sin gasto real tampoco
+    const stats = combinedStats(mine, partner, [])
+    expect(stats.months.map((m) => m.monthId)).toEqual(['2026-07', '2026-08'])
+    // julio (80000, sin gasto real de ninguno) queda fuera de media/extremos
+    expect(stats.averageJpy).toBe(80000 + 80000 + 3000)
+    expect(stats.medianJpy).toBe(80000 + 80000 + 3000)
+    expect(stats.minMonth?.monthId).toBe('2026-08')
+    expect(stats.maxMonth?.monthId).toBe('2026-08')
+  })
 })
 
 describe('combinedSnapshotSeries', () => {

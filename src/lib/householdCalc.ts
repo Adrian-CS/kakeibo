@@ -12,6 +12,7 @@
 import {
   computeStats,
   daysInMonth,
+  hasRealSpend,
   median,
   monthTotals,
   projectSavings,
@@ -135,16 +136,23 @@ export function combinedStats(
     }
   })
 
-  const totals = months.map((m) => m.totalJpy)
   const current = months.at(-1)
   const previous = months.at(-2)
+
+  // igual que en computeStats: media, mediana y extremos solo cuentan meses
+  // en los que alguno de los dos tuvo gasto real, para que un mes que
+  // ninguno de los dos uso de verdad no rebaje la media ni gane "mas barato"
+  // por defecto
+  const active = months.filter((m) => hasRealSpend(mine, m.monthId) || hasRealSpend(partner, m.monthId))
+  const activeTotals = active.map((m) => m.totalJpy)
+
   const byCategory: Record<string, number> = {}
   for (const m of months) {
     for (const [k, v] of Object.entries(m.byCategory)) byCategory[k] = (byCategory[k] ?? 0) + v
   }
   const avgByCategory: Record<string, number> = {}
   for (const [k, v] of Object.entries(byCategory)) avgByCategory[k] = months.length ? v / months.length : 0
-  const totalJpy = sum(totals)
+  const totalJpy = sum(months.map((m) => m.totalJpy))
   const days = sum(monthIds.map(daysInMonth))
 
   return {
@@ -153,10 +161,11 @@ export function combinedStats(
     previousJpy: previous?.totalJpy ?? 0,
     momRatio:
       previous && previous.totalJpy > 0 && current ? current.totalJpy / previous.totalJpy - 1 : 0,
-    averageJpy: months.length ? totalJpy / months.length : 0,
-    medianJpy: median(totals),
-    maxMonth: months.length ? months.reduce((x, y) => (y.totalJpy > x.totalJpy ? y : x)) : undefined,
-    minMonth: months.length ? months.reduce((x, y) => (y.totalJpy < x.totalJpy ? y : x)) : undefined,
+    averageJpy: activeTotals.length ? sum(activeTotals) / activeTotals.length : 0,
+    medianJpy: median(activeTotals),
+    maxMonth: active.length ? active.reduce((x, y) => (y.totalJpy > x.totalJpy ? y : x)) : undefined,
+    minMonth: active.length ? active.reduce((x, y) => (y.totalJpy < x.totalJpy ? y : x)) : undefined,
+    activeMonthCount: active.length,
     byCategory,
     avgByCategory,
     totalJpy,
