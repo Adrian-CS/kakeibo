@@ -25,6 +25,7 @@ import { getMonth, overspendDebt, shiftMonth } from '../lib/calc'
 import { translator, type TFunc } from '../lib/i18n'
 import { uid } from '../lib/id'
 import { nowIso } from '../lib/sync'
+import { MAX_SLOTS } from '../lib/palette'
 
 type Action =
   | { type: 'replace'; data: AppData }
@@ -55,6 +56,8 @@ interface State {
 
 const MAX_HISTORY = 25
 const MAX_TOMBSTONES = 2000
+/** id fijo de la categoria "Otros" a la que van los gastos de una categoria borrada. */
+const OTHER_CATEGORY_ID = 'other'
 
 /**
  * Un cambio: entra en el historial de deshacer y sella la fecha del
@@ -289,17 +292,42 @@ function reducer(state: State, action: Action): State {
       })
     }
 
-    case 'deleteCategory':
+    case 'deleteCategory': {
+      const remaining = data.categories.filter((c) => c.id !== action.id)
+      const affected = data.expenses.filter((e) => e.categoryId === action.id)
+      if (!affected.length) {
+        // sin gastos que reasignar: se borra sin dejar nada detras
+        return withHistory(state, { ...data, categories: remaining, deleted: tomb(data, action.id) })
+      }
+
+      // tiene gastos: en vez de perderlos, se mueven a "Otros" (se crea si
+      // hace falta) para que sigan contando en Mes y Estadisticas. Un id fijo
+      // evita duplicarla si se borra otra categoria mas tarde; si la propia
+      // "Otros" se borra teniendo gastos, se recrea al momento para ellos.
+      const hasOther = remaining.some((c) => c.id === OTHER_CATEGORY_ID)
+      const t = translator(data.settings.lang)
+      const categories = hasOther
+        ? remaining
+        : [
+            ...remaining,
+            {
+              id: OTHER_CATEGORY_ID,
+              name: t('category.other'),
+              bucket: 'other',
+              colorSlot: remaining.length % MAX_SLOTS,
+            } satisfies Category,
+          ]
+
+      const at = nowIso()
       return withHistory(state, {
         ...data,
-        categories: data.categories.filter((c) => c.id !== action.id),
-        expenses: data.expenses.filter((e) => e.categoryId !== action.id),
-        deleted: tomb(
-          data,
-          action.id,
-          ...data.expenses.filter((e) => e.categoryId === action.id).map((e) => e.id),
+        categories,
+        expenses: data.expenses.map((e) =>
+          e.categoryId === action.id ? { ...e, categoryId: OTHER_CATEGORY_ID, updatedAt: at } : e,
         ),
+        deleted: tomb(data, action.id),
       })
+    }
 
     case 'moveCategory': {
       const i = data.categories.findIndex((c) => c.id === action.id)

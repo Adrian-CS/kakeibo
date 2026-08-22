@@ -22,6 +22,9 @@ siempre en GitHub Pages.
   (外食, スーパーマーケット, 服装と電車と毎月費消, 娯楽, 部屋のもの) y las
   convierte en meses de la aplicación.
 - **Topes por categoría** además del límite del mes, con su aviso al pasarse.
+- **Borrar una categoría no borra su historial**: si tiene apuntes, se mueven a
+  "Otros" (se crea sola si no existe) en vez de desaparecer, así que siguen
+  contando en Mes y Estadísticas.
 - **Apuntes sin coste** para dejar constancia de algo sin que afecte a las
   cuentas (un regalo dado o recibido, por ejemplo): se ven en el mes y en
   estadísticas, pero no suman al total ni al límite.

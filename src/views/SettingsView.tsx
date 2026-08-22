@@ -86,7 +86,7 @@ function CategoryRow({ category }: { category: Category }) {
         <span className="text-xs">↓</span>
       </IconButton>
       <ConfirmButton
-        confirmLabel={used ? `${t('action.delete')} ${used}?` : `${t('action.delete')}?`}
+        confirmLabel={used ? t('category.deleteMovesTo', { n: used }) : `${t('action.delete')}?`}
         onConfirm={() => dispatch({ type: 'deleteCategory', id: category.id })}
       >
         <Icon name="trash" />

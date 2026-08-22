@@ -220,6 +220,22 @@ describe('la aplicacion', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('設定')
   })
 
+  it('al borrar una categoria con gastos, se mueven a "Otros" en vez de perderse', async () => {
+    const user = userEvent.setup()
+    render(<App initial={seed()} />)
+    await user.click(screen.getAllByRole('button', { name: /Ajustes/ })[0])
+
+    const row = screen.getByDisplayValue('Supermercado').closest('li')!
+    const buttons = within(row).getAllByRole('button')
+    await user.click(buttons[buttons.length - 1]) // arma el borrado (icono, sin texto)
+    await user.click(screen.getByRole('button', { name: /Mover 1 a "Otros"/ }))
+
+    // el gasto sigue existiendo, ahora en "Otros", no borrado
+    await user.click(screen.getAllByRole('button', { name: /^Mes$/ })[0])
+    expect(screen.getByDisplayValue('seiyu')).toBeInTheDocument()
+    expect(screen.getByText('Otros')).toBeInTheDocument()
+  })
+
   it('borra un gasto desde su ficha', async () => {
     const user = userEvent.setup()
     render(<App initial={seed()} />)
