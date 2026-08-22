@@ -6,9 +6,9 @@ import {
   computeStats,
   computeYoy,
   datedCount,
+  hasRealSpend,
   monthBurn,
   monthTotals,
-  monthsWithData,
   noCostItems,
   shiftMonth,
   topExpenses,
@@ -88,9 +88,13 @@ export function StatsView({
   const focusPrev = isTogether
     ? combinedMonthTotals(data, household.partnerData, focusPrevId, links)
     : monthTotals(source, focusPrevId)
+  // el mes anterior solo cuenta como comparacion si tuvo gasto real: si no,
+  // uno de solo alquiler/fijos (total > 0 pero sin nada del dia a dia)
+  // dispararia un "+104% vs mes anterior" enganoso, comparando un mes de
+  // verdad contra uno que no lo era
   const hasFocusPrev =
-    (monthsWithData(source).includes(focusPrevId) ||
-      (isTogether && !!household.partnerData && monthsWithData(household.partnerData).includes(focusPrevId))) &&
+    (hasRealSpend(source, focusPrevId) ||
+      (isTogether && !!household.partnerData && hasRealSpend(household.partnerData, focusPrevId))) &&
     focusPrev.totalJpy > 0
   const focusMomRatio = hasFocusPrev ? focus.totalJpy / focusPrev.totalJpy - 1 : 0
 

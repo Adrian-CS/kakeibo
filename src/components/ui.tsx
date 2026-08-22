@@ -212,26 +212,31 @@ export function TextInput({ className = '', ...rest }: InputHTMLAttributes<HTMLI
 /**
  * Entrada numerica: teclado numerico en movil y alineada a la derecha.
  *
- * Lleva su propio texto en local, en vez de mostrar directamente `value`:
- * quien la usa solo confirma el cambio cuando el texto ya se puede convertir
- * en numero (`parseAmount` devuelve null con "" o con un signo suelto), asi
- * que si el campo se controlase con `value` a pelo, en cuanto se borrara del
- * todo (o quedase a medio escribir) React lo devolveria de golpe al numero
- * de antes en la siguiente tecla -en movil eso se siente como que no deja
- * borrar ni sustituir la ultima cifra, porque el borrado nunca llega a
- * verse. Aqui se ve tal cual se escribe, y solo se resincroniza con `value`
- * cuando cambia por una razon ajena (otro dispositivo, deshacer, o porque el
- * propio dueño del campo confirmo un numero valido).
+ * Lleva su propio texto en local, en vez de mostrar directamente `value`, y
+ * mientras esta enfocada ignora por completo los cambios de `value` -aunque
+ * vengan de su propio `onChange` (quien la usa suele guardar en cuanto el
+ * texto ya es un numero valido, y eso devuelve un `value` nuevo en cada
+ * tecla). Sin este bloqueo, cada pulsacion valida (2000, 200, 20, 2 al ir
+ * borrando) disparaba un vaivén "escribo -> se guarda -> vuelve como texto"
+ * que en movil confunde al teclado numerico y hace que la ultima cifra
+ * parezca pegada, sin dejar borrarla. Solo se resincroniza con `value`
+ * cuando cambia estando la entrada sin foco (otro dispositivo, deshacer), y
+ * siempre al salir de ella, para no dejar escrito algo que no llego a
+ * guardarse (vacio, un signo suelto...).
  */
 export function NumberInput({
   value,
   onChange,
+  onFocus,
   onBlur,
   className = '',
   ...rest
 }: InputHTMLAttributes<HTMLInputElement>) {
   const [text, setText] = useState(value == null ? '' : String(value))
-  useEffect(() => setText(value == null ? '' : String(value)), [value])
+  const focused = useRef(false)
+  useEffect(() => {
+    if (!focused.current) setText(value == null ? '' : String(value))
+  }, [value])
 
   return (
     <input
@@ -241,11 +246,16 @@ export function NumberInput({
       className={`${inputBase} text-right tabular-nums ${withWidth(className)}`}
       {...rest}
       value={text}
+      onFocus={(e) => {
+        focused.current = true
+        onFocus?.(e)
+      }}
       onChange={(e) => {
         setText(e.target.value)
         onChange?.(e)
       }}
       onBlur={(e) => {
+        focused.current = false
         // si lo que quedaba escrito no llego a confirmarse (vacio, un signo
         // suelto...), se vuelve a lo ultimo valido en vez de dejar el campo
         // enseñando algo que no es lo que hay guardado

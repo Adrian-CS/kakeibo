@@ -220,6 +220,18 @@ describe('la aplicacion', () => {
     expect(screen.getByText(/Comparado con el año pasado/)).toBeInTheDocument()
   })
 
+  it('un mes anterior de solo fijos no cuenta para "vs mes anterior" (evita un salto enganoso)', async () => {
+    // bug real: comparar contra un mes sin ningun apunte real (solo
+    // alquiler) disparaba un "+104%" o similar, con el mes anterior
+    // infravalorado por no tener gasto del dia a dia apuntado
+    const user = userEvent.setup()
+    const data = seed()
+    data.expenses = data.expenses.filter((e) => e.id !== 'e1') // julio se queda solo con alquiler
+    render(<App initial={data} />)
+    await user.click(screen.getAllByRole('button', { name: /Estadísticas/ })[0])
+    expect(screen.queryByText(/vs mes anterior/)).not.toBeInTheDocument()
+  })
+
   it('sincronizacion: sin configurar pide los datos del proyecto', async () => {
     const user = userEvent.setup()
     render(<App initial={seed()} />)
