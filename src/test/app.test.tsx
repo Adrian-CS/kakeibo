@@ -220,6 +220,20 @@ describe('la aplicacion', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('設定')
   })
 
+  it('en japones las categorias por defecto se ven en japones, no en espanol', async () => {
+    // bug real: category.name esta siempre en espanol (es el idioma con el
+    // que se sembraron las 5 categorias por defecto); sin usar nameJa como
+    // nombre a mostrar, quedaban en espanol aunque la interfaz estuviera en
+    // japones
+    const user = userEvent.setup()
+    render(<App initial={seed()} />)
+    await user.click(screen.getAllByRole('button', { name: /Ajustes/ })[0])
+    await user.selectOptions(screen.getByLabelText('Idioma', { selector: 'select' }), 'ja')
+    await user.click(screen.getAllByRole('button', { name: /^月$/ })[0])
+    expect(screen.getByText('外食')).toBeInTheDocument()
+    expect(screen.queryByText('Comer fuera')).not.toBeInTheDocument()
+  })
+
   it('al borrar una categoria con gastos, se mueven a "Otros" en vez de perderse', async () => {
     const user = userEvent.setup()
     render(<App initial={seed()} />)

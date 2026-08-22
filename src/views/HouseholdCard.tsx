@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../state/store'
 import { useHousehold } from '../state/household'
 import { fmtWhen } from '../lib/format'
-import { activeCategories } from '../lib/calc'
+import { activeCategories, categoryLabel } from '../lib/calc'
 import { Button, Card, ConfirmButton, Field, Select, TextInput } from '../components/ui'
 
 export function HouseholdCard() {
@@ -131,7 +131,7 @@ export function HouseholdCard() {
                         data.settings.householdCategoryLinks.find((l) => l.categoryId === c.id)
                           ?.partnerCategoryId ?? ''
                       return (
-                        <Field key={c.id} label={c.name}>
+                        <Field key={c.id} label={categoryLabel(c, lang)}>
                           <Select
                             value={current}
                             onChange={(v) => setCategoryLink(c.id, v)}
@@ -139,7 +139,7 @@ export function HouseholdCard() {
                               { value: '', label: t('household.noEquivalent') },
                               ...activeCategories(household.partnerData!.categories).map((pc) => ({
                                 value: pc.id,
-                                label: pc.name,
+                                label: categoryLabel(pc, lang),
                               })),
                             ]}
                           />

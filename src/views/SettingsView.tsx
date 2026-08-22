@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import { LANGS } from '../lib/i18n'
 import { clearData, deserialize, exportFileName, serialize, storageSize } from '../lib/storage'
+import { categoryLabel } from '../lib/calc'
 import { fmtNumber, parseAmount } from '../lib/format'
 import { MAX_SLOTS, seriesVar } from '../lib/palette'
 import type { Bucket, Category, Lang, ThemePref } from '../lib/types'
@@ -26,9 +27,15 @@ import { Toggle } from '../components/ui'
 
 function CategoryRow({ category }: { category: Category }) {
   const { dispatch, data, t } = useStore()
+  const lang = data.settings.lang
   const patch = (p: Partial<Category>) =>
     dispatch({ type: 'upsertCategory', category: { ...category, ...p } })
   const used = data.expenses.filter((e) => e.categoryId === category.id).length
+  const label = categoryLabel(category, lang)
+  // en japones se edita nameJa si ya tiene uno (las 5 por defecto, del Excel
+  // original), para no pisar el nombre en el otro idioma; si no tiene, se
+  // edita name como siempre (categoria propia, sin traduccion aparte)
+  const nameField = lang === 'ja' && category.nameJa ? ('nameJa' as const) : ('name' as const)
 
   return (
     <li className="flex flex-wrap items-center gap-1.5 border-b border-hairline py-2 last:border-0">
@@ -38,8 +45,8 @@ function CategoryRow({ category }: { category: Category }) {
         style={{ background: seriesVar(category.colorSlot) }}
       />
       <TextInput
-        value={category.name}
-        onChange={(e) => patch({ name: e.target.value })}
+        value={label}
+        onChange={(e) => patch({ [nameField]: e.target.value })}
         className="min-w-[7rem] flex-1"
         aria-label={t('fields.name')}
       />
@@ -63,7 +70,7 @@ function CategoryRow({ category }: { category: Category }) {
       <NumberInput
         value={category.limitJpy ?? ''}
         placeholder={t('cat.limitNone')}
-        aria-label={`${t('cat.limit')}: ${category.name}`}
+        aria-label={`${t('cat.limit')}: ${label}`}
         onChange={(e) => {
           const n = parseAmount(e.target.value)
           patch({ limitJpy: n === null || n <= 0 ? undefined : n })

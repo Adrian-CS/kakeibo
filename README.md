@@ -275,9 +275,9 @@ Réplica de las fórmulas del Excel:
 | Concepto | Cálculo |
 | --- | --- |
 | Total del mes (合計) | suma de los apuntes + alquiler + extras fijos |
-| Vida diaria (一日生活の費消) | categorías del grupo «vida diaria» (comer fuera + supermercado) |
-| Gastos fijos (毎月ある費消) | apuntes marcados como recurrentes + alquiler + extras |
-| Otros gastos (別の費消) | total − gastos fijos |
+| Vida diaria (一日生活の消費) | categorías del grupo «vida diaria» (comer fuera + supermercado) |
+| Gastos fijos (毎月ある消費) | apuntes marcados como recurrentes + alquiler + extras |
+| Otros gastos (別の消費) | total − gastos fijos |
 | Balance (上限) | límite − total |
 | Moneda secundaria | importe × tipo de cambio del mes |
 | Tope de categoría | suma de la categoría frente a su tope, si tiene |

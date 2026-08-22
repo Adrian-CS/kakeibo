@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../state/store'
 import {
   activeCategories,
+  categoryLabel,
   computeStats,
   computeYoy,
   datedCount,
@@ -114,9 +115,13 @@ export function StatsView({
     [isTogether, source, monthIds.join(',')],
   )
 
-  const series = cats.map((c) => ({ key: c.id, label: c.name, color: seriesVar(c.colorSlot) }))
+  const series = cats.map((c) => ({ key: c.id, label: categoryLabel(c, lang), color: seriesVar(c.colorSlot) }))
   const jpy = (n: number) => fmtJpy(n, lang)
   const compact = (n: number) => fmtCompact(n, lang)
+  const catLabel = (id: string) => {
+    const c = cats.find((c) => c.id === id)
+    return c ? categoryLabel(c, lang) : id
+  }
 
   if (partnerMissing) {
     return (
@@ -145,7 +150,7 @@ export function StatsView({
   const donutData = cats
     .map((c) => ({
       key: c.id,
-      label: c.name,
+      label: categoryLabel(c, lang),
       value: focus.byCategory[c.id] ?? 0,
       color: seriesVar(c.colorSlot),
     }))
@@ -272,7 +277,12 @@ export function StatsView({
         {tables && (
           <DataTable
             caption={t('stats.byCategoryMonth')}
-            columns={[t('common.month'), ...cats.map((c) => c.name), t('totals.total'), t('totals.limit')]}
+            columns={[
+              t('common.month'),
+              ...cats.map((c) => categoryLabel(c, lang)),
+              t('totals.total'),
+              t('totals.limit'),
+            ]}
             rows={stats.months.map((m) => [
               fmtMonth(m.monthId, lang),
               ...cats.map((c) => fmtNumber(m.byCategory[c.id] ?? 0, lang)),
@@ -488,7 +498,7 @@ export function StatsView({
           rows={biggest.map((e) => [
             e.label || '—',
             fmtMonth(e.monthId, lang),
-            cats.find((c) => c.id === e.categoryId)?.name ?? e.categoryId,
+            catLabel(e.categoryId),
             fmtNumber(e.amount, lang),
           ])}
         />
@@ -507,7 +517,7 @@ export function StatsView({
             rows={gifts.map((e) => [
               e.label || '—',
               fmtMonth(e.monthId, lang),
-              cats.find((c) => c.id === e.categoryId)?.name ?? e.categoryId,
+              catLabel(e.categoryId),
               fmtNumber(e.amount, lang),
             ])}
           />

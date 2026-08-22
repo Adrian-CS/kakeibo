@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import {
   activeCategories,
+  categoryLabel,
   categoryLimitsJpy,
   daysInMonth,
   getMonth,
@@ -131,7 +132,10 @@ function ExpenseRow({ expense }: { expense: Expense }) {
             <Select
               value={expense.categoryId}
               onChange={(v) => dispatch({ type: 'patchExpense', id: expense.id, patch: { categoryId: v } })}
-              options={activeCategories(data.categories).map((c) => ({ value: c.id, label: c.name }))}
+              options={activeCategories(data.categories).map((c) => ({
+                value: c.id,
+                label: categoryLabel(c, lang),
+              }))}
             />
           </Field>
           <Field
@@ -244,6 +248,7 @@ function AddRow({ monthId, categoryId }: { monthId: string; categoryId: string }
 
 function QuickAdd({ monthId }: { monthId: string }) {
   const { data, dispatch, t } = useStore()
+  const lang = data.settings.lang
   const [open, setOpen] = useState(false)
   const cats = activeCategories(data.categories)
   const [categoryId, setCategoryId] = useState(cats[0]?.id ?? '')
@@ -303,7 +308,7 @@ function QuickAdd({ monthId }: { monthId: string }) {
             <Select
               value={categoryId}
               onChange={setCategoryId}
-              options={cats.map((c) => ({ value: c.id, label: c.name }))}
+              options={cats.map((c) => ({ value: c.id, label: categoryLabel(c, lang) }))}
             />
           </Field>
           <Field label={t('fields.label')} className="col-span-2">
@@ -517,7 +522,7 @@ export function MonthView({
                     className="h-2.5 w-2.5 rounded-[2px]"
                     style={{ background: seriesVar(c.colorSlot) }}
                   />
-                  <span className="text-sm font-semibold">{c.name}</span>
+                  <span className="text-sm font-semibold">{categoryLabel(c, lang)}</span>
                 </span>
               }
               hint={c.nameJa && lang !== 'ja' ? c.nameJa : undefined}
@@ -535,7 +540,7 @@ export function MonthView({
                   <Meter
                     ratio={subtotal / c.limitJpy}
                     color={STATUS[limitStatus(subtotal / c.limitJpy)]}
-                    label={`${t('cat.limit')}: ${c.name}`}
+                    label={`${t('cat.limit')}: ${categoryLabel(c, lang)}`}
                   />
                   <p className="mt-1 text-[11px] text-muted">
                     {subtotal > c.limitJpy

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   accountToJpy,
+  categoryLabel,
   categoryLimitsJpy,
   computeStats,
   computeYoy,
@@ -623,5 +624,30 @@ describe('ahorros', () => {
     const withoutNoise = projectSavings(base, [3], 6, today)
     const withNoiseResult = projectSavings(withNoise, [3], 6, today)
     expect(withNoiseResult).toEqual(withoutNoise)
+  })
+})
+
+describe('categoryLabel', () => {
+  const withJa = {
+    id: 'eating_out',
+    name: 'Comer fuera',
+    nameJa: '外食',
+    bucket: 'daily' as const,
+    colorSlot: 0,
+  }
+  const custom = { id: 'c1', name: 'Mi categoria', bucket: 'other' as const, colorSlot: 1 }
+
+  it('en japones usa nameJa si lo tiene, para no ensenar el nombre en otro idioma', () => {
+    expect(categoryLabel(withJa, 'ja')).toBe('外食')
+  })
+
+  it('en cualquier otro idioma usa name', () => {
+    expect(categoryLabel(withJa, 'es')).toBe('Comer fuera')
+    expect(categoryLabel(withJa, 'en')).toBe('Comer fuera')
+  })
+
+  it('una categoria propia sin nameJa siempre usa name, sea cual sea el idioma', () => {
+    expect(categoryLabel(custom, 'ja')).toBe('Mi categoria')
+    expect(categoryLabel(custom, 'es')).toBe('Mi categoria')
   })
 })

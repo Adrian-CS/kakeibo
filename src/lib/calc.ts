@@ -1,4 +1,4 @@
-import type { AppData, Category, Expense, MonthData, Snapshot } from './types'
+import type { AppData, Category, Expense, Lang, MonthData, Snapshot } from './types'
 
 /* ------------------------------------------------------------------ *
  * Utilidades basicas
@@ -62,11 +62,11 @@ export interface MonthTotals {
   extrasJpy: number
   /** 合計 = filas + alquiler + extras */
   totalJpy: number
-  /** 一日生活の費消 = categorias del bucket "daily" */
+  /** 一日生活の消費 = categorias del bucket "daily" */
   dailyLifeJpy: number
-  /** 毎月ある費消 = gastos marcados como recurrentes + alquiler + extras */
+  /** 毎月ある消費 = gastos marcados como recurrentes + alquiler + extras */
   fixedJpy: number
-  /** 別の費消 = total - fijos */
+  /** 別の消費 = total - fijos */
   otherJpy: number
   /** gastos marcados como extraordinarios (informativo) */
   extraordinaryJpy: number
@@ -681,6 +681,19 @@ export function projectSavings(
 
 export function categoryById(cats: Category[], id: string): Category | undefined {
   return cats.find((c) => c.id === id)
+}
+
+/**
+ * Nombre a mostrar de una categoria en el idioma activo. Las cinco por
+ * defecto (las del Excel original) llevan tambien su `nameJa`; si el idioma
+ * activo es japones y la categoria tiene uno, se usa ese en vez de `name`
+ * (que solo se guarda en un idioma, tipicamente el espanol de por defecto) -
+ * si no, la categoria por defecto se veria en espanol aunque la interfaz
+ * este en japones. Una categoria propia sin `nameJa` sigue mostrando `name`
+ * tal cual, en el idioma en que se escribio.
+ */
+export function categoryLabel(c: Category, lang: Lang): string {
+  return lang === 'ja' && c.nameJa ? c.nameJa : c.name
 }
 
 export function activeCategories(cats: Category[]): Category[] {
