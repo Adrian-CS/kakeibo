@@ -68,6 +68,23 @@ describe('la aplicacion', () => {
     expect(screen.getByText(/82[.,\s]?000/)).toBeInTheDocument()
   })
 
+  it('el boton +/- de un gasto ya creado guarda el signo nuevo, no el de antes de tocarlo', async () => {
+    // regresion: el boton quitaba el foco del campo de importe antes de
+    // invertir el signo; como ese campo guarda al perder el foco, se veia
+    // el cambio en pantalla pero se guardaba el numero de antes -sin el
+    // signo nuevo, seguia sumando en vez de restar
+    const user = userEvent.setup()
+    render(<App initial={seed()} />)
+    const amount = screen.getByDisplayValue('4000')
+    await user.click(amount) // como si se estuviera editando
+    const row = amount.closest('li')!
+    await user.click(within(row).getByLabelText('Cambiar a positivo/negativo'))
+    expect(amount).toHaveValue('-4000')
+    await user.tab() // confirma el cambio (patch en el blur)
+    // 80000 (alquiler) - 4000 (seiyu, ahora en negativo) = 76000
+    expect(screen.getByText(/76[.,\s]?000/)).toBeInTheDocument()
+  })
+
   it('anade un gasto y actualiza el total', async () => {
     const user = userEvent.setup()
     render(<App initial={seed()} />)

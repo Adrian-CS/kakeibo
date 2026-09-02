@@ -38,12 +38,20 @@ import { uid } from '../lib/id'
  * (`inputMode="decimal"`) normalmente no tiene tecla de signo menos, asi que
  * sin esto no habria forma de apuntar algo en negativo (un reintegro
  * recurrente de la empresa, por ejemplo) desde el telefono.
+ *
+ * El `onMouseDown` con `preventDefault` es imprescindible: sin el, pulsar
+ * este boton quita antes el foco del campo de importe (como con cualquier
+ * boton), y en los campos que guardan al perder el foco (el importe de un
+ * gasto ya creado) eso confirma el numero de antes de invertir el signo -se
+ * ve el cambio en pantalla, pero nunca llega a guardarse con el signo nuevo.
+ * Evitar que el foco se mueva evita ese guardado prematuro.
  */
 function SignToggleButton({ onClick }: { onClick: () => void }) {
   const { t } = useStore()
   return (
     <IconButton
       label={t('action.toggleSign')}
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       className="h-8 w-7 shrink-0 text-sm font-semibold"
     >
