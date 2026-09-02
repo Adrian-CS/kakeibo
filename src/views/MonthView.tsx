@@ -85,6 +85,17 @@ function ExpenseRow({ expense }: { expense: Expense }) {
     }
     if (n !== expense.amount) dispatch({ type: 'patchExpense', id: expense.id, patch: { amount: n } })
   }
+  // invierte y guarda en el mismo gesto, sin esperar a que el campo pierda
+  // el foco: en movil, tocar otro elemento puede disparar el borrado del
+  // foco (y por tanto el guardado de commitAmount) antes de que el propio
+  // click del boton llegue a ejecutarse, asi que esperar a ese guardado
+  // dejaba el numero nuevo escrito en pantalla pero sin llegar a guardarse
+  const toggleAmountSign = () => {
+    const next = toggleSign(amount)
+    setAmount(next)
+    const n = parseAmount(next)
+    if (n !== null && n !== expense.amount) dispatch({ type: 'patchExpense', id: expense.id, patch: { amount: n } })
+  }
 
   const lang = data.settings.lang
   const kindMark =
@@ -120,7 +131,7 @@ function ExpenseRow({ expense }: { expense: Expense }) {
           {kindMark}
         </span>
       )}
-      <SignToggleButton onClick={() => setAmount((a) => toggleSign(a))} />
+      <SignToggleButton onClick={toggleAmountSign} />
       <input
         value={amount}
         inputMode="decimal"

@@ -68,19 +68,21 @@ describe('la aplicacion', () => {
     expect(screen.getByText(/82[.,\s]?000/)).toBeInTheDocument()
   })
 
-  it('el boton +/- de un gasto ya creado guarda el signo nuevo, no el de antes de tocarlo', async () => {
-    // regresion: el boton quitaba el foco del campo de importe antes de
-    // invertir el signo; como ese campo guarda al perder el foco, se veia
-    // el cambio en pantalla pero se guardaba el numero de antes -sin el
-    // signo nuevo, seguia sumando en vez de restar
+  it('el boton +/- de un gasto ya creado guarda el signo nuevo al momento, sin esperar a perder el foco', async () => {
+    // regresion: el boton solo cambiaba el texto en pantalla y esperaba a
+    // que el campo perdiera el foco para guardar (como con cualquier otra
+    // tecla) - pero en movil ese guardado por perdida de foco no es fiable
+    // (puede no llegar a dispararse, o hacerlo con el numero de antes de
+    // tocar el boton), asi que se veia el cambio pero seguia sumando en vez
+    // de restar. Ahora el propio boton guarda en el mismo gesto, sin
+    // depender de ningun evento de foco despues
     const user = userEvent.setup()
     render(<App initial={seed()} />)
     const amount = screen.getByDisplayValue('4000')
-    await user.click(amount) // como si se estuviera editando
     const row = amount.closest('li')!
+    // sin tocar el campo antes (ni pulsar Tab despues): el boton solo
     await user.click(within(row).getByLabelText('Cambiar a positivo/negativo'))
     expect(amount).toHaveValue('-4000')
-    await user.tab() // confirma el cambio (patch en el blur)
     // 80000 (alquiler) - 4000 (seiyu, ahora en negativo) = 76000
     expect(screen.getByText(/76[.,\s]?000/)).toBeInTheDocument()
   })
