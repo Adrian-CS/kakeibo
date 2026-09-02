@@ -11,7 +11,7 @@ import {
   recentActiveAverageJpy,
   shiftMonth,
 } from '../lib/calc'
-import { fmtJpy, fmtMoney, fmtMonth, fmtPercent, parseAmount } from '../lib/format'
+import { fmtJpy, fmtMoney, fmtMonth, fmtPercent, parseAmount, toggleSign } from '../lib/format'
 import { fetchFxRate } from '../lib/fx'
 import { limitStatus, seriesVar, STATUS } from '../lib/palette'
 import type { Expense, ExpenseKind, MonthData } from '../lib/types'
@@ -31,6 +31,26 @@ import {
 } from '../components/ui'
 import { monthIdOf } from '../lib/defaults'
 import { uid } from '../lib/id'
+
+/**
+ * Invierte el signo de lo escrito en un campo de importe. Hace falta un
+ * boton porque el teclado numerico que abren estos campos en movil
+ * (`inputMode="decimal"`) normalmente no tiene tecla de signo menos, asi que
+ * sin esto no habria forma de apuntar algo en negativo (un reintegro
+ * recurrente de la empresa, por ejemplo) desde el telefono.
+ */
+function SignToggleButton({ onClick }: { onClick: () => void }) {
+  const { t } = useStore()
+  return (
+    <IconButton
+      label={t('action.toggleSign')}
+      onClick={onClick}
+      className="h-8 w-7 shrink-0 text-sm font-semibold"
+    >
+      ±
+    </IconButton>
+  )
+}
 
 /* ------------------------------------------------------------------ *
  * Fila editable de gasto
@@ -92,6 +112,7 @@ function ExpenseRow({ expense }: { expense: Expense }) {
           {kindMark}
         </span>
       )}
+      <SignToggleButton onClick={() => setAmount((a) => toggleSign(a))} />
       <input
         value={amount}
         inputMode="decimal"
@@ -99,7 +120,7 @@ function ExpenseRow({ expense }: { expense: Expense }) {
         onBlur={commitAmount}
         onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         aria-label={t('fields.amount')}
-        className="w-[86px] shrink-0 rounded-md bg-transparent px-1.5 py-1.5 text-right text-sm tabular-nums text-ink hover:bg-surface-2 focus:bg-surface-2"
+        className="w-[74px] shrink-0 rounded-md bg-transparent px-1.5 py-1.5 text-right text-sm tabular-nums text-ink hover:bg-surface-2 focus:bg-surface-2"
       />
       <IconButton label={t('action.edit')} onClick={() => setOpen(true)} className="h-8 w-8 shrink-0">
         <Icon name="edit" />
@@ -226,6 +247,7 @@ function AddRow({ monthId, categoryId }: { monthId: string; categoryId: string }
         aria-label={t('fields.label')}
         className="min-w-0 flex-1 rounded-md bg-transparent px-1.5 py-1.5 text-sm text-ink placeholder:text-muted focus:bg-surface-2"
       />
+      <SignToggleButton onClick={() => setAmount((a) => toggleSign(a))} />
       <input
         value={amount}
         inputMode="decimal"
@@ -233,7 +255,7 @@ function AddRow({ monthId, categoryId }: { monthId: string; categoryId: string }
         onKeyDown={(e) => e.key === 'Enter' && submit()}
         placeholder="0"
         aria-label={t('fields.amount')}
-        className="w-[86px] shrink-0 rounded-md bg-transparent px-1.5 py-1.5 text-right text-sm tabular-nums text-ink placeholder:text-muted focus:bg-surface-2"
+        className="w-[74px] shrink-0 rounded-md bg-transparent px-1.5 py-1.5 text-right text-sm tabular-nums text-ink placeholder:text-muted focus:bg-surface-2"
       />
       <IconButton label={t('action.add')} onClick={submit} className="h-8 w-8 shrink-0">
         <Icon name="plus" />
@@ -315,12 +337,16 @@ function QuickAdd({ monthId }: { monthId: string }) {
             <TextInput value={label} onChange={(e) => setLabel(e.target.value)} autoFocus />
           </Field>
           <Field label={t('fields.amount')}>
-            <NumberInput
-              value={amount}
-              placeholder="0"
-              onChange={(e) => setAmount(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && submit(false)}
-            />
+            <div className="flex gap-1.5">
+              <NumberInput
+                aria-label={t('fields.amount')}
+                value={amount}
+                placeholder="0"
+                onChange={(e) => setAmount(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submit(false)}
+              />
+              <SignToggleButton onClick={() => setAmount((a) => toggleSign(a))} />
+            </div>
           </Field>
           <Field label={`${t('fields.day')} (${t('common.optional')})`}>
             <NumberInput value={day} placeholder="—" onChange={(e) => setDay(e.target.value)} />

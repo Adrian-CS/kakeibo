@@ -116,3 +116,16 @@ export function parseAmount(raw: string): number | null {
   const n = Number(normalized)
   return Number.isFinite(n) ? n : null
 }
+
+/**
+ * Invierte el signo de un importe escrito a mano, sin tocar el resto del
+ * texto. Hace falta porque el teclado numerico que abren los campos de
+ * importe en movil (`inputMode="decimal"`) normalmente no tiene tecla de
+ * signo menos, asi que un boton es la unica forma de apuntar algo en
+ * negativo (un reintegro recurrente, por ejemplo) desde el telefono.
+ */
+export function toggleSign(raw: string): string {
+  const s = raw.trim()
+  if (!s) return s
+  return s.startsWith('-') ? s.slice(1) : `-${s}`
+}

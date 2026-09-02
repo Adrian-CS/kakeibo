@@ -299,6 +299,13 @@ pueden excluir los extraordinarios para ver la tendencia real; los apuntes sin
 coste siempre quedan fuera de los totales, límites y rankings de gasto, pero se
 listan en su categoría y en un apartado propio de las estadísticas.
 
+El importe también puede ser negativo, para un ingreso extra que resta del
+total en vez de sumar (un reintegro recurrente de transporte de la empresa,
+por ejemplo: se apunta como **recurrente** con importe negativo, y se copia
+solo al mes siguiente igual que cualquier otro fijo). El botón **±** junto a
+cada campo de importe invierte el signo de lo escrito, porque el teclado
+numérico que se abre en el móvil normalmente no tiene tecla de signo menos.
+
 ## Estructura
 
 ```

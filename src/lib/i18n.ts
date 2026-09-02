@@ -88,6 +88,7 @@ const es = {
   'action.undo': 'Deshacer',
   'action.table': 'Ver tabla',
   'action.chart': 'Ver gráfico',
+  'action.toggleSign': 'Cambiar a positivo/negativo',
 
   'stats.title': 'Estadísticas',
   'stats.range': 'Periodo',
@@ -374,6 +375,7 @@ const ja: Partial<Record<Key, string>> = {
   'action.undo': '元に戻す',
   'action.table': '表で見る',
   'action.chart': 'グラフで見る',
+  'action.toggleSign': 'プラス・マイナスを切り替える',
   'stats.title': '統計',
   'stats.range': '期間',
   'stats.range.6': '直近6か月',
@@ -648,6 +650,7 @@ const en: Partial<Record<Key, string>> = {
   'action.undo': 'Undo',
   'action.table': 'Table view',
   'action.chart': 'Chart view',
+  'action.toggleSign': 'Switch positive/negative',
   'stats.title': 'Statistics',
   'stats.range': 'Period',
   'stats.range.6': 'Last 6 months',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fmtMonth, fmtMonthAxis, fmtPercent, fmtSignedPercent, parseAmount } from './format'
+import { fmtMonth, fmtMonthAxis, fmtPercent, fmtSignedPercent, parseAmount, toggleSign } from './format'
 
 describe('parseAmount', () => {
   it('lee numeros sencillos', () => {
@@ -31,6 +31,22 @@ describe('parseAmount', () => {
     expect(parseAmount('')).toBeNull()
     expect(parseAmount('abc')).toBeNull()
     expect(parseAmount('  ')).toBeNull()
+  })
+})
+
+describe('toggleSign', () => {
+  it('antepone el signo menos si no lo tenia', () => {
+    expect(toggleSign('3000')).toBe('-3000')
+    expect(toggleSign('12,5')).toBe('-12,5')
+  })
+
+  it('lo quita si ya lo tenia', () => {
+    expect(toggleSign('-3000')).toBe('3000')
+  })
+
+  it('un campo vacio se queda vacio', () => {
+    expect(toggleSign('')).toBe('')
+    expect(toggleSign('   ')).toBe('')
   })
 })
 

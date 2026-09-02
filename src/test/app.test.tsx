@@ -52,6 +52,22 @@ describe('la aplicacion', () => {
     expect(screen.getByText(/64[.,\s]?000/)).toBeInTheDocument()
   })
 
+  it('el boton +/- deja anadir un importe negativo (p.ej. un reintegro recurrente de la empresa)', async () => {
+    const user = userEvent.setup()
+    render(<App initial={seed()} />)
+    const conceptos = screen.getAllByPlaceholderText('Concepto')
+    const importes = screen.getAllByPlaceholderText('0')
+    const signos = screen.getAllByLabelText('Cambiar a positivo/negativo')
+    await user.type(conceptos[0], 'reintegro transporte')
+    await user.type(importes[0], '2000')
+    await user.click(signos[0])
+    expect(importes[0]).toHaveValue('-2000')
+    await user.click(screen.getAllByLabelText('Añadir')[0])
+    expect(screen.getByDisplayValue('reintegro transporte')).toBeInTheDocument()
+    // 4000 (seiyu) + 80000 (alquiler) - 2000 (reintegro) = 82000
+    expect(screen.getByText(/82[.,\s]?000/)).toBeInTheDocument()
+  })
+
   it('anade un gasto y actualiza el total', async () => {
     const user = userEvent.setup()
     render(<App initial={seed()} />)
