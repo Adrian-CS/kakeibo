@@ -79,15 +79,21 @@ function tomb(data: AppData, ...ids: string[]): AppData['deleted'] {
 }
 
 /**
- * Si esta encendido (`autoDebtOnOverspend`) y el mes anterior se paso de su
+ * Si esta encendido (`autoDebtOnOverspend`) y el mes indicado se paso de su
  * limite, apunta la diferencia como deuda en Ahorros: en la ultima foto que
- * haya, o en una nueva, segun `autoDebtTarget`. Se llama solo la primera vez
- * que se crea el mes siguiente (nunca se repite), y solo mira ese mes
- * anterior: no audita meses mas viejos ni el que se acaba de crear.
+ * haya, o en una nueva, segun `autoDebtTarget`.
+ *
+ * No se repite: la cuenta generada lleva la marca `autoDebtMonthId` con ese
+ * mes, y si ya existe una en cualquier foto no se vuelve a apuntar. Antes la
+ * garantia era "solo al crear el mes siguiente", que fallaba justo cuando el
+ * mes siguiente ya existia de antes (basta haber navegado hacia delante una
+ * vez): entonces no se apuntaba nunca.
  */
-function applyOverspendDebt(data: AppData, prevId: string): AppData {
+function applyOverspendDebt(data: AppData, monthId: string): AppData {
   if (!data.settings.autoDebtOnOverspend) return data
-  const debt = overspendDebt(data, prevId)
+  const already = data.snapshots.some((s) => s.accounts.some((a) => a.autoDebtMonthId === monthId))
+  if (already) return data
+  const debt = overspendDebt(data, monthId)
   if (!debt) return data
 
   const t = translator(data.settings.lang)
@@ -99,6 +105,7 @@ function applyOverspendDebt(data: AppData, prevId: string): AppData {
     amount: debt.amountJpy,
     currency: 'JPY',
     isDebt: true,
+    autoDebtMonthId: monthId,
   }
   const at = nowIso()
   const last = [...data.snapshots].sort((a, b) => a.date.localeCompare(b.date)).at(-1)
@@ -122,35 +129,48 @@ function applyOverspendDebt(data: AppData, prevId: string): AppData {
 }
 
 /**
+ * Apunta como deuda el sobregasto del mes que acaba de cerrar (el anterior a
+ * hoy), si toca. Se mira en cada arranque y cada vez que se navega de mes,
+ * NO al crear el mes siguiente: los meses se pueden haber creado mucho antes
+ * -basta navegar hacia delante una vez, y quedan creados hasta donde
+ * llegaras-, y entonces ese "al crear el siguiente" no volvia a pasar nunca
+ * y el sobregasto no se apuntaba jamas. Se mira solo el ultimo mes cerrado,
+ * nunca meses mas viejos ni el que esta en curso (que aun no ha cerrado).
+ */
+function auditClosedMonth(data: AppData): AppData {
+  return applyOverspendDebt(data, shiftMonth(monthIdOf(), -1))
+}
+
+/**
  * Crea el mes si no existe. Con `autoFillFixed` copia del mes anterior el
  * alquiler, el ingreso previsto, los extras y los gastos recurrentes, para no
  * teclearlos cada mes. Solo rellena desde un mes anterior que exista, y nunca
- * meses muy futuros. Con `autoDebtOnOverspend`, de paso, apunta como deuda el
- * sobregasto del mes anterior si lo hubo (ver `applyOverspendDebt`).
+ * meses muy futuros. De paso audita el mes que acaba de cerrar (ver
+ * `auditClosedMonth`), tanto si hay mes nuevo que crear como si no.
  */
 function ensureMonth(data: AppData, monthId: string): AppData {
-  if (data.months.some((m) => m.id === monthId)) return data
+  const audited = auditClosedMonth(data)
+  if (audited.months.some((m) => m.id === monthId)) return audited
 
-  const fresh = newMonth(monthId, data.settings)
+  const fresh = newMonth(monthId, audited.settings)
   const prevId = shiftMonth(monthId, -1)
-  const prev = data.months.find((m) => m.id === prevId)
+  const prev = audited.months.find((m) => m.id === prevId)
   const tooFar = monthId > shiftMonth(monthIdOf(), 1)
-  const withDebt = (d: AppData) => (prev ? applyOverspendDebt(d, prevId) : d)
 
-  if (!data.settings.autoFillFixed || !prev || tooFar) {
-    return withDebt({ ...data, months: [...data.months, fresh] })
+  if (!audited.settings.autoFillFixed || !prev || tooFar) {
+    return { ...audited, months: [...audited.months, fresh] }
   }
 
   const at = nowIso()
-  const recurring = data.expenses
+  const recurring = audited.expenses
     .filter((e) => e.monthId === prevId && e.kind === 'recurring')
     .map((e) => ({ ...e, id: uid('e'), monthId, day: null, updatedAt: at }))
 
-  return withDebt({
-    ...data,
-    expenses: [...data.expenses, ...recurring],
+  return {
+    ...audited,
+    expenses: [...audited.expenses, ...recurring],
     months: [
-      ...data.months,
+      ...audited.months,
       {
         ...fresh,
         rentJpy: prev.rentJpy,
@@ -161,7 +181,7 @@ function ensureMonth(data: AppData, monthId: string): AppData {
         updatedAt: at,
       },
     ],
-  })
+  }
 }
 
 function reducer(state: State, action: Action): State {

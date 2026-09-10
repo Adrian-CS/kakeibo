@@ -278,7 +278,7 @@ const es = {
   'settings.autoFxHint': 'Una consulta al día al Banco Central Europeo.',
   'settings.autoDebt': 'Apuntar como deuda el sobregasto',
   'settings.autoDebtHint':
-    'Al abrir el mes siguiente, si un mes cerró por encima del límite, apunta la diferencia como deuda en Ahorros. Solo mira hacia delante: no toca meses ya pasados de antes de encender esto.',
+    'Al abrir la app, si el mes que acaba de cerrar se pasó del límite, apunta la diferencia como deuda en Ahorros. Solo mira ese último mes cerrado, y solo lo apunta una vez.',
   'settings.autoDebtTarget': 'Dónde apuntarla',
   'settings.autoDebtTarget.last': 'En tu última foto',
   'settings.autoDebtTarget.new': 'En una foto nueva',
@@ -555,7 +555,7 @@ const ja: Partial<Record<Key, string>> = {
   'settings.autoFxHint': '欧州中央銀行に1日1回問い合わせる。',
   'settings.autoDebt': '上限超過を負債として記録する',
   'settings.autoDebtHint':
-    '次の月を開いたとき、前の月が上限を超えていたら、その差額を貯金の負債として記録する。これから先だけが対象で、オンにする前に上限を超えていた月には触れない。',
+    'アプリを開いたとき、閉じたばかりの月が上限を超えていたら、その差額を貯金の負債として記録する。対象はその直前の月だけで、記録は一度きり。',
   'settings.autoDebtTarget': '記録する場所',
   'settings.autoDebtTarget.last': '最後の記録に',
   'settings.autoDebtTarget.new': '新しい記録に',
@@ -834,7 +834,7 @@ const en: Partial<Record<Key, string>> = {
   'settings.autoFxHint': 'One query a day to the European Central Bank.',
   'settings.autoDebt': 'Log overspending as debt',
   'settings.autoDebtHint':
-    "When you open the next month, if a month closed over its limit, log the difference as debt in Savings. Only looks forward: it won't touch months that were already over before you turned this on.",
+    'When you open the app, if the month that just closed went over its limit, log the difference as debt in Savings. Only looks at that last closed month, and only logs it once.',
   'settings.autoDebtTarget': 'Where to log it',
   'settings.autoDebtTarget.last': 'In your latest snapshot',
   'settings.autoDebtTarget.new': 'In a new snapshot',

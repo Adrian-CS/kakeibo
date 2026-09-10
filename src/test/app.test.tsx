@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '../App'
-import { emptyData } from '../lib/defaults'
+import { emptyData, monthIdOf } from '../lib/defaults'
+import { shiftMonth } from '../lib/calc'
 import type { AppData } from '../lib/types'
 import { STORAGE_KEY } from '../lib/storage'
 
@@ -17,6 +18,33 @@ function seed(): AppData {
     expenses: [
       { id: 'e1', monthId: '2026-07', categoryId: 'eating_out', label: 'uber', amount: 3000, kind: 'normal' },
       { id: 'e2', monthId: '2026-08', categoryId: 'groceries', label: 'seiyu', amount: 4000, kind: 'normal', day: 3 },
+    ],
+  }
+}
+
+/**
+ * Un mes ya cerrado (el anterior a hoy) pasado de su limite, y el mes en
+ * curso ya creado de antes -que es justo el caso que fallaba: al existir ya,
+ * "al crear el mes siguiente" no volvia a pasar nunca-. Relativo a la fecha
+ * real a proposito: la auditoria mira el ultimo mes cerrado de verdad, asi
+ * que un fixture con meses fijos dejaria de valer al cambiar de mes.
+ */
+function closedOverLimitSeed(limitJpy: number): AppData {
+  const closed = shiftMonth(monthIdOf(), -1)
+  const current = monthIdOf()
+  const month = (id: string, limit: number) => ({
+    id,
+    rentJpy: 80000,
+    extras: [],
+    fxRate: 0.0056,
+    limitJpy: limit,
+    incomeJpy: 0,
+  })
+  return {
+    ...emptyData(),
+    months: [month(closed, limitJpy), month(current, 200000)],
+    expenses: [
+      { id: 'e1', monthId: closed, categoryId: 'groceries', label: 'seiyu', amount: 4000, kind: 'normal' },
     ],
   }
 }
@@ -183,26 +211,41 @@ describe('la aplicacion', () => {
     expect(screen.queryByDisplayValue('seiyu')).not.toBeInTheDocument()
   })
 
-  it('con el ajuste de sobregasto activado, cerrar un mes pasado de limite genera una deuda en Ahorros', async () => {
+  it('con el ajuste de sobregasto activado, un mes cerrado por encima del limite genera deuda en Ahorros', async () => {
+    // bug real: la deuda solo se apuntaba "al crear el mes siguiente", asi
+    // que si ese mes ya existia -basta haber navegado hacia delante alguna
+    // vez y quedan creados- no se apuntaba nunca. Aqui el mes en curso ya
+    // existe en el fixture y aun asi tiene que apuntarse, sin navegar a nada
     const user = userEvent.setup()
-    const data = seed()
+    window.location.hash = `#/month/${monthIdOf()}`
+    // el mes cerrado gasta 84000 (80000 de alquiler + 4000): 158 de sobregasto
+    const data = closedOverLimitSeed(83842)
     data.settings = { ...data.settings, autoDebtOnOverspend: true, autoDebtTarget: 'lastSnapshot' }
-    // agosto: 80000 (alquiler) + 4000 (seiyu) = 84000, por encima de un limite de 50000
-    data.months = data.months.map((m) => (m.id === '2026-08' ? { ...m, limitJpy: 50000 } : m))
     render(<App initial={data} />)
-    await user.click(screen.getByLabelText('Mes siguiente'))
     await user.click(screen.getAllByRole('button', { name: /Ahorros/ })[0])
-    expect(screen.getByDisplayValue(/Deuda generada 26-08-31/)).toBeInTheDocument()
-    // 84000 - 50000 = 34000 de deuda
+    expect(screen.getByDisplayValue(/Deuda generada/)).toBeInTheDocument()
+    expect(screen.getByDisplayValue('158')).toBeInTheDocument()
+  })
+
+  it('no repite la deuda del mismo mes cerrado al navegar o volver a abrir', async () => {
+    const user = userEvent.setup()
+    window.location.hash = `#/month/${monthIdOf()}`
+    const data = closedOverLimitSeed(50000)
+    data.settings = { ...data.settings, autoDebtOnOverspend: true, autoDebtTarget: 'lastSnapshot' }
+    render(<App initial={data} />)
+    // cada navegacion vuelve a pasar por la auditoria del mes cerrado
+    await user.click(screen.getByLabelText('Mes siguiente'))
+    await user.click(screen.getByLabelText('Mes anterior'))
+    await user.click(screen.getAllByRole('button', { name: /Ahorros/ })[0])
+    // 84000 - 50000 = 34000, apuntado una sola vez
+    expect(screen.getAllByDisplayValue(/Deuda generada/)).toHaveLength(1)
     expect(screen.getByDisplayValue('34000')).toBeInTheDocument()
   })
 
   it('con el ajuste de sobregasto apagado, pasarse de limite no toca Ahorros', async () => {
     const user = userEvent.setup()
-    const data = seed()
-    data.months = data.months.map((m) => (m.id === '2026-08' ? { ...m, limitJpy: 50000 } : m))
-    render(<App initial={data} />)
-    await user.click(screen.getByLabelText('Mes siguiente'))
+    window.location.hash = `#/month/${monthIdOf()}`
+    render(<App initial={closedOverLimitSeed(50000)} />)
     await user.click(screen.getAllByRole('button', { name: /Ahorros/ })[0])
     expect(screen.queryByDisplayValue(/Deuda generada/)).not.toBeInTheDocument()
   })

@@ -84,6 +84,12 @@ export interface Account {
   currency: 'JPY' | 'EUR'
   /** true = deuda (se resta del patrimonio) */
   isDebt?: boolean
+  /**
+   * 'YYYY-MM' del mes cuyo sobregasto genero esta cuenta automaticamente
+   * (`autoDebtOnOverspend`). Es la marca que evita apuntar dos veces la
+   * misma deuda: sobrevive a que se le cambie el nombre o el importe.
+   */
+  autoDebtMonthId?: string
 }
 
 /** Foto de los ahorros en una fecha concreta. */
@@ -124,8 +130,9 @@ export interface Settings {
   fxUpdatedAt?: string
   /**
    * Al cerrar un mes por encima del limite, apuntar la diferencia como deuda
-   * en Ahorros automaticamente. Solo mira hacia delante: no toca meses que ya
-   * estuvieran pasados de limite antes de encender esto.
+   * en Ahorros automaticamente. Solo mira el ultimo mes cerrado (el anterior
+   * al de hoy), nunca meses mas viejos, y solo lo apunta una vez: la marca
+   * `Account.autoDebtMonthId` es la que evita repetirlo.
    */
   autoDebtOnOverspend: boolean
   /** Donde aterriza esa deuda: en la ultima foto que haya, o en una nueva */
