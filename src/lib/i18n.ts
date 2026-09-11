@@ -19,6 +19,7 @@ const es = {
   'month.copyPrev': 'Copiar fijos del mes anterior',
   'month.duplicate': 'Duplicar en el mes siguiente',
   'month.loadDefaultExtras': 'Cargar de ajustes',
+  'month.fixedBreakdown': 'Alquiler y extras {base} + recurrentes {recurring}',
 
   'totals.total': 'Total del mes',
   'totals.daily': 'Vida diaria',
@@ -311,6 +312,7 @@ const ja: Partial<Record<Key, string>> = {
   'month.copyPrev': '前月の固定費をコピー',
   'month.duplicate': '次の月に複製',
   'month.loadDefaultExtras': '設定から読み込む',
+  'month.fixedBreakdown': '家賃とその他 {base} ＋ 定期 {recurring}',
   'totals.total': '合計',
   'totals.daily': '一日生活の消費',
   'totals.dailyHint': '外食＋スーパーマーケット',
@@ -585,6 +587,7 @@ const en: Partial<Record<Key, string>> = {
   'month.copyPrev': 'Copy fixed costs from last month',
   'month.duplicate': 'Duplicate into next month',
   'month.loadDefaultExtras': 'Load from settings',
+  'month.fixedBreakdown': 'Rent and extras {base} + recurring {recurring}',
   'totals.total': 'Month total',
   'totals.daily': 'Daily living',
   'totals.dailyHint': 'Eating out + groceries',

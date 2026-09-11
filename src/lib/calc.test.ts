@@ -104,9 +104,40 @@ describe('totales del mes (formulas del Excel)', () => {
   it('separa vida diaria, fijos y otros', () => {
     const t = monthTotals(data, '2026-07')
     expect(t.dailyLifeJpy).toBe(1000 + 2000 + 3000)
+    expect(t.recurringJpy).toBe(1590)
     expect(t.fixedJpy).toBe(1590 + 82000 + 5000)
-    expect(t.otherJpy).toBe(t.totalJpy - t.fixedJpy)
+    // "otros" son las filas que no son vida diaria ni recurrentes: solo la
+    // mudanza (el netflix recurrente ya cuenta en los fijos, y comer fuera y
+    // el super en vida diaria)
+    expect(t.otherJpy).toBe(100000)
     expect(t.extraordinaryJpy).toBe(100000)
+  })
+
+  it('un abono recurrente en negativo no infla "otros gastos"', () => {
+    // regresion: otherJpy era total - fijos, asi que un recurrente negativo
+    // bajaba los fijos y por tanto SUBIA "otros" en la misma cantidad, ademas
+    // de contar ahi la comida diaria
+    const withRefund: AppData = {
+      ...data,
+      expenses: [
+        ...data.expenses,
+        { id: 'r-neg', monthId: '2026-07', categoryId: 'fixed_transport', label: 'transporte empresa', amount: -13550, kind: 'recurring' },
+      ],
+    }
+    expect(monthTotals(withRefund, '2026-07').otherJpy).toBe(monthTotals(data, '2026-07').otherJpy)
+  })
+
+  it('un recurrente negativo (abono de transporte) resta de los gastos fijos', () => {
+    const withRefund: AppData = {
+      ...data,
+      expenses: [
+        ...data.expenses,
+        { id: 'r-neg', monthId: '2026-07', categoryId: 'fixed_transport', label: 'transporte empresa', amount: -13550, kind: 'recurring' },
+      ],
+    }
+    const t = monthTotals(withRefund, '2026-07')
+    expect(t.recurringJpy).toBe(1590 - 13550)
+    expect(t.fixedJpy).toBe(82000 + 5000 + 1590 - 13550)
   })
 
   it('calcula limite, balance y porcentaje', () => {

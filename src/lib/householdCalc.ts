@@ -100,6 +100,7 @@ export function combinedMonthTotals(
     extrasJpy: a.extrasJpy + b.extrasJpy,
     totalJpy,
     dailyLifeJpy: a.dailyLifeJpy + b.dailyLifeJpy,
+    recurringJpy: a.recurringJpy + b.recurringJpy,
     fixedJpy: a.fixedJpy + b.fixedJpy,
     otherJpy: a.otherJpy + b.otherJpy,
     extraordinaryJpy: a.extraordinaryJpy + b.extraordinaryJpy,

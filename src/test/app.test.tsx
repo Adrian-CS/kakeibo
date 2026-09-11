@@ -115,6 +115,29 @@ describe('la aplicacion', () => {
     expect(screen.getByText(/76[.,\s]?000/)).toBeInTheDocument()
   })
 
+  it('la tarjeta de gastos fijos desglosa el total cuando hay recurrentes', () => {
+    // regresion: la tarjeta solo ensena alquiler y extras, pero su total
+    // incluye ademas los gastos recurrentes de las categorias. Con un abono
+    // (recurrente negativo) el total salia mas bajo que la suma a la vista y
+    // parecia mal sumado
+    const data = seed()
+    data.months[1].extras = [{ id: 'x1', label: 'agua', amount: 2000 }]
+    data.expenses.push({
+      id: 'e3',
+      monthId: '2026-08',
+      categoryId: 'fixed_transport',
+      label: 'abono empresa',
+      amount: -13550,
+      kind: 'recurring',
+    })
+    render(<App initial={data} />)
+    const desglose = screen.getByText(/Alquiler y extras/)
+    expect(desglose).toHaveTextContent(/82[.,\s]?000/)
+    expect(desglose).toHaveTextContent(/[-−]13[.,\s]?550/)
+    // 80000 + 2000 - 13550 = 68450
+    expect(screen.getByText(/Gastos fijos:/)).toHaveTextContent(/68[.,\s]?450/)
+  })
+
   it('anade un gasto y actualiza el total', async () => {
     const user = userEvent.setup()
     render(<App initial={seed()} />)

@@ -686,6 +686,17 @@ export function MonthView({
             <p className="text-xs text-muted">
               {t('totals.fixed')}: <span className="tabular-nums text-ink-2">{fmtJpy(totals.fixedJpy, lang)}</span>
             </p>
+            {/* los recurrentes de las categorias tambien son gasto fijo, pero
+                no se ven en esta tarjeta: sin este desglose el total parece
+                mal sumado (sobre todo con abonos, que restan) */}
+            {totals.recurringJpy !== 0 && (
+              <p className="text-xs text-muted">
+                {t('month.fixedBreakdown', {
+                  base: fmtJpy(totals.rentJpy + totals.extrasJpy, lang),
+                  recurring: fmtJpy(totals.recurringJpy, lang),
+                })}
+              </p>
+            )}
           </div>
         </Card>
 

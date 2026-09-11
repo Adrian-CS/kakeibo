@@ -64,9 +64,11 @@ export interface MonthTotals {
   totalJpy: number
   /** 一日生活の消費 = categorias del bucket "daily" */
   dailyLifeJpy: number
+  /** gastos marcados como recurrentes (puede ser negativo: abonos fijos) */
+  recurringJpy: number
   /** 毎月ある消費 = gastos marcados como recurrentes + alquiler + extras */
   fixedJpy: number
-  /** 別の消費 = total - fijos */
+  /** 別の消費 = filas de categorias del bucket "other" que no son recurrentes */
   otherJpy: number
   /** gastos marcados como extraordinarios (informativo) */
   extraordinaryJpy: number
@@ -145,6 +147,14 @@ export function monthTotals(data: AppData, monthId: string): MonthTotals {
   const dailyLifeJpy = sum(costItems.filter((e) => dailyIds.has(e.categoryId)).map((e) => e.amount))
   const recurringJpy = sum(costItems.filter((e) => e.kind === 'recurring').map((e) => e.amount))
   const fixedJpy = recurringJpy + rentJpy + extrasJpy
+  // "otros" es lo que promete su pie de tarjeta (ocio, ropa, casa...): las
+  // filas del bucket que no es vida diaria y que no son recurrentes -esas ya
+  // cuentan en los fijos-. Antes era total - fijos, que ademas de la comida
+  // se tragaba cualquier abono recurrente en negativo (lo inflaba en vez de
+  // descontarlo, porque restar un fijo mas pequeno da un "otros" mas grande)
+  const otherJpy = sum(
+    costItems.filter((e) => e.kind !== 'recurring' && !dailyIds.has(e.categoryId)).map((e) => e.amount),
+  )
   const extraordinaryJpy = sum(costItems.filter((e) => e.kind === 'extraordinary').map((e) => e.amount))
   const noCostJpy = sum(noCostItemsOfMonth.map((e) => e.amount))
 
@@ -156,8 +166,9 @@ export function monthTotals(data: AppData, monthId: string): MonthTotals {
     extrasJpy,
     totalJpy,
     dailyLifeJpy,
+    recurringJpy,
     fixedJpy,
-    otherJpy: totalJpy - fixedJpy,
+    otherJpy,
     extraordinaryJpy,
     noCostJpy,
     noCostCount: noCostItemsOfMonth.length,
