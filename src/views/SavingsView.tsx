@@ -3,19 +3,29 @@ import { useStore } from '../state/store'
 import {
   categoryLimitsJpy,
   computeStats,
+  debtAccounts,
+  debtTotalJpy,
+  expensesOfMonth,
+  lastClosedMonthId,
+  leakJpy,
+  monthIncomeJpy,
+  monthTotals,
+  monthsOfRunway,
   projectSavings,
   recentActiveAverageJpy,
+  savingsRate,
   snapshotSeries,
   sum,
 } from '../lib/calc'
 import { combinedProjectSavings, combinedSnapshotSeries, combinedStats } from '../lib/householdCalc'
 import { emptyData } from '../lib/defaults'
 import { useHousehold, type HouseholdViewScope } from '../state/household'
-import { fmtDate, fmtJpy, fmtMoney, fmtNumber, parseAmount } from '../lib/format'
+import { fmtDate, fmtJpy, fmtMoney, fmtMonth, fmtNumber, fmtPercent, parseAmount } from '../lib/format'
 import { seriesVar } from '../lib/palette'
 import {
   Button,
   Card,
+  Collapsible,
   ConfirmButton,
   Field,
   Icon,
@@ -28,7 +38,7 @@ import {
 } from '../components/ui'
 import { DataTable, Lines } from '../components/charts'
 import { uid } from '../lib/id'
-import type { Account, Snapshot } from '../lib/types'
+import type { Account, AppData, Snapshot } from '../lib/types'
 
 function todayIso(): string {
   const d = new Date()
@@ -196,16 +206,52 @@ export function SavingsView() {
     () => (isTogether ? null : recentActiveAverageJpy(source, 6)),
     [isTogether, source],
   )
-  // el colchon se mide al ritmo real de gasto (recentAverageJpy), no con la
-  // media sin filtrar de `stats`: esa cuenta meses vacios o solo de gasto fijo
-  // (por ejemplo el mes en curso, recien creado) y hunde la media, inflando
-  // los meses de colchon muy por encima de lo real. Solo cae al promedio de
-  // `stats` (ya filtrado igual, ver `computeStats`) si no hay ningun mes con
-  // gasto real en la ventana de `recentActiveAverageJpy`.
-  const runwayBaseJpy = recentAverageJpy ?? stats.averageJpy
-  // sin ninguna base fiable, "0 meses" leeria como "sin colchon" en vez de
-  // "no hay suficiente historial": mejor no dar un numero que confunda
-  const runway = last && runwayBaseJpy > 0 ? last.netJpy / runwayBaseJpy : null
+  // los documentos que entran en las cifras de arriba: en "Juntos", el mio y
+  // el de mi pareja (cada uno con sus ingresos, su gasto y su tipo de cambio,
+  // como hace householdCalc); en el resto, solo el que se esta mirando
+  const sides = useMemo<AppData[]>(
+    () =>
+      isTogether
+        ? [data, household.partnerData].filter((d): d is AppData => !!d)
+        : [source],
+    [isTogether, data, household.partnerData, source],
+  )
+  // mes de referencia de "tasa de ahorro" y "fuga": el ultimo ya cerrado, que
+  // el mes en curso esta a medias y daria una tasa inmejorable el dia 2
+  const refMonthId = useMemo(() => lastClosedMonthId(sides[0]), [sides])
+  const rate = useMemo(() => {
+    if (!refMonthId) return null
+    if (!isTogether) return savingsRate(source, refMonthId)
+    const income = sum(sides.map((d) => monthIncomeJpy(d, refMonthId)))
+    if (income <= 0) return null
+    return (income - sum(sides.map((d) => monthTotals(d, refMonthId).totalJpy))) / income
+  }, [isTogether, refMonthId, sides, source])
+  const leak = useMemo(
+    () => (refMonthId ? sum(sides.map((d) => leakJpy(d, refMonthId))) : 0),
+    [refMonthId, sides],
+  )
+  const leakItems = useMemo(
+    () =>
+      refMonthId
+        ? sides
+            .flatMap((d) => expensesOfMonth(d, refMonthId).filter((e) => e.kind === 'recurring'))
+            .sort((a, b) => b.amount - a.amount)
+        : [],
+    [refMonthId, sides],
+  )
+  const debts = useMemo(() => sides.flatMap((d) => debtAccounts(d)), [sides])
+  const debtsTotalJpy = useMemo(() => sum(sides.map((d) => debtTotalJpy(d))), [sides])
+  // el colchon se mide al ritmo real de gasto (ver `monthsOfRunway`), no con
+  // la media sin filtrar de `stats`: esa cuenta meses vacios o solo de gasto
+  // fijo (por ejemplo el mes en curso, recien creado) y hunde la media,
+  // inflando los meses de colchon muy por encima de lo real. En "Juntos" no
+  // hay una media filtrada de los dos, asi que solo ahi se cae al promedio de
+  // `stats`. Sin ninguna base fiable no se da numero: un "0 meses" leeria
+  // como "sin colchon" en vez de "no hay suficiente historial".
+  const runway = useMemo(() => {
+    if (!isTogether) return monthsOfRunway(source)
+    return last && stats.averageJpy > 0 ? last.assetsJpy / stats.averageJpy : null
+  }, [isTogether, source, last, stats.averageJpy])
   const projection = useMemo(
     () =>
       isTogether
@@ -291,7 +337,7 @@ export function SavingsView() {
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             <StatTile
               label={t('savings.net')}
               value={fmtJpy(last?.netJpy ?? 0, lang)}
@@ -305,6 +351,18 @@ export function SavingsView() {
             />
             <StatTile label={t('savings.assets')} value={fmtJpy(last?.assetsJpy ?? 0, lang)} />
             <StatTile label={t('savings.debts')} value={fmtJpy(last?.debtsJpy ?? 0, lang)} />
+            <StatTile
+              label={t('savings.rate')}
+              value={rate === null ? t('common.none') : fmtPercent(rate, lang)}
+              secondary={refMonthId ? fmtMonth(refMonthId, lang) : undefined}
+              hint={rate === null ? t('savings.rateUnknownHint') : t('savings.rateHint')}
+            />
+            <StatTile
+              label={t('savings.leak')}
+              value={fmtJpy(leak, lang)}
+              secondary={refMonthId ? fmtMonth(refMonthId, lang) : t('savings.refMonthNone')}
+              hint={t('savings.leakHint')}
+            />
             <StatTile
               label={t('savings.months')}
               value={runway === null ? t('common.none') : fmtNumber(runway, lang, 1)}
@@ -385,6 +443,77 @@ export function SavingsView() {
               </div>
             </Card>
           )}
+
+          <Collapsible
+            id="savings.debts"
+            title={t('savings.debtList')}
+            hint={t('savings.debtListHint')}
+            summary={fmtJpy(debtsTotalJpy, lang)}
+          >
+            {debts.length === 0 ? (
+              <p className="text-sm text-muted">{t('savings.debtEmpty')}</p>
+            ) : (
+              <ul>
+                {debts.map((a) => (
+                  <li
+                    key={a.id}
+                    className="flex items-baseline justify-between gap-3 border-t border-hairline py-1.5 first:border-0"
+                  >
+                    <span className="min-w-0 truncate text-sm text-ink">
+                      {a.name || t('savings.account')}
+                    </span>
+                    <span className="shrink-0 text-sm tabular-nums text-[var(--critical)]">
+                      {a.currency === 'JPY'
+                        ? fmtJpy(a.amount, lang)
+                        : fmtMoney(a.amount, a.currency, lang)}
+                    </span>
+                  </li>
+                ))}
+                <li className="flex items-baseline justify-between gap-3 border-t border-hairline pt-2 text-sm font-semibold text-ink">
+                  <span>{t('savings.debtTotal')}</span>
+                  <span className="tabular-nums">{fmtJpy(debtsTotalJpy, lang)}</span>
+                </li>
+              </ul>
+            )}
+            <p className="mt-3 text-[11px] text-muted">{t('savings.debtNote')}</p>
+          </Collapsible>
+
+          <Collapsible
+            id="savings.leak"
+            title={t('savings.leakCard')}
+            hint={
+              refMonthId
+                ? t('savings.leakCardHint', { month: fmtMonth(refMonthId, lang) })
+                : t('savings.refMonthNone')
+            }
+            summary={fmtJpy(leak, lang)}
+            defaultOpen={false}
+          >
+            {leakItems.length === 0 ? (
+              <p className="text-sm text-muted">{t('savings.leakEmpty')}</p>
+            ) : (
+              <ul>
+                {leakItems.map((e) => (
+                  <li
+                    key={e.id}
+                    className="flex items-baseline justify-between gap-3 border-t border-hairline py-1.5 first:border-0"
+                  >
+                    <span className="min-w-0 truncate text-sm text-ink">
+                      {e.label || t('fields.label')}
+                    </span>
+                    <span className="shrink-0 text-sm tabular-nums text-ink-2">
+                      {fmtJpy(e.amount, lang)}
+                    </span>
+                  </li>
+                ))}
+                <li className="flex items-baseline justify-between gap-3 border-t border-hairline pt-2 text-sm font-semibold text-ink">
+                  <span>{t('savings.debtTotal')}</span>
+                  <span className="tabular-nums">{fmtJpy(leak, lang)}</span>
+                </li>
+              </ul>
+            )}
+            <p className="mt-3 text-[11px] text-muted">{t('savings.leakNote')}</p>
+          </Collapsible>
         </>
       )}
 

@@ -49,6 +49,35 @@ function closedOverLimitSeed(limitJpy: number): AppData {
   }
 }
 
+/**
+ * Un mes ya cerrado con gasto real y una suscripcion, mas una foto de
+ * ahorros con una deuda: lo justo para las cifras de la pantalla Ahorros.
+ * Relativo a la fecha real, igual que `closedOverLimitSeed`.
+ */
+function savingsSeed(): AppData {
+  const base = emptyData()
+  const closed = shiftMonth(monthIdOf(), -1)
+  return {
+    ...base,
+    settings: { ...base.settings, defaultIncomeJpy: 200000 },
+    months: [{ id: closed, rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 }],
+    expenses: [
+      { id: 'e1', monthId: closed, categoryId: 'groceries', label: 'seiyu', amount: 100000, kind: 'normal' },
+      { id: 'e2', monthId: closed, categoryId: 'fixed_transport', label: 'netflix', amount: 1590, kind: 'recurring' },
+    ],
+    snapshots: [
+      {
+        id: 's1',
+        date: `${closed}-28`,
+        accounts: [
+          { id: 'a1', name: 'banco', amount: 600000, currency: 'JPY' },
+          { id: 'a2', name: 'tarjeta', amount: 50000, currency: 'JPY', isDebt: true },
+        ],
+      },
+    ],
+  }
+}
+
 beforeEach(() => {
   localStorage.clear()
   window.location.hash = '#/month/2026-08'
@@ -263,6 +292,42 @@ describe('la aplicacion', () => {
     // 84000 - 50000 = 34000, apuntado una sola vez
     expect(screen.getAllByDisplayValue(/Deuda generada/)).toHaveLength(1)
     expect(screen.getByDisplayValue('34000')).toBeInTheDocument()
+  })
+
+  it('Ahorros ensena las seis cifras de cabecera, lo que se debe y la fuga plegada', async () => {
+    const user = userEvent.setup()
+    window.location.hash = `#/month/${monthIdOf()}`
+    render(<App initial={savingsSeed()} />)
+    await user.click(screen.getAllByRole('button', { name: /Ahorros/ })[0])
+
+    // las seis de la fila de arriba, ninguna en lugar de otra
+    for (const label of [
+      'Patrimonio neto',
+      'Activos',
+      'Deudas',
+      'Tasa de ahorro',
+      'Fuga',
+      'Meses de colchón',
+    ]) {
+      // getAllBy: algunas etiquetas se repiten en la leyenda del grafico
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0)
+    }
+    // 200000 de ingreso - 101590 de gasto = 49 % de tasa de ahorro
+    expect(screen.getByText('49 %')).toBeInTheDocument()
+
+    // "Lo que debo": la cuenta marcada como deuda, con su total
+    const debts = screen.getByRole('button', { name: /Lo que debo/ })
+    expect(debts).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('tarjeta')).toBeInTheDocument()
+
+    // la fuga arranca plegada, pero con su cifra a la vista
+    const leak = screen.getByRole('button', { name: /Fuga: lo que se va solo/ })
+    expect(leak).toHaveAttribute('aria-expanded', 'false')
+    expect(within(leak).getByText(/1[.,\s]?590/)).toBeInTheDocument()
+    expect(screen.getByText('netflix')).not.toBeVisible()
+
+    await user.click(leak)
+    expect(screen.getByText('netflix')).toBeVisible()
   })
 
   it('con el ajuste de sobregasto apagado, pasarse de limite no toca Ahorros', async () => {

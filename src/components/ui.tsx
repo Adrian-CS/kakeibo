@@ -40,6 +40,105 @@ export function Card({
   )
 }
 
+/** Donde se recuerda que tarjetas quedaron plegadas. */
+const COLLAPSIBLE_PREFIX = 'kakeibo:ui:collapsed:'
+
+function readCollapsed(id: string): boolean | null {
+  try {
+    const raw = globalThis.localStorage?.getItem(COLLAPSIBLE_PREFIX + id)
+    return raw === null || raw === undefined ? null : raw === '1'
+  } catch {
+    return null
+  }
+}
+
+function writeCollapsed(id: string, collapsed: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(COLLAPSIBLE_PREFIX + id, collapsed ? '1' : '0')
+  } catch {
+    // sin localStorage el plegado sigue funcionando, solo que no se recuerda
+  }
+}
+
+/**
+ * Tarjeta que se pliega. La cabecera es un boton de verdad (`aria-expanded`
+ * + `aria-controls`), no un div con onClick, para que funcione con teclado y
+ * lector de pantalla.
+ *
+ * Plegada ensena a la derecha la "cifra resumen" (`summary`) que le pase
+ * quien la use: asi cerrarla no esconde el dato, solo el detalle. Abierta no
+ * se repite, porque ya esta dentro.
+ *
+ * El estado se guarda por `id` en localStorage, para que la pantalla vuelva
+ * como se dejo. Si el navegador no deja guardar (modo privado, cuota), se
+ * queda en el estado por defecto en vez de tirar la app.
+ */
+export function Collapsible({
+  id,
+  title,
+  hint,
+  summary,
+  defaultOpen = true,
+  children,
+  className = '',
+}: {
+  /** clave con la que se recuerda abierta/cerrada */
+  id: string
+  title: ReactNode
+  hint?: ReactNode
+  /** cifra resumen: solo se ve cuando esta cerrada */
+  summary?: ReactNode
+  defaultOpen?: boolean
+  children: ReactNode
+  className?: string
+}) {
+  const [open, setOpen] = useState(() => {
+    const saved = readCollapsed(id)
+    return saved === null ? defaultOpen : !saved
+  })
+  // useId() trae dos puntos, que rompen los selectores CSS: los quitamos
+  const bodyId = `c${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+
+  const toggle = () => {
+    const next = !open
+    setOpen(next)
+    writeCollapsed(id, !next)
+  }
+
+  return (
+    <section className={`rounded-xl border border-hairline bg-surface ${className}`}>
+      <h2>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={toggle}
+          className="flex w-full items-center gap-2 rounded-xl p-3 text-left sm:p-4"
+        >
+          <span
+            aria-hidden="true"
+            className={`shrink-0 text-muted transition-transform ${open ? 'rotate-0' : '-rotate-90'}`}
+          >
+            <Icon name="chevron" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13px] font-semibold tracking-wide text-ink uppercase">
+              {title}
+            </span>
+            {hint && <span className="mt-0.5 block text-xs normal-case text-muted">{hint}</span>}
+          </span>
+          {!open && summary !== undefined && (
+            <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">{summary}</span>
+          )}
+        </button>
+      </h2>
+      <div id={bodyId} hidden={!open} className="px-3 pb-3 sm:px-4 sm:pb-4">
+        {children}
+      </div>
+    </section>
+  )
+}
+
 /* ------------------------------------------------------------------ *
  * Botones y controles
  * ------------------------------------------------------------------ */
@@ -518,13 +617,14 @@ export function ConfirmButton({
  * Iconos (trazo de 1.5, 16px)
  * ------------------------------------------------------------------ */
 
-export function Icon({ name, size = 16 }: { name: 'plus' | 'trash' | 'edit' | 'left' | 'right' | 'download' | 'upload' | 'undo'; size?: number }) {
+export function Icon({ name, size = 16 }: { name: 'plus' | 'trash' | 'edit' | 'left' | 'right' | 'chevron' | 'download' | 'upload' | 'undo'; size?: number }) {
   const paths: Record<string, ReactNode> = {
     plus: <path d="M8 3v10M3 8h10" />,
     trash: <path d="M3 5h10M6.5 5V3.5h3V5M5 5l.5 8h5l.5-8" />,
     edit: <path d="M11 2.5 13.5 5 6 12.5 3 13l.5-3z" />,
     left: <path d="M10 3 5 8l5 5" />,
     right: <path d="M6 3l5 5-5 5" />,
+    chevron: <path d="M3 6l5 5 5-5" />,
     download: <path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" />,
     upload: <path d="M8 11V3m0 0 3 3M8 3 5 6M3 13h10" />,
     undo: <path d="M4 8h6a3 3 0 1 1 0 6H7M4 8l3-3M4 8l3 3" />,

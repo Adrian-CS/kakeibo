@@ -6,9 +6,15 @@ import {
   computeStats,
   computeYoy,
   daysInMonth,
+  debtAccounts,
+  debtTotalJpy,
   hasRealSpend,
   isValidMonthId,
+  lastClosedMonthId,
+  leakJpy,
   median,
+  monthIncomeJpy,
+  monthsOfRunway,
   monthBurn,
   monthRange,
   monthTotals,
@@ -19,6 +25,7 @@ import {
   projectMonth,
   projectSavings,
   recentActiveAverageJpy,
+  savingsRate,
   shiftMonth,
   snapshotTotals,
   topExpenses,
@@ -155,7 +162,10 @@ describe('totales del mes (formulas del Excel)', () => {
       settings: { ...base.settings, defaultIncomeJpy: 300000 },
       months: [{ id: '2026-08', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 }],
     }
-    expect(monthTotals(withDefault, '2026-08').incomeJpy).toBe(0)
+    // un 0 en el mes cuenta como "sin poner" (ver `monthIncomeJpy`): antes se
+    // quedaba en 0 y los meses guardados antes de que existiera el campo
+    // apagaban la prevision de ahorro para siempre
+    expect(monthTotals(withDefault, '2026-08').incomeJpy).toBe(300000)
 
     const withOverride: AppData = {
       ...withDefault,
@@ -655,6 +665,201 @@ describe('ahorros', () => {
     const withoutNoise = projectSavings(base, [3], 6, today)
     const withNoiseResult = projectSavings(withNoise, [3], 6, today)
     expect(withNoiseResult).toEqual(withoutNoise)
+  })
+})
+
+
+/* ------------------------------------------------------------------ *
+ * Ingresos, tasa de ahorro y fuga
+ * ------------------------------------------------------------------ */
+
+describe('monthIncomeJpy', () => {
+  function withIncomes(monthIncome: number, defaultIncome: number): AppData {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    return {
+      ...base,
+      settings: { ...base.settings, defaultIncomeJpy: defaultIncome },
+      months: [{ id: '2026-07', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: monthIncome }],
+    }
+  }
+
+  it('manda el ingreso del mes si lo tiene puesto', () => {
+    expect(monthIncomeJpy(withIncomes(300000, 250000), '2026-07')).toBe(300000)
+  })
+
+  it('sin ingreso propio cae al de Ajustes', () => {
+    // 0 = "sin poner", no "cobro cero": si no, un mes creado antes de
+    // configurar los ingresos apagaria la prevision para siempre
+    expect(monthIncomeJpy(withIncomes(0, 250000), '2026-07')).toBe(250000)
+  })
+
+  it('un mes que ni existe usa el de Ajustes', () => {
+    expect(monthIncomeJpy(withIncomes(300000, 250000), '2026-09')).toBe(250000)
+  })
+
+  it('sin nada configurado da 0', () => {
+    expect(monthIncomeJpy(withIncomes(0, 0), '2026-07')).toBe(0)
+  })
+})
+
+describe('savingsRate', () => {
+  function withSpend(income: number, spend: number): AppData {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    return {
+      ...base,
+      months: [{ id: '2026-07', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: income }],
+      expenses: [
+        { id: 'e1', monthId: '2026-07', categoryId: 'eating_out', label: 'x', amount: spend, kind: 'normal' },
+      ],
+    }
+  }
+
+  it('es (ingresos - gasto) / ingresos', () => {
+    expect(savingsRate(withSpend(200000, 150000), '2026-07')).toBeCloseTo(0.25, 10)
+  })
+
+  it('sale negativa el mes que se gasta mas de lo que entra', () => {
+    expect(savingsRate(withSpend(200000, 250000), '2026-07')).toBeCloseTo(-0.25, 10)
+  })
+
+  it('sin ingresos no hay tasa (null, no 0)', () => {
+    // un 0 se leeria como "no ahorras nada" en vez de "falta el dato"
+    expect(savingsRate(withSpend(0, 150000), '2026-07')).toBeNull()
+  })
+})
+
+describe('leakJpy', () => {
+  it('suma solo los apuntes recurrentes del mes', () => {
+    const data = build()
+    // julio: netflix 1590 recurrente; el resto son normales/extraordinarios
+    expect(leakJpy(data, '2026-07')).toBe(1590)
+    expect(leakJpy(data, '2026-08')).toBe(0)
+  })
+
+  it('no cuenta el alquiler ni los extras fijos del mes', () => {
+    // van aparte en "Gastos fijos": se deciden una vez y no se escapan solos
+    const data = build()
+    expect(leakJpy(data, '2026-07')).toBeLessThan(monthTotals(data, '2026-07').fixedJpy)
+  })
+
+  it('un mes sin nada apuntado no fuga nada', () => {
+    expect(leakJpy(build(), '2030-01')).toBe(0)
+  })
+})
+
+describe('lastClosedMonthId', () => {
+  const today = new Date('2026-08-15T00:00:00')
+
+  it('coge el ultimo mes anterior al de hoy con gasto real', () => {
+    expect(lastClosedMonthId(build(), today)).toBe('2026-07')
+  })
+
+  it('nunca coge el mes en curso, que esta a medias', () => {
+    const nextMonth = new Date('2026-09-15T00:00:00')
+    expect(lastClosedMonthId(build(), nextMonth)).toBe('2026-08')
+  })
+
+  it('si ningun mes cerrado tiene gasto real, coge el ultimo con datos', () => {
+    const base = emptyData(today)
+    const onlyFixed: AppData = {
+      ...base,
+      months: [
+        { id: '2026-06', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 },
+        { id: '2026-07', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 },
+      ],
+      expenses: [],
+    }
+    expect(lastClosedMonthId(onlyFixed, today)).toBe('2026-07')
+  })
+
+  it('sin ningun mes cerrado devuelve null', () => {
+    expect(lastClosedMonthId(emptyData(today), today)).toBeNull()
+  })
+})
+
+/* ------------------------------------------------------------------ *
+ * Deudas y colchon
+ * ------------------------------------------------------------------ */
+
+describe('deudas', () => {
+  function withSnapshots(): AppData {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    return {
+      ...base,
+      settings: { ...base.settings, defaultFxRate: 0.005 },
+      snapshots: [
+        {
+          id: 's0',
+          date: '2026-06-30',
+          accounts: [{ id: 'viejo', name: 'tarjeta vieja', amount: 999999, currency: 'JPY', isDebt: true }],
+        },
+        {
+          id: 's1',
+          date: '2026-08-01',
+          accounts: [
+            { id: 'a1', name: 'banco', amount: 500000, currency: 'JPY' },
+            { id: 'a2', name: 'tarjeta', amount: 40000, currency: 'JPY', isDebt: true },
+            { id: 'a3', name: 'prestamo', amount: 500, currency: 'EUR', isDebt: true },
+          ],
+        },
+      ],
+    }
+  }
+
+  it('solo mira la ultima foto: las anteriores son historial, no saldo de hoy', () => {
+    expect(debtAccounts(withSnapshots()).map((a) => a.id)).toEqual(['a2', 'a3'])
+  })
+
+  it('suma las deudas pasando la moneda secundaria a yenes', () => {
+    // 500 EUR con 1 ¥ = 0,005 € son 100000 ¥
+    expect(debtTotalJpy(withSnapshots())).toBe(40000 + 100000)
+  })
+
+  it('sin fotos no hay deuda que enseñar', () => {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    expect(debtAccounts(base)).toEqual([])
+    expect(debtTotalJpy(base)).toBe(0)
+  })
+})
+
+describe('monthsOfRunway', () => {
+  const today = new Date('2026-08-15T00:00:00')
+
+  function withRunway(): AppData {
+    const base = emptyData(today)
+    return {
+      ...base,
+      months: [{ id: '2026-07', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 }],
+      expenses: [
+        { id: 'e1', monthId: '2026-07', categoryId: 'eating_out', label: 'x', amount: 100000, kind: 'normal' },
+      ],
+      snapshots: [
+        {
+          id: 's1',
+          date: '2026-08-01',
+          accounts: [
+            { id: 'a1', name: 'banco', amount: 600000, currency: 'JPY' },
+            { id: 'a2', name: 'tarjeta', amount: 200000, currency: 'JPY', isDebt: true },
+          ],
+        },
+      ],
+    }
+  }
+
+  it('divide los activos entre el gasto medio de los meses activos', () => {
+    // 600000 de activos / 100000 de gasto medio = 6 meses. La deuda no resta:
+    // no se puede gastar en vivir, asi que contestaria otra pregunta
+    expect(monthsOfRunway(withRunway(), today)).toBe(6)
+  })
+
+  it('sin historial de gasto real no da numero', () => {
+    const noSpend: AppData = { ...withRunway(), expenses: [] }
+    expect(monthsOfRunway(noSpend, today)).toBeNull()
+  })
+
+  it('sin ninguna foto tampoco', () => {
+    const noSnapshot: AppData = { ...withRunway(), snapshots: [] }
+    expect(monthsOfRunway(noSnapshot, today)).toBeNull()
   })
 })
 

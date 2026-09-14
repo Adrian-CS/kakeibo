@@ -1,4 +1,4 @@
-import type { AppData, Category, Expense, Lang, MonthData, Snapshot } from './types'
+import type { Account, AppData, Category, Expense, Lang, MonthData, Snapshot } from './types'
 
 /* ------------------------------------------------------------------ *
  * Utilidades basicas
@@ -113,6 +113,23 @@ export function getMonth(data: AppData, monthId: string): MonthData | undefined 
   return data.months.find((m) => m.id === monthId)
 }
 
+/** 'YYYY-MM' de una fecha (el mismo calculo que `monthIdOf` en defaults.ts). */
+function monthIdOfDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+/**
+ * Ingresos previstos de un mes: los suyos si los tiene puestos, y si no los
+ * de Ajustes. Un `incomeJpy` a 0 cuenta como "sin poner", igual que el 0 de
+ * `defaultIncomeJpy` (ver DEFAULT_SETTINGS): asi un mes creado antes de
+ * configurar los ingresos no se queda con un 0 pegado que apague la
+ * prevision de ahorro para siempre.
+ */
+export function monthIncomeJpy(data: AppData, monthId: string): number {
+  const own = getMonth(data, monthId)?.incomeJpy
+  return typeof own === 'number' && own > 0 ? own : (data.settings.defaultIncomeJpy ?? 0)
+}
+
 /**
  * Calcula todos los indicadores de un mes.
  * Equivalencias con el Excel:
@@ -126,7 +143,7 @@ export function monthTotals(data: AppData, monthId: string): MonthTotals {
   const extrasJpy = sum((month?.extras ?? []).map((x) => x.amount))
   const fxRate = month?.fxRate ?? data.settings.defaultFxRate
   const limitJpy = month?.limitJpy ?? data.settings.defaultLimitJpy
-  const incomeJpy = month?.incomeJpy ?? data.settings.defaultIncomeJpy
+  const incomeJpy = monthIncomeJpy(data, monthId)
 
   const items = expensesOfMonth(data, monthId)
   // los apuntes "sin coste" (regalos, etc.) son solo informativos: no cuentan
@@ -205,6 +222,42 @@ export function overspendDebt(data: AppData, monthId: string): OverspendDebt | n
 }
 
 /* ------------------------------------------------------------------ *
+ * Salud del mes: cuanto se ahorra y cuanto se va solo
+ * ------------------------------------------------------------------ */
+
+/**
+ * Tasa de ahorro del mes: (ingresos - gasto) / ingresos. Un 0,25 quiere
+ * decir que de cada 100 ¥ que entran se quedan 25.
+ *
+ * Devuelve null si el mes no tiene ingresos de los que partir (ni suyos ni
+ * por defecto): sin denominador no hay tasa, y un 0 se leeria como "no
+ * ahorras nada" en vez de "falta el dato". Puede salir negativa: es
+ * justamente el mes en que se gasto mas de lo que entro.
+ */
+export function savingsRate(data: AppData, monthId: string): number | null {
+  const income = monthIncomeJpy(data, monthId)
+  if (income <= 0) return null
+  return (income - monthTotals(data, monthId).totalJpy) / income
+}
+
+/**
+ * "Fuga": el gasto del mes que se va sin volver a decidirlo, o sea los
+ * apuntes marcados como recurrentes (suscripciones, movil, seguros...).
+ *
+ * A proposito NO incluye el alquiler ni los extras fijos del mes: esos ya se
+ * ven juntos en "Gastos fijos" de la pestana Mes, se deciden una vez y no
+ * son de los que se acumulan sin darse cuenta. Puede salir negativa si hay
+ * algun abono recurrente apuntado en negativo.
+ */
+export function leakJpy(data: AppData, monthId: string): number {
+  return sum(
+    expensesOfMonth(data, monthId)
+      .filter((e) => e.kind === 'recurring')
+      .map((e) => e.amount),
+  )
+}
+
+/* ------------------------------------------------------------------ *
  * Estadisticas entre meses
  * ------------------------------------------------------------------ */
 
@@ -278,7 +331,7 @@ function filtered(data: AppData, opts: StatsOptions): AppData {
 export function computeStats(data: AppData, opts: StatsOptions = {}): Stats {
   const src = filtered(data, opts)
   const today = opts.today ?? new Date()
-  const currentId = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  const currentId = monthIdOfDate(today)
   // los meses futuros al de hoy no cuentan: son huecos que deja `ensureMonth`
   // al navegar hacia delante (heredan alquiler y fijos, pero ningun gasto
   // real todavia). Sin este corte, unos pocos clics en "mes siguiente"
@@ -531,7 +584,7 @@ export function datedCount(data: AppData, monthId: string): number {
  */
 export function projectMonth(data: AppData, monthId: string, today = new Date()): number {
   const t = monthTotals(data, monthId)
-  const currentId = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  const currentId = monthIdOfDate(today)
   if (monthId !== currentId) return t.totalJpy
   const nDays = daysInMonth(monthId)
   const elapsed = Math.min(today.getDate(), nDays)
@@ -583,6 +636,58 @@ export function categoryLimitsJpy(categories: Category[]): number {
   return sum(categories.filter((c) => !c.archived).map((c) => c.limitJpy ?? 0))
 }
 
+/**
+ * Ultimo mes ya cerrado del que fiarse para las cifras de "como va el mes":
+ * el mas reciente anterior al de hoy con gasto real (ver `hasRealSpend`) y,
+ * si ninguno lo tiene, el ultimo mes con datos anterior a hoy. Devuelve null
+ * si no hay ninguno.
+ *
+ * El mes en curso queda fuera a proposito: esta a medias, asi que su tasa de
+ * ahorro saldria inmejorable a principios de mes y ruinosa a finales, sin que
+ * ninguna de las dos diga nada.
+ */
+export function lastClosedMonthId(data: AppData, today = new Date()): string | null {
+  const currentId = monthIdOfDate(today)
+  const ids = monthsWithData(data).filter((id) => id < currentId)
+  if (!ids.length) return null
+  const active = ids.filter((id) => hasRealSpend(data, id))
+  return (active.length ? active : ids).at(-1) ?? null
+}
+
+/**
+ * Cuentas marcadas como deuda en la ultima foto de ahorros: lo que se debe
+ * hoy. Las fotos anteriores son historial, no saldo actual.
+ */
+export function debtAccounts(data: AppData): Account[] {
+  const last = [...data.snapshots].sort((a, b) => a.date.localeCompare(b.date)).at(-1)
+  return (last?.accounts ?? []).filter((a) => a.isDebt)
+}
+
+/** Suma en yenes de las cuentas marcadas como deuda (ver `debtAccounts`). */
+export function debtTotalJpy(data: AppData): number {
+  const fx = data.settings.defaultFxRate
+  return sum(debtAccounts(data).map((a) => accountToJpy(a.amount, a.currency, fx)))
+}
+
+/**
+ * Meses de colchon: cuantos meses se aguantaria solo con los activos
+ * liquidos de la ultima foto, al ritmo de gasto medio de los ultimos
+ * `lastMonths` meses activos (ver `recentActiveAverageJpy`).
+ *
+ * Cuenta los activos, no el patrimonio neto: las deudas no se pueden gastar
+ * en vivir, asi que restarlas contestaria otra pregunta ("cuanto me queda si
+ * salto todo"), no esta.
+ *
+ * Devuelve null si no hay ninguna foto o si todavia no hay historial de
+ * gasto real: mejor eso que un 0 que se leeria como "sin colchon".
+ */
+export function monthsOfRunway(data: AppData, today = new Date(), lastMonths = 6): number | null {
+  const last = snapshotSeries(data).at(-1)
+  const average = recentActiveAverageJpy(data, lastMonths, today)
+  if (!last || average === null || average <= 0) return null
+  return last.assetsJpy / average
+}
+
 /** Patrimonio proyectado a un plazo, en tres escenarios. */
 export interface SavingsHorizon {
   months: number
@@ -632,7 +737,7 @@ export interface SavingsHorizon {
  * por la puerta de atras. Ahora, sin meses activos, no hay media que dar.
  */
 export function recentActiveAverageJpy(data: AppData, lastMonths = 6, today = new Date()): number | null {
-  const currentId = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  const currentId = monthIdOfDate(today)
   const stats = computeStats(data, { lastMonths, today })
   const active = stats.months.filter((m) => m.monthId !== currentId && hasRealSpend(data, m.monthId))
   if (!active.length) return null
@@ -665,7 +770,10 @@ export function projectSavings(
   lastMonths = 6,
   today = new Date(),
 ): SavingsHorizon[] {
-  const income = data.settings.defaultIncomeJpy
+  // los ingresos del mes en curso si los tiene puestos, y si no los de
+  // Ajustes (ver `monthIncomeJpy`): antes solo miraba los de Ajustes, asi que
+  // cambiar el ingreso de un mes no movia la prevision ni un yen
+  const income = monthIncomeJpy(data, monthIdOfDate(today))
   const last = snapshotSeries(data).at(-1)
   if (!last || income <= 0) return []
 
