@@ -740,6 +740,281 @@ export function Lines({
 }
 
 /* ------------------------------------------------------------------ *
+ * Historico + prevision en el mismo grafico: banda, lineas y meta
+ * ------------------------------------------------------------------ */
+
+export interface BandSeries extends Series {
+  /** de puntos: lo que todavia no ha pasado */
+  dashed?: boolean
+}
+
+/**
+ * Un solo grafico para el pasado y el futuro: la banda entre dos series
+ * (p25-p75), las lineas que hagan falta encima, una linea horizontal para la
+ * meta y una vertical que marca donde acaba lo vivido y empieza lo previsto.
+ *
+ * No se ha metido en `Lines` porque este necesita banda, trazos de puntos y
+ * dos reglas fijas; mezclarlo alli habria llenado de condicionales el
+ * grafico que usan todas las demas pantallas.
+ */
+export function BandLines({
+  data,
+  series,
+  band,
+  goal,
+  dividerAt,
+  dividerLabel,
+  height = 220,
+  fmtValue,
+  fmtTick,
+  title,
+}: {
+  data: LinePoint[]
+  series: BandSeries[]
+  /** relleno entre dos claves de `values` (la de arriba y la de abajo) */
+  band?: { lowKey: string; highKey: string; color: string; label: string }
+  /** regla horizontal: la meta */
+  goal?: { value: number; label: string }
+  /** indice del ultimo punto real: ahi va la vertical de "hoy" */
+  dividerAt?: number
+  dividerLabel?: string
+  height?: number
+  fmtValue: (n: number) => string
+  fmtTick: (n: number) => string
+  title: string
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>()
+  const [hover, setHover] = useState<number | null>(null)
+
+  const keys = [...series.map((s) => s.key), ...(band ? [band.lowKey, band.highKey] : [])]
+  const all = data.flatMap((d) => keys.map((k) => d.values[k]).filter((v): v is number => v != null))
+  const max = Math.max(1, ...all, goal?.value ?? 0)
+  const ticks = niceTicks(max)
+  const top = ticks[ticks.length - 1]
+
+  const padL = 46
+  const padR = 12
+  const padT = 10
+  const axisH = 22
+  const plotW = Math.max(0, width - padL - padR)
+  const plotH = height - padT - axisH
+  const n = data.length
+  const xOf = (i: number) => padL + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW)
+  const yOf = (v: number) => padT + plotH - (Math.max(0, v) / top) * plotH
+
+  const lineOf = (key: string) => {
+    let d = ''
+    let open = false
+    data.forEach((p, i) => {
+      const v = p.values[key]
+      if (v == null) {
+        open = false
+        return
+      }
+      d += `${open ? 'L' : 'M'}${xOf(i)},${yOf(v)} `
+      open = true
+    })
+    return d
+  }
+
+  // la banda es un poligono: el borde de arriba de ida y el de abajo de vuelta
+  const bandPath = (() => {
+    if (!band) return ''
+    const ups: string[] = []
+    const downs: string[] = []
+    data.forEach((p, i) => {
+      const hi = p.values[band.highKey]
+      const lo = p.values[band.lowKey]
+      if (hi == null || lo == null) return
+      ups.push(`${xOf(i)},${yOf(hi)}`)
+      downs.unshift(`${xOf(i)},${yOf(lo)}`)
+    })
+    if (ups.length < 2) return ''
+    return `M${ups.join(' L')} L${downs.join(' L')} Z`
+  })()
+
+  const onMove = useCallback(
+    (e: React.PointerEvent<SVGRectElement>) => {
+      const rect = (e.target as SVGRectElement).getBoundingClientRect()
+      const rel = e.clientX - rect.left
+      const i = n <= 1 ? 0 : Math.round((rel / Math.max(1, plotW)) * (n - 1))
+      setHover(Math.max(0, Math.min(n - 1, i)))
+    },
+    [n, plotW],
+  )
+
+  const labelEvery = n > 1 ? Math.max(1, Math.ceil(n / Math.max(2, Math.floor(plotW / 52)))) : 1
+
+  return (
+    <div ref={ref} className="relative w-full">
+      {width > 0 && (
+        <svg width={width} height={height} role="img" aria-label={title} className="block overflow-visible">
+          {ticks.map((tv) => (
+            <g key={tv}>
+              <line x1={padL} x2={padL + plotW} y1={yOf(tv)} y2={yOf(tv)} stroke={GRID} />
+              <text x={padL - 6} y={yOf(tv) + 3} textAnchor="end" fontSize="10" fill={MUTED} className="tabular-nums">
+                {fmtTick(tv)}
+              </text>
+            </g>
+          ))}
+          <line x1={padL} x2={padL + plotW} y1={yOf(0)} y2={yOf(0)} stroke={AXIS} />
+
+          {bandPath && <path d={bandPath} fill={band!.color} opacity="0.16" />}
+
+          {goal && goal.value > 0 && (
+            <g>
+              <line
+                x1={padL}
+                x2={padL + plotW}
+                y1={yOf(goal.value)}
+                y2={yOf(goal.value)}
+                stroke="var(--series-6)"
+                strokeWidth="1.5"
+                strokeDasharray="2 4"
+              />
+              <text x={padL + 2} y={yOf(goal.value) - 4} fontSize="10" fill="var(--series-6)">
+                {goal.label}
+              </text>
+            </g>
+          )}
+
+          {dividerAt != null && dividerAt >= 0 && dividerAt < n && (
+            <g>
+              <line
+                x1={xOf(dividerAt)}
+                x2={xOf(dividerAt)}
+                y1={padT}
+                y2={padT + plotH}
+                stroke={AXIS}
+                strokeDasharray="3 3"
+              />
+              {dividerLabel && (
+                <text x={xOf(dividerAt) + 3} y={padT + 8} fontSize="10" fill={MUTED}>
+                  {dividerLabel}
+                </text>
+              )}
+            </g>
+          )}
+
+          {series.map((s) => (
+            <path
+              key={s.key}
+              d={lineOf(s.key)}
+              fill="none"
+              stroke={s.color}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray={s.dashed ? '5 4' : undefined}
+            />
+          ))}
+
+          {hover !== null && (
+            <>
+              <line x1={xOf(hover)} x2={xOf(hover)} y1={padT} y2={padT + plotH} stroke={AXIS} strokeWidth="1" />
+              {series.map((s) => {
+                const v = data[hover]?.values[s.key]
+                if (v == null) return null
+                return (
+                  <circle
+                    key={s.key}
+                    cx={xOf(hover)}
+                    cy={yOf(v)}
+                    r="4.5"
+                    fill={s.color}
+                    stroke="var(--surface-1)"
+                    strokeWidth="2"
+                  />
+                )
+              })}
+            </>
+          )}
+
+          {data.map((p, i) =>
+            i === n - 1 || (i % labelEvery === 0 && n - 1 - i >= labelEvery) ? (
+              <text
+                key={p.label + i}
+                x={xOf(i)}
+                y={height - 6}
+                textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+                fontSize="10"
+                fill={MUTED}
+              >
+                {p.label}
+              </text>
+            ) : null,
+          )}
+
+          <rect
+            x={padL}
+            y={padT}
+            width={plotW}
+            height={plotH}
+            fill="transparent"
+            onPointerMove={onMove}
+            onPointerLeave={() => setHover(null)}
+          />
+        </svg>
+      )}
+
+      {hover !== null && data[hover] && (
+        <Tooltip x={xOf(hover)} y={8} width={width}>
+          <div className="mb-1 font-semibold text-ink">{data[hover].label}</div>
+          {series.map((s) => {
+            const v = data[hover].values[s.key]
+            if (v == null) return null
+            return <TooltipRow key={s.key} color={s.color} label={s.label} value={fmtValue(v)} strong />
+          })}
+          {band &&
+            data[hover].values[band.lowKey] != null &&
+            data[hover].values[band.highKey] != null && (
+              <TooltipRow
+                color={band.color}
+                label={band.label}
+                value={`${fmtValue(data[hover].values[band.lowKey]!)} – ${fmtValue(
+                  data[hover].values[band.highKey]!,
+                )}`}
+              />
+            )}
+        </Tooltip>
+      )}
+      {/* leyenda propia: aqui la diferencia entre "lo vivido" y "lo previsto"
+          es el trazo, no el color, asi que el cuadradito de `Legend` no
+          bastaria -dos entradas del mismo color se verian identicas- */}
+      <ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5">
+        {series.map((s) => (
+          <li key={s.key} className="flex items-center gap-1.5 text-[11px] text-ink-2">
+            <svg width="14" height="8" aria-hidden="true" className="shrink-0">
+              <line
+                x1="0"
+                x2="14"
+                y1="4"
+                y2="4"
+                stroke={s.color}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeDasharray={s.dashed ? '3 3' : undefined}
+              />
+            </svg>
+            <span className="truncate">{s.label}</span>
+          </li>
+        ))}
+        {band && (
+          <li className="flex items-center gap-1.5 text-[11px] text-ink-2">
+            <span
+              aria-hidden="true"
+              className="h-2.5 w-3.5 shrink-0 rounded-[2px]"
+              style={{ background: band.color, opacity: 0.32 }}
+            />
+            <span className="truncate">{band.label}</span>
+          </li>
+        )}
+      </ul>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ *
  * Sparkline para las tarjetas
  * ------------------------------------------------------------------ */
 

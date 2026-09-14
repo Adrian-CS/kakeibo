@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   accountToJpy,
+  backtestForecast,
   categoryLabel,
   categoryLimitsJpy,
   computeStats,
@@ -24,12 +25,20 @@ import {
   overspendDebt,
   projectMonth,
   projectSavings,
+  mergeNetWorthMonthly,
+  mergeSavingsBands,
+  netWorthMonthly,
+  percentiles,
+  projectSavingsBands,
   recentActiveAverageJpy,
+  savingsGoal,
   savingsRate,
+  sumPercentiles,
   shiftMonth,
   snapshotTotals,
   topExpenses,
   topLabels,
+  upcomingExpenses,
 } from './calc'
 import { emptyData } from './defaults'
 import type { AppData, Expense } from './types'
@@ -860,6 +869,277 @@ describe('monthsOfRunway', () => {
   it('sin ninguna foto tampoco', () => {
     const noSnapshot: AppData = { ...withRunway(), snapshots: [] }
     expect(monthsOfRunway(noSnapshot, today)).toBeNull()
+  })
+})
+
+
+/* ------------------------------------------------------------------ *
+ * Prevision
+ * ------------------------------------------------------------------ */
+
+describe('prevision', () => {
+  const today = new Date('2026-08-15T00:00:00')
+
+  /**
+   * Seis meses ya cerrados con gasto real (90k a 150k) y una foto de 500k de
+   * patrimonio: lo justo para banda, meta y comprobacion.
+   */
+  function forecastSeed(): AppData {
+    const base = emptyData(today)
+    const totals: [string, number][] = [
+      ['2026-02', 100000],
+      ['2026-03', 110000],
+      ['2026-04', 90000],
+      ['2026-05', 130000],
+      ['2026-06', 120000],
+      ['2026-07', 150000],
+    ]
+    return {
+      ...base,
+      settings: { ...base.settings, defaultIncomeJpy: 250000 },
+      expenses: totals.map(([monthId, amount]) => ({
+        id: `e-${monthId}`,
+        monthId,
+        categoryId: 'eating_out',
+        label: 'gasto',
+        amount,
+        kind: 'normal' as const,
+      })),
+      snapshots: [
+        { id: 's1', date: '2026-08-01', accounts: [{ id: 'a1', name: 'banco', amount: 500000, currency: 'JPY' }] },
+      ],
+    }
+  }
+
+  describe('percentiles', () => {
+    it('reparte el gasto de los meses cerrados con actividad', () => {
+      // ordenados: 90 100 110 120 130 150 (miles)
+      expect(percentiles(forecastSeed(), 12, today)).toEqual({
+        p25: 102500,
+        p50: 115000,
+        p75: 127500,
+        monthCount: 6,
+      })
+    })
+
+    it('la mediana coincide con median(), que es la misma cuenta', () => {
+      const p = percentiles(forecastSeed(), 12, today)!
+      expect(p.p50).toBe(median([100000, 110000, 90000, 130000, 120000, 150000]))
+    })
+
+    it('ni el mes en curso ni los meses de solo fijos entran', () => {
+      const seed = forecastSeed()
+      const conRuido: AppData = {
+        ...seed,
+        expenses: [
+          ...seed.expenses,
+          // el mes en curso, a medias
+          { id: 'x1', monthId: '2026-08', categoryId: 'eating_out', label: 'x', amount: 5000, kind: 'normal' },
+          // un mes de solo recurrentes: no es un mes completo de verdad
+          { id: 'x2', monthId: '2026-01', categoryId: 'fixed_transport', label: 'netflix', amount: 1590, kind: 'recurring' },
+        ],
+      }
+      expect(percentiles(conRuido, 12, today)).toEqual(percentiles(seed, 12, today))
+    })
+
+    it('sin historial no hay percentiles', () => {
+      expect(percentiles(emptyData(today), 12, today)).toBeNull()
+    })
+  })
+
+  describe('projectSavingsBands', () => {
+    it('proyecta mes a mes: p25 arriba, p75 abajo', () => {
+      const points = projectSavingsBands(forecastSeed(), 2, 12, today)
+      expect(points).toEqual([
+        { monthId: '2026-09', months: 1, highJpy: 647500, medianJpy: 635000, lowJpy: 622500 },
+        { monthId: '2026-10', months: 2, highJpy: 795000, medianJpy: 770000, lowJpy: 745000 },
+      ])
+    })
+
+    it('gastar menos deja mas patrimonio: la banda nunca sale del reves', () => {
+      for (const p of projectSavingsBands(forecastSeed(), 12, 12, today)) {
+        expect(p.highJpy).toBeGreaterThanOrEqual(p.medianJpy)
+        expect(p.medianJpy).toBeGreaterThanOrEqual(p.lowJpy)
+      }
+    })
+
+    it('sin foto, sin ingresos o sin historial no hay banda que dibujar', () => {
+      const seed = forecastSeed()
+      expect(projectSavingsBands({ ...seed, snapshots: [] }, 6, 12, today)).toEqual([])
+      expect(
+        projectSavingsBands({ ...seed, settings: { ...seed.settings, defaultIncomeJpy: 0 } }, 6, 12, today),
+      ).toEqual([])
+      expect(projectSavingsBands({ ...seed, expenses: [] }, 6, 12, today)).toEqual([])
+    })
+  })
+
+  describe('netWorthMonthly', () => {
+    it('arrastra la ultima foto conocida a los meses sin foto', () => {
+      const seed = forecastSeed()
+      const dos: AppData = {
+        ...seed,
+        snapshots: [
+          { id: 's0', date: '2026-06-30', accounts: [{ id: 'a', name: 'x', amount: 300000, currency: 'JPY' }] },
+          ...seed.snapshots,
+        ],
+      }
+      expect(netWorthMonthly(dos, today)).toEqual([
+        { monthId: '2026-06', netJpy: 300000, assetsJpy: 300000 },
+        { monthId: '2026-07', netJpy: 300000, assetsJpy: 300000 },
+        { monthId: '2026-08', netJpy: 500000, assetsJpy: 500000 },
+      ])
+    })
+
+    it('sin fotos no hay serie', () => {
+      expect(netWorthMonthly(emptyData(today), today)).toEqual([])
+    })
+  })
+
+  describe('savingsGoal', () => {
+    function withGoal(targetJpy: number, months: number): AppData {
+      const seed = forecastSeed()
+      return { ...seed, settings: { ...seed.settings, savingsGoalJpy: targetJpy, savingsGoalMonths: months } }
+    }
+
+    it('dice lo que falta, lo que hay que ahorrar al mes y cuando se llega', () => {
+      // faltan 500000; al ritmo tipico se ahorran 250000 - 115000 = 135000 al
+      // mes, o sea cuatro meses
+      const goal = savingsGoal(withGoal(1000000, 12), today)!
+      expect(goal.missingJpy).toBe(500000)
+      expect(goal.requiredMonthlyJpy).toBeCloseTo(500000 / 12, 6)
+      expect(goal.medianMonthlyJpy).toBe(135000)
+      expect(goal.dueMonthId).toBe('2027-08')
+      expect(goal.etaMonthId).toBe('2026-12')
+      expect(goal.onTrack).toBe(true)
+    })
+
+    it('avisa cuando al ritmo de siempre no se llega a tiempo', () => {
+      const goal = savingsGoal(withGoal(5000000, 12), today)!
+      expect(goal.onTrack).toBe(false)
+      // 4500000 / 135000 = 34 meses
+      expect(goal.etaMonthId).toBe('2029-06')
+    })
+
+    it('meta ya cumplida: no falta nada y se llego hoy', () => {
+      const goal = savingsGoal(withGoal(400000, 12), today)!
+      expect(goal.missingJpy).toBe(0)
+      expect(goal.requiredMonthlyJpy).toBe(0)
+      expect(goal.onTrack).toBe(true)
+      expect(goal.etaMonthId).toBe('2026-08')
+    })
+
+    it('sin ritmo del que fiarse no se inventa una fecha', () => {
+      const seed = withGoal(1000000, 12)
+      const goal = savingsGoal({ ...seed, expenses: [] }, today)!
+      expect(goal.medianMonthlyJpy).toBeNull()
+      expect(goal.etaMonthId).toBeNull()
+      expect(goal.onTrack).toBeNull()
+      // pero lo que falta y lo que tocaria ahorrar al mes se sabe igual
+      expect(goal.missingJpy).toBe(500000)
+    })
+
+    it('sin meta puesta o sin foto no hay nada que decir', () => {
+      expect(savingsGoal(forecastSeed(), today)).toBeNull()
+      expect(savingsGoal({ ...withGoal(1000000, 12), snapshots: [] }, today)).toBeNull()
+    })
+  })
+
+  describe('backtestForecast', () => {
+    it('aprende con los meses viejos y se examina con los nuevos', () => {
+      const bt = backtestForecast(forecastSeed(), 3, today)!
+      // entrena con feb-abr (100, 110, 90): mediana 100000
+      expect(bt.cutMonthId).toBe('2026-04')
+      expect(bt.trainMonthCount).toBe(3)
+      expect(bt.testMonthIds).toEqual(['2026-05', '2026-06', '2026-07'])
+      expect(bt.predictedJpy).toBe(300000)
+      expect(bt.actualJpy).toBe(400000)
+      // se quedo un 25 % corto: los tres meses de prueba fueron mas caros
+      expect(bt.errorRatio).toBeCloseTo(-0.25, 10)
+      expect(bt.insideBand).toBe(0)
+    })
+
+    it('nunca deja el entrenamiento sin meses, aunque se pidan muchos de prueba', () => {
+      const bt = backtestForecast(forecastSeed(), 99, today)!
+      expect(bt.trainMonthCount).toBe(3)
+      expect(bt.testMonthIds).toHaveLength(3)
+    })
+
+    it('con menos de cuatro meses cerrados no se puede comprobar nada', () => {
+      const seed = forecastSeed()
+      const corto: AppData = { ...seed, expenses: seed.expenses.slice(0, 3) }
+      expect(backtestForecast(corto, 3, today)).toBeNull()
+    })
+  })
+
+
+  describe('juntar dos documentos (vista "Juntos")', () => {
+    it('el patrimonio mes a mes suma el ultimo valor conocido de cada lado', () => {
+      const mio = [
+        { monthId: '2026-06', netJpy: 100, assetsJpy: 100 },
+        { monthId: '2026-07', netJpy: 150, assetsJpy: 150 },
+      ]
+      const suyo = [{ monthId: '2026-07', netJpy: 40, assetsJpy: 40 }]
+      // en junio la pareja no tenia foto todavia: suma solo lo mio
+      expect(mergeNetWorthMonthly([mio, suyo])).toEqual([
+        { monthId: '2026-06', netJpy: 100, assetsJpy: 100 },
+        { monthId: '2026-07', netJpy: 190, assetsJpy: 190 },
+      ])
+    })
+
+    it('con un solo lado (o ninguno) no cambia nada', () => {
+      const mio = [{ monthId: '2026-07', netJpy: 150, assetsJpy: 150 }]
+      expect(mergeNetWorthMonthly([mio, []])).toEqual(mio)
+      expect(mergeNetWorthMonthly([[], []])).toEqual([])
+    })
+
+    it('las bandas se suman mes a mes, sin tocar las originales', () => {
+      const a = [{ monthId: '2026-09', months: 1, highJpy: 10, medianJpy: 8, lowJpy: 6 }]
+      const b = [{ monthId: '2026-09', months: 1, highJpy: 100, medianJpy: 80, lowJpy: 60 }]
+      expect(mergeSavingsBands([a, b])).toEqual([
+        { monthId: '2026-09', months: 1, highJpy: 110, medianJpy: 88, lowJpy: 66 },
+      ])
+      expect(a[0].highJpy).toBe(10)
+    })
+
+    it('los percentiles se suman para que la nota cuadre con la banda dibujada', () => {
+      expect(
+        sumPercentiles([
+          { p25: 10, p50: 20, p75: 30, monthCount: 6 },
+          { p25: 1, p50: 2, p75: 3, monthCount: 4 },
+        ]),
+      ).toEqual({ p25: 11, p50: 22, p75: 33, monthCount: 4 })
+    })
+
+    it('si a un lado le falta historial no hay percentiles combinados', () => {
+      expect(sumPercentiles([{ p25: 10, p50: 20, p75: 30, monthCount: 6 }, null])).toBeNull()
+      expect(sumPercentiles([])).toBeNull()
+    })
+  })
+
+  describe('upcomingExpenses', () => {
+    it('agrupa por mes lo que ya esta apuntado a futuro, con su total', () => {
+      const seed = forecastSeed()
+      const conFuturo: AppData = {
+        ...seed,
+        expenses: [
+          ...seed.expenses,
+          { id: 'f1', monthId: '2026-08', categoryId: 'home', label: 'billetes', amount: 5000, kind: 'normal', day: 20 },
+          { id: 'p1', monthId: '2026-08', categoryId: 'home', label: 'ya pasado', amount: 2000, kind: 'normal', day: 3 },
+          { id: 'f2', monthId: '2026-09', categoryId: 'home', label: 'mudanza', amount: 30000, kind: 'extraordinary' },
+          { id: 'f3', monthId: '2026-09', categoryId: 'home', label: 'regalo', amount: 9000, kind: 'noCost' },
+        ],
+      }
+      const up = upcomingExpenses(conFuturo, today)
+      expect(up.count).toBe(2)
+      expect(up.totalJpy).toBe(35000)
+      expect(up.groups.map((g) => g.monthId)).toEqual(['2026-08', '2026-09'])
+      expect(up.groups[0].items.map((e) => e.id)).toEqual(['f1'])
+      expect(up.groups[1].totalJpy).toBe(30000)
+    })
+
+    it('sin nada apuntado a futuro no hay grupos', () => {
+      expect(upcomingExpenses(forecastSeed(), today)).toEqual({ groups: [], totalJpy: 0, count: 0 })
+    })
   })
 })
 

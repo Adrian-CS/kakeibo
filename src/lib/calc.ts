@@ -795,6 +795,390 @@ export function projectSavings(
 }
 
 /* ------------------------------------------------------------------ *
+ * Prevision: bandas, meta y comprobacion
+ * ------------------------------------------------------------------ */
+
+/** Percentil de una lista YA ordenada, interpolando entre los dos vecinos. */
+function quantile(sorted: number[], q: number): number {
+  if (!sorted.length) return 0
+  const pos = (sorted.length - 1) * q
+  const lo = Math.floor(pos)
+  const hi = Math.ceil(pos)
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo)
+}
+
+/**
+ * Los meses que valen para prever: ya cerrados (nunca el de hoy, que esta a
+ * medias) y con gasto real (ver `hasRealSpend`), del mas viejo al mas nuevo.
+ * `lastMonths` a 0 los coge todos.
+ */
+function closedActiveMonths(data: AppData, today: Date, lastMonths = 0): MonthPoint[] {
+  const currentId = monthIdOfDate(today)
+  return computeStats(data, { lastMonths, today }).months.filter(
+    (m) => m.monthId !== currentId && hasRealSpend(data, m.monthId),
+  )
+}
+
+export interface BurnPercentiles {
+  /** un mes barato de los tuyos */
+  p25: number
+  /** el mes tipico (mediana) */
+  p50: number
+  /** un mes caro de los tuyos */
+  p75: number
+  /** cuantos meses cerrados con actividad han entrado en la cuenta */
+  monthCount: number
+}
+
+/**
+ * Reparto del gasto mensual de los ultimos `lastMonths` meses cerrados con
+ * actividad: el mes barato (p25), el tipico (p50) y el caro (p75).
+ *
+ * La media sola no dice nada de la variacion, y es justo la variacion la que
+ * decide si una prevision es fiable o un numero bonito. Devuelve null si no
+ * hay ni un mes del que fiarse.
+ */
+export function percentiles(data: AppData, lastMonths = 12, today = new Date()): BurnPercentiles | null {
+  const totals = closedActiveMonths(data, today, lastMonths).map((m) => m.totalJpy)
+  if (!totals.length) return null
+  const sorted = [...totals].sort((a, b) => a - b)
+  return {
+    p25: quantile(sorted, 0.25),
+    p50: quantile(sorted, 0.5),
+    p75: quantile(sorted, 0.75),
+    monthCount: sorted.length,
+  }
+}
+
+export interface NetWorthMonth {
+  monthId: string
+  netJpy: number
+  assetsJpy: number
+}
+
+/**
+ * Patrimonio real mes a mes, desde la primera foto hasta el mes de hoy: en
+ * cada mes, la ultima foto hecha hasta ese mes (si un mes no tiene foto se
+ * arrastra la anterior, que es lo que se sabia entonces).
+ *
+ * Hace falta para dibujar historico y prevision en el mismo eje de meses:
+ * `snapshotSeries` va por fecha de foto, que no cae igual en cada mes.
+ */
+export function netWorthMonthly(data: AppData, today = new Date()): NetWorthMonth[] {
+  const series = snapshotSeries(data)
+  if (!series.length) return []
+  const from = series[0].date.slice(0, 7)
+  const to = monthIdOfDate(today)
+  if (to < from) return []
+
+  const out: NetWorthMonth[] = []
+  let i = 0
+  let last = series[0]
+  for (const monthId of monthRange(from, to)) {
+    while (i < series.length && series[i].date.slice(0, 7) <= monthId) {
+      last = series[i]
+      i++
+    }
+    out.push({ monthId, netJpy: last.netJpy, assetsJpy: last.assetsJpy })
+  }
+  return out
+}
+
+export interface SavingsBandPoint {
+  /** 'YYYY-MM' proyectado */
+  monthId: string
+  /** meses desde hoy (1, 2, 3...) */
+  months: number
+  /** gastando como en un mes barato (p25): el borde de arriba de la banda */
+  highJpy: number
+  /** gastando como en un mes tipico (p50) */
+  medianJpy: number
+  /** gastando como en un mes caro (p75): el borde de abajo */
+  lowJpy: number
+}
+
+/**
+ * Patrimonio proyectado mes a mes desde la ultima foto, con banda: cada mes
+ * suma los ingresos menos el gasto del percentil correspondiente. El gasto
+ * bajo (p25) da el borde de arriba y el alto (p75) el de abajo, porque
+ * gastar menos deja mas patrimonio.
+ *
+ * A diferencia de `projectSavings` (tres escenarios sueltos a plazos
+ * concretos), esto es la serie continua que se dibuja: por eso devuelve un
+ * punto por mes. Devuelve [] si falta cualquiera de las tres patas: foto de
+ * la que partir, ingresos previstos o historial de gasto.
+ */
+export function projectSavingsBands(
+  data: AppData,
+  horizonMonths = 24,
+  lastMonths = 12,
+  today = new Date(),
+): SavingsBandPoint[] {
+  const p = percentiles(data, lastMonths, today)
+  const last = snapshotSeries(data).at(-1)
+  const income = monthIncomeJpy(data, monthIdOfDate(today))
+  if (!p || !last || income <= 0 || horizonMonths <= 0) return []
+
+  const from = monthIdOfDate(today)
+  const out: SavingsBandPoint[] = []
+  for (let k = 1; k <= horizonMonths; k++) {
+    out.push({
+      monthId: shiftMonth(from, k),
+      months: k,
+      highJpy: last.netJpy + (income - p.p25) * k,
+      medianJpy: last.netJpy + (income - p.p50) * k,
+      lowJpy: last.netJpy + (income - p.p75) * k,
+    })
+  }
+  return out
+}
+
+/**
+ * Une las series de patrimonio de varios documentos (yo y mi pareja) en una
+ * sola, mes a mes: en cada mes suma el ultimo valor conocido de cada lado,
+ * igual que hace `combinedSnapshotSeries` con las fotas sueltas. Un lado que
+ * todavia no habia empezado no suma nada, en vez de romper la serie.
+ */
+export function mergeNetWorthMonthly(sides: NetWorthMonth[][]): NetWorthMonth[] {
+  const withData = sides.filter((s) => s.length)
+  if (withData.length <= 1) return withData[0] ?? []
+
+  const from = withData.map((s) => s[0].monthId).sort()[0]
+  const to = withData.map((s) => s[s.length - 1].monthId).sort().at(-1)!
+  return monthRange(from, to).map((monthId) => {
+    let netJpy = 0
+    let assetsJpy = 0
+    for (const side of withData) {
+      let known: NetWorthMonth | undefined
+      for (const p of side) {
+        if (p.monthId > monthId) break
+        known = p
+      }
+      if (known) {
+        netJpy += known.netJpy
+        assetsJpy += known.assetsJpy
+      }
+    }
+    return { monthId, netJpy, assetsJpy }
+  })
+}
+
+/**
+ * Suma banda con banda las previsiones de varios documentos, mes a mes: el
+ * mismo criterio que `combinedProjectSavings`, que tambien suma escenario a
+ * escenario en vez de rehacer el calculo con los dos juntos.
+ */
+export function mergeSavingsBands(sides: SavingsBandPoint[][]): SavingsBandPoint[] {
+  const withData = sides.filter((s) => s.length)
+  if (withData.length <= 1) return withData[0] ?? []
+
+  const byMonth = new Map<string, SavingsBandPoint>()
+  for (const side of withData) {
+    for (const p of side) {
+      const cur = byMonth.get(p.monthId)
+      if (cur) {
+        cur.highJpy += p.highJpy
+        cur.medianJpy += p.medianJpy
+        cur.lowJpy += p.lowJpy
+      } else byMonth.set(p.monthId, { ...p })
+    }
+  }
+  return [...byMonth.values()].sort((a, b) => a.monthId.localeCompare(b.monthId))
+}
+
+/**
+ * Suma los percentiles de varios documentos, para que la nota de "un mes
+ * barato / tipico / caro" de la vista "Juntos" cuadre con la banda que se
+ * dibuja (que tambien es la suma de las dos). Si a algun lado le falta
+ * historial no hay suma que valga: devuelve null.
+ */
+export function sumPercentiles(sides: (BurnPercentiles | null)[]): BurnPercentiles | null {
+  if (!sides.length || sides.some((p) => p === null)) return null
+  const ok = sides as BurnPercentiles[]
+  return {
+    p25: sum(ok.map((p) => p.p25)),
+    p50: sum(ok.map((p) => p.p50)),
+    p75: sum(ok.map((p) => p.p75)),
+    monthCount: Math.min(...ok.map((p) => p.monthCount)),
+  }
+}
+
+export interface SavingsGoalStatus {
+  /** patrimonio que se quiere tener */
+  targetJpy: number
+  /** en cuantos meses */
+  months: number
+  /** 'YYYY-MM' en que se cumple el plazo */
+  dueMonthId: string
+  /** patrimonio de partida (ultima foto) */
+  startJpy: number
+  /** lo que falta (0 si ya se llego) */
+  missingJpy: number
+  /** cuanto habria que ahorrar cada mes para llegar a tiempo */
+  requiredMonthlyJpy: number
+  /** ahorro mensual al ritmo tipico (ingresos - gasto p50); null sin historial */
+  medianMonthlyJpy: number | null
+  /** 'YYYY-MM' en que se llegaria a ese ritmo; null si no se sabe o no se llega */
+  etaMonthId: string | null
+  /** si se llega a tiempo; null cuando no hay con que saberlo */
+  onTrack: boolean | null
+}
+
+/**
+ * La meta: "de aqui a X meses quiero tener Y". Traduce esos dos numeros de
+ * Ajustes a lo unico que se puede hacer con ellos: cuanto falta, cuanto hay
+ * que ahorrar al mes para llegar y cuando se llegaria al ritmo de siempre.
+ *
+ * Devuelve null si no hay meta puesta o no hay ninguna foto de la que partir.
+ */
+export function savingsGoal(data: AppData, today = new Date(), lastMonths = 12): SavingsGoalStatus | null {
+  const targetJpy = data.settings.savingsGoalJpy ?? 0
+  const months = data.settings.savingsGoalMonths ?? 0
+  const last = snapshotSeries(data).at(-1)
+  if (targetJpy <= 0 || months <= 0 || !last) return null
+
+  const startJpy = last.netJpy
+  const missingJpy = Math.max(0, targetJpy - startJpy)
+  const currentId = monthIdOfDate(today)
+  const p = percentiles(data, lastMonths, today)
+  const income = monthIncomeJpy(data, currentId)
+  const medianMonthlyJpy = p && income > 0 ? income - p.p50 : null
+
+  let etaMonthId: string | null = null
+  let onTrack: boolean | null = null
+  if (missingJpy === 0) {
+    etaMonthId = currentId
+    onTrack = true
+  } else if (medianMonthlyJpy !== null) {
+    const needed = medianMonthlyJpy > 0 ? Math.ceil(missingJpy / medianMonthlyJpy) : Infinity
+    // mas de diez anos es lo mismo que "asi no se llega": dar una fecha de
+    // 2049 seria fingir una precision que esta cuenta no tiene
+    etaMonthId = needed <= 120 ? shiftMonth(currentId, needed) : null
+    onTrack = needed <= months
+  }
+
+  return {
+    targetJpy,
+    months,
+    dueMonthId: shiftMonth(currentId, months),
+    startJpy,
+    missingJpy,
+    requiredMonthlyJpy: missingJpy / months,
+    medianMonthlyJpy,
+    etaMonthId,
+    onTrack,
+  }
+}
+
+export interface ForecastBacktest {
+  /** ultimo mes que uso el modelo para aprender */
+  cutMonthId: string
+  /** cuantos meses aprendio */
+  trainMonthCount: number
+  /** los meses con los que se le ha tomado la leccion */
+  testMonthIds: string[]
+  /** lo que el modelo habria previsto que se gastaria en ellos */
+  predictedJpy: number
+  /** lo que se gasto de verdad */
+  actualJpy: number
+  /** (previsto - real) / real: positivo = se quedo corto de gasto (optimista) */
+  errorRatio: number
+  /** cuantos de esos meses cayeron dentro de la banda p25-p75 */
+  insideBand: number
+}
+
+/**
+ * Comprobacion honesta de la prevision: corta el historial por un punto
+ * pasado, calcula la mediana solo con lo anterior al corte -sin ver el
+ * futuro- y la compara con lo que paso de verdad despues.
+ *
+ * Se comprueba el gasto, no el patrimonio, porque el gasto es lo unico que
+ * el modelo adivina: los ingresos se dan por sabidos y la foto de partida
+ * es un dato.
+ *
+ * Devuelve null si no hay historial para partirlo en dos (hacen falta al
+ * menos cuatro meses cerrados con actividad): con menos, el resultado diria
+ * mas del azar que del modelo.
+ */
+export function backtestForecast(
+  data: AppData,
+  testMonths = 3,
+  today = new Date(),
+): ForecastBacktest | null {
+  const active = closedActiveMonths(data, today)
+  if (active.length < 4) return null
+
+  const testCount = Math.max(1, Math.min(testMonths, Math.floor(active.length / 2)))
+  const train = active.slice(0, active.length - testCount)
+  const test = active.slice(active.length - testCount)
+
+  const sorted = train.map((m) => m.totalJpy).sort((a, b) => a - b)
+  const p25 = quantile(sorted, 0.25)
+  const p50 = quantile(sorted, 0.5)
+  const p75 = quantile(sorted, 0.75)
+
+  const predictedJpy = p50 * test.length
+  const actualJpy = sum(test.map((m) => m.totalJpy))
+
+  return {
+    cutMonthId: train[train.length - 1].monthId,
+    trainMonthCount: train.length,
+    testMonthIds: test.map((m) => m.monthId),
+    predictedJpy,
+    actualJpy,
+    errorRatio: actualJpy > 0 ? (predictedJpy - actualJpy) / actualJpy : 0,
+    insideBand: test.filter((m) => m.totalJpy >= p25 && m.totalJpy <= p75).length,
+  }
+}
+
+export interface UpcomingGroup {
+  monthId: string
+  items: Expense[]
+  totalJpy: number
+}
+
+export interface Upcoming {
+  groups: UpcomingGroup[]
+  totalJpy: number
+  count: number
+}
+
+/**
+ * Lo que ya esta apuntado con fecha posterior a hoy: los meses de mas
+ * adelante enteros, y del mes en curso solo los apuntes con dia posterior al
+ * de hoy. No es prevision, es cosa sabida, y por eso va aparte.
+ *
+ * Los apuntes "sin coste" se quedan fuera, como en el resto de totales.
+ */
+export function upcomingExpenses(data: AppData, today = new Date()): Upcoming {
+  const currentId = monthIdOfDate(today)
+  const day = today.getDate()
+  const items = data.expenses.filter(
+    (e) =>
+      e.kind !== 'noCost' &&
+      isValidMonthId(e.monthId) &&
+      (e.monthId > currentId || (e.monthId === currentId && !!e.day && e.day > day)),
+  )
+
+  const byMonth = new Map<string, Expense[]>()
+  for (const e of items) {
+    const list = byMonth.get(e.monthId)
+    if (list) list.push(e)
+    else byMonth.set(e.monthId, [e])
+  }
+
+  const groups: UpcomingGroup[] = [...byMonth.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([monthId, list]) => ({
+      monthId,
+      items: [...list].sort((a, b) => (a.day ?? 99) - (b.day ?? 99) || b.amount - a.amount),
+      totalJpy: sum(list.map((e) => e.amount)),
+    }))
+
+  return { groups, totalJpy: sum(groups.map((g) => g.totalJpy)), count: items.length }
+}
+
+/* ------------------------------------------------------------------ *
  * Ayudas de presentacion
  * ------------------------------------------------------------------ */
 

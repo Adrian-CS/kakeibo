@@ -22,6 +22,10 @@ export const DEFAULT_SETTINGS: Settings = {
   // 0 = sin configurar: la previsión de ahorro se queda oculta hasta que se
   // ponga un valor real en Ajustes
   defaultIncomeJpy: 0,
+  // 0 = sin meta: la prevision no enseña la linea del objetivo hasta que se
+  // ponga una de verdad
+  savingsGoalJpy: 0,
+  savingsGoalMonths: 12,
   defaultExtras: [],
   secondaryCurrency: 'EUR',
   autoFillFixed: true,

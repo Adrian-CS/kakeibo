@@ -330,6 +330,53 @@ describe('la aplicacion', () => {
     expect(screen.getByText('netflix')).toBeVisible()
   })
 
+
+  it('Ahorros ensena la prevision: tabla de escenarios, lo que viene y el examen del modelo', async () => {
+    const user = userEvent.setup()
+    window.location.hash = `#/month/${monthIdOf()}`
+    render(<App initial={savingsSeed()} />)
+    await user.click(screen.getAllByRole('button', { name: /Ahorros/ })[0])
+
+    // las cuatro filas de escenarios, incluidas las dos que ya existian
+    for (const row of ['Ritmo real', 'Banda p25–p75', 'Hasta el límite', 'Topes por categoría']) {
+      expect(screen.getByRole('rowheader', { name: row })).toBeInTheDocument()
+    }
+    // y los tres plazos
+    for (const col of ['6 meses', '1 año', '2 años']) {
+      expect(screen.getByRole('columnheader', { name: col })).toBeInTheDocument()
+    }
+    // los techos se explican, para que nadie los lea como prevision
+    expect(screen.getByText(/son techos y no previsiones/)).toBeInTheDocument()
+
+    // sin meta puesta, la tarjeta dice donde ponerla
+    expect(screen.getByText(/Pon una meta en Ajustes/)).toBeInTheDocument()
+
+    // "lo que ya sabes que viene", abierta
+    expect(
+      screen.getByRole('button', { name: /Lo que ya sabes que viene/ }),
+    ).toHaveAttribute('aria-expanded', 'true')
+
+    // el examen del modelo arranca plegado; con un solo mes cerrado no hay
+    // con que comprobarlo
+    const backtest = screen.getByRole('button', { name: /Acierta esta previsión/ })
+    expect(backtest).toHaveAttribute('aria-expanded', 'false')
+    await user.click(backtest)
+    expect(screen.getByText(/menos de cuatro meses cerrados/)).toBeInTheDocument()
+  })
+
+  it('con una meta puesta, la prevision dice lo que falta y si se llega a tiempo', async () => {
+    const user = userEvent.setup()
+    window.location.hash = `#/month/${monthIdOf()}`
+    const data = savingsSeed()
+    data.settings = { ...data.settings, savingsGoalJpy: 1000000, savingsGoalMonths: 12 }
+    render(<App initial={data} />)
+    await user.click(screen.getAllByRole('button', { name: /Ahorros/ })[0])
+
+    // patrimonio 550000 de 1000000: faltan 450000
+    expect(screen.getByText(/Te faltan/)).toBeInTheDocument()
+    expect(screen.getByText(/dentro del plazo/)).toBeInTheDocument()
+  })
+
   it('con el ajuste de sobregasto apagado, pasarse de limite no toca Ahorros', async () => {
     const user = userEvent.setup()
     window.location.hash = `#/month/${monthIdOf()}`

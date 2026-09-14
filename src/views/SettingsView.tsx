@@ -206,6 +206,24 @@ export function SettingsView() {
               }}
             />
           </Field>
+          <Field label={t('fields.goal')} hint={t('fields.goalHint')}>
+            <NumberInput
+              value={data.settings.savingsGoalJpy}
+              onChange={(e) => {
+                const n = parseAmount(e.target.value)
+                if (n !== null) dispatch({ type: 'patchSettings', patch: { savingsGoalJpy: n } })
+              }}
+            />
+          </Field>
+          <Field label={t('fields.goalMonths')} hint={t('fields.goalMonthsHint')}>
+            <NumberInput
+              value={data.settings.savingsGoalMonths}
+              onChange={(e) => {
+                const n = parseAmount(e.target.value)
+                if (n !== null) dispatch({ type: 'patchSettings', patch: { savingsGoalMonths: n } })
+              }}
+            />
+          </Field>
           <Field label={t('fields.fx')} hint={t('fields.fxHint')}>
             <NumberInput
               value={data.settings.defaultFxRate}

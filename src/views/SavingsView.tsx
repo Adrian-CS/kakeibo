@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../state/store'
 import {
+  backtestForecast,
   categoryLimitsJpy,
   computeStats,
   debtAccounts,
@@ -8,19 +9,37 @@ import {
   expensesOfMonth,
   lastClosedMonthId,
   leakJpy,
+  mergeNetWorthMonthly,
+  mergeSavingsBands,
   monthIncomeJpy,
   monthTotals,
   monthsOfRunway,
+  netWorthMonthly,
+  percentiles,
   projectSavings,
+  projectSavingsBands,
   recentActiveAverageJpy,
+  savingsGoal,
   savingsRate,
   snapshotSeries,
   sum,
+  sumPercentiles,
+  upcomingExpenses,
 } from '../lib/calc'
 import { combinedProjectSavings, combinedSnapshotSeries, combinedStats } from '../lib/householdCalc'
-import { emptyData } from '../lib/defaults'
+import { emptyData, monthIdOf } from '../lib/defaults'
 import { useHousehold, type HouseholdViewScope } from '../state/household'
-import { fmtDate, fmtJpy, fmtMoney, fmtMonth, fmtNumber, fmtPercent, parseAmount } from '../lib/format'
+import {
+  fmtCompact,
+  fmtDate,
+  fmtJpy,
+  fmtMoney,
+  fmtMonth,
+  fmtMonthAxis,
+  fmtNumber,
+  fmtPercent,
+  parseAmount,
+} from '../lib/format'
 import { seriesVar } from '../lib/palette'
 import {
   Button,
@@ -36,9 +55,14 @@ import {
   StatTile,
   TextInput,
 } from '../components/ui'
-import { DataTable, Lines } from '../components/charts'
+import { BandLines, DataTable, Lines, type LinePoint } from '../components/charts'
 import { uid } from '../lib/id'
 import type { Account, AppData, Snapshot } from '../lib/types'
+
+/** Plazos de la tabla de escenarios: medio ano, un ano y dos anos. */
+const HORIZONS = [6, 12, 24]
+/** Cuantos meses de prevision se dibujan (los mismos que el plazo mas largo). */
+const BAND_MONTHS = 24
 
 function todayIso(): string {
   const d = new Date()
@@ -172,6 +196,46 @@ function SnapshotCard({ snapshot }: { snapshot: Snapshot }) {
   )
 }
 
+/**
+ * Una fila de la tabla de escenarios. `muted` marca los dos techos (limite
+ * total y topes por categoria): van en gris porque no son previsiones, sino
+ * lo que pasaria gastando justo hasta el tope.
+ */
+function ScenarioRow({
+  label,
+  hint,
+  values,
+  muted,
+}: {
+  label: string
+  hint?: string
+  /** cifra corta para movil y entera para escritorio: en 390 px no caben tres columnas de siete cifras */
+  values: { short: string; full: string }[]
+  muted?: boolean
+}) {
+  return (
+    <tr className="border-t border-hairline">
+      <th
+        scope="row"
+        title={hint}
+        className={`py-1.5 pr-2 text-left font-normal ${muted ? 'text-muted' : 'text-ink'}`}
+      >
+        {label}
+      </th>
+      {values.map((v, i) => (
+        <td
+          key={i}
+          title={v.full}
+          className={`py-1.5 pl-2 text-right whitespace-nowrap ${muted ? 'text-muted' : 'font-medium text-ink'}`}
+        >
+          <span className="sm:hidden">{v.short}</span>
+          <span className="hidden sm:inline">{v.full}</span>
+        </td>
+      ))}
+    </tr>
+  )
+}
+
 export function SavingsView() {
   const { data, dispatch, t } = useStore()
   const household = useHousehold()
@@ -255,10 +319,97 @@ export function SavingsView() {
   const projection = useMemo(
     () =>
       isTogether
-        ? combinedProjectSavings(data, household.partnerData, [3, 6, 12])
-        : projectSavings(source, [3, 6, 12]),
+        ? combinedProjectSavings(data, household.partnerData, HORIZONS)
+        : projectSavings(source, HORIZONS),
     [isTogether, data, household.partnerData, source],
   )
+
+  /* --- prevision: banda, ritmo medio y meta ------------------------- */
+
+  // historico y banda salen de cada documento por separado y se suman, igual
+  // que hacen combinedSnapshotSeries y combinedProjectSavings: sumar dos
+  // previsiones hechas por separado es lo mismo que hace el resto de "Juntos"
+  const history = useMemo(
+    () => mergeNetWorthMonthly(sides.map((d) => netWorthMonthly(d))),
+    [sides],
+  )
+  const bands = useMemo(
+    () => mergeSavingsBands(sides.map((d) => projectSavingsBands(d, BAND_MONTHS))),
+    [sides],
+  )
+  const pcts = useMemo(() => sumPercentiles(sides.map((d) => percentiles(d))), [sides])
+  // el ahorro mensual al ritmo medio: la misma cuenta que el escenario
+  // "realista" de projectSavings, pero mes a mes para poder dibujarlo
+  const paceDeltaJpy = useMemo(() => {
+    const deltas = sides.map((d) => {
+      const average = recentActiveAverageJpy(d, 6)
+      const income = monthIncomeJpy(d, monthIdOf())
+      return average === null || income <= 0 ? null : income - average
+    })
+    return deltas.some((x) => x === null) ? null : sum(deltas as number[])
+  }, [sides])
+  // la meta es de una persona, no de dos: en "Juntos" no se dibuja, porque
+  // mezclarla con el patrimonio de los dos diria algo que no es
+  const goal = useMemo(() => (isTogether ? null : savingsGoal(source)), [isTogether, source])
+  const backtest = useMemo(() => backtestForecast(source), [source])
+  // los apuntes futuros de los dos: `upcomingExpenses` solo mira `expenses`,
+  // asi que juntarlos aqui basta para la vista combinada
+  const upcoming = useMemo(
+    () => upcomingExpenses({ ...data, expenses: sides.flatMap((d) => d.expenses) }),
+    [data, sides],
+  )
+  const limitJpy = useMemo(() => sum(sides.map((d) => d.settings.defaultLimitJpy)), [sides])
+
+  /** Una celda de la tabla de escenarios, con su version corta y su version entera. */
+  const cell = (v: number | null | undefined) =>
+    v == null
+      ? { short: t('common.none'), full: t('common.none') }
+      : { short: fmtCompact(v, lang), full: fmtJpy(v, lang) }
+  // el eje del patrimonio llega a los millones: "6000k" no se lee, "6 M" si
+  const fmtBigTick = (n: number) =>
+    n === 0
+      ? '0'
+      : n >= 1_000_000
+        ? `${fmtNumber(n / 1_000_000, lang, 1)} M`
+        : `${fmtNumber(n / 1000, lang)}k`
+
+  /** Historico (ultimos 12 meses) y prevision en una sola serie de puntos. */
+  const chart = useMemo(() => {
+    const past = history.slice(-12)
+    if (!past.length || !bands.length) return null
+    const startJpy = past[past.length - 1].netJpy
+    const paceAt = (k: number) => (paceDeltaJpy === null ? null : startJpy + paceDeltaJpy * k)
+
+    const points: LinePoint[] = past.map((h, i) => ({
+      x: i,
+      label: fmtMonthAxis(h.monthId, lang),
+      values: { actual: h.netJpy, median: null, pace: null, low: null, high: null },
+    }))
+    // el ultimo punto real es tambien el primero de la prevision: sin esto
+    // las lineas de futuro arrancan flotando, separadas de lo vivido
+    const join = points[points.length - 1]
+    join.values = {
+      ...join.values,
+      median: startJpy,
+      low: startJpy,
+      high: startJpy,
+      pace: paceAt(0),
+    }
+    bands.forEach((b, i) => {
+      points.push({
+        x: past.length + i,
+        label: fmtMonthAxis(b.monthId, lang),
+        values: {
+          actual: null,
+          median: b.medianJpy,
+          low: b.lowJpy,
+          high: b.highJpy,
+          pace: paceAt(b.months),
+        },
+      })
+    })
+    return { points, dividerAt: past.length - 1 }
+  }, [history, bands, paceDeltaJpy, lang])
   // mismas bases que usa projectSavings, solo para mostrar el desglose. En
   // "Juntos" no hay un unico ingreso/limite/tope de cada uno: se enseñan los
   // dos por separado (el tuyo + el de tu pareja), ya que el total del
@@ -408,41 +559,258 @@ export function SavingsView() {
             )}
           </Card>
 
-          {projection.length > 0 && (
-            <Card title={t('savings.forecast')} hint={t('savings.forecastHint')}>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {projection.map((h) => (
-                  <StatTile
-                    key={h.months}
-                    label={t('savings.forecastIn', { n: h.months })}
-                    value={fmtJpy(h.worstCaseJpy, lang)}
-                    hint={t('totals.savingsWorstLimitHint', { income: incomeText, limit: limitText })}
-                  >
-                    <p
-                      className="mt-1 text-[11px] text-muted"
-                      title={t('totals.savingsWorstCategoryLimitsHint', {
-                        income: incomeText,
-                        spend: spendText,
-                      })}
-                    >
-                      {t('totals.savingsWorstCategoryLimits')}: {fmtJpy(h.worstCaseByCategoryJpy, lang)}
-                    </p>
-                    <p
-                      className="mt-1 text-[11px] text-muted"
-                      title={
-                        isTogether || recentAverageJpy === null
-                          ? t('totals.savingsRealisticNoData')
-                          : t('totals.savingsRealisticHint', { income: incomeText, avg: fmtJpy(recentAverageJpy, lang) })
+          <Card title={t('savings.forecast')} hint={t('savings.forecastHint')}>
+            {chart ? (
+              <>
+                <BandLines
+                  data={chart.points}
+                  series={[
+                    { key: 'actual', label: t('forecast.actual'), color: seriesVar(0) },
+                    { key: 'median', label: t('forecast.median'), color: seriesVar(0), dashed: true },
+                    ...(paceDeltaJpy === null
+                      ? []
+                      : [
+                          {
+                            key: 'pace',
+                            label: t('forecast.pace'),
+                            color: seriesVar(3),
+                            dashed: true,
+                          },
+                        ]),
+                  ]}
+                  band={{
+                    lowKey: 'low',
+                    highKey: 'high',
+                    color: seriesVar(2),
+                    label: t('forecast.band'),
+                  }}
+                  goal={goal ? { value: goal.targetJpy, label: t('forecast.goal') } : undefined}
+                  dividerAt={chart.dividerAt}
+                  dividerLabel={t('forecast.today')}
+                  fmtValue={(n) => fmtJpy(n, lang)}
+                  fmtTick={fmtBigTick}
+                  title={t('forecast.chart')}
+                />
+                {pcts && (
+                  <p className="mt-2 text-[11px] text-muted">
+                    {t('forecast.percentiles', {
+                      n: pcts.monthCount,
+                      p25: fmtJpy(pcts.p25, lang),
+                      p50: fmtJpy(pcts.p50, lang),
+                      p75: fmtJpy(pcts.p75, lang),
+                    })}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted">{t('forecast.noData')}</p>
+            )}
+
+            {/* la meta: que falta y si se llega a tiempo */}
+            {isTogether ? (
+              <p className="mt-2 text-[11px] text-muted">{t('forecast.goalTogether')}</p>
+            ) : goal === null ? (
+              <p className="mt-2 text-[11px] text-muted">{t('forecast.goalNone')}</p>
+            ) : goal.missingJpy === 0 ? (
+              <p className="mt-2 text-xs" style={{ color: 'var(--good-text)' }}>
+                {t('forecast.goalDone', { target: fmtJpy(goal.targetJpy, lang) })}
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-ink-2">
+                {t('forecast.goalMissing', {
+                  missing: fmtJpy(goal.missingJpy, lang),
+                  monthly: fmtJpy(goal.requiredMonthlyJpy, lang),
+                  due: fmtMonth(goal.dueMonthId, lang),
+                })}{' '}
+                <span
+                  style={{
+                    color:
+                      goal.onTrack === null
+                        ? 'var(--text-muted)'
+                        : goal.onTrack
+                          ? 'var(--good-text)'
+                          : 'var(--serious)',
+                  }}
+                >
+                  {goal.onTrack === null
+                    ? t('forecast.goalUnknown')
+                    : goal.etaMonthId === null
+                      ? t('forecast.goalNever', {
+                          monthly: fmtJpy(goal.requiredMonthlyJpy, lang),
+                        })
+                      : goal.onTrack
+                        ? t('forecast.goalOnTrack', { eta: fmtMonth(goal.etaMonthId, lang) })
+                        : t('forecast.goalLate', { eta: fmtMonth(goal.etaMonthId, lang) })}
+                </span>
+              </p>
+            )}
+
+            {/* escenarios: cuatro filas por tres plazos */}
+            <h3 className="mt-4 mb-1 text-[11px] font-semibold tracking-wide text-ink-2 uppercase">
+              {t('forecast.scenarios')}
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-xs tabular-nums">
+                <caption className="sr-only">{t('forecast.scenarios')}</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" className="py-1 pr-2 text-left text-[11px] font-medium text-muted">
+                      {t('forecast.scenario')}
+                    </th>
+                    {HORIZONS.map((h) => (
+                      <th
+                        key={h}
+                        scope="col"
+                        className="py-1 pl-2 text-right text-[11px] font-medium whitespace-nowrap text-muted"
+                      >
+                        {t(`forecast.horizon${h}` as 'forecast.horizon6')}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <ScenarioRow
+                    label={t('forecast.rowReal')}
+                    hint={
+                      isTogether || recentAverageJpy === null
+                        ? t('totals.savingsRealisticNoData')
+                        : t('totals.savingsRealisticHint', {
+                            income: incomeText,
+                            avg: fmtJpy(recentAverageJpy, lang),
+                          })
+                    }
+                    values={HORIZONS.map((h) =>
+                      cell(projection.find((p) => p.months === h)?.realisticJpy),
+                    )}
+                  />
+                  <ScenarioRow
+                    label={t('forecast.rowBand')}
+                    hint={t('forecast.chartHint')}
+                    values={HORIZONS.map((h) => {
+                      const b = bands.find((p) => p.months === h)
+                      if (!b) return { short: t('common.none'), full: t('common.none') }
+                      return {
+                        short: `${fmtCompact(b.lowJpy, lang)} – ${fmtCompact(b.highJpy, lang)}`,
+                        full: `${fmtJpy(b.lowJpy, lang)} – ${fmtJpy(b.highJpy, lang)}`,
                       }
-                    >
-                      {t('totals.savingsRealistic')}:{' '}
-                      {h.realisticJpy === null ? t('common.none') : fmtJpy(h.realisticJpy, lang)}
-                    </p>
-                  </StatTile>
+                    })}
+                  />
+                  <ScenarioRow
+                    muted
+                    label={t('forecast.rowLimit')}
+                    hint={t('totals.savingsWorstLimitHint', { income: incomeText, limit: limitText })}
+                    values={HORIZONS.map((h) =>
+                      cell(projection.find((p) => p.months === h)?.worstCaseJpy),
+                    )}
+                  />
+                  <ScenarioRow
+                    muted
+                    label={t('forecast.rowCategoryLimits')}
+                    hint={t('totals.savingsWorstCategoryLimitsHint', {
+                      income: incomeText,
+                      spend: spendText,
+                    })}
+                    values={HORIZONS.map((h) =>
+                      cell(projection.find((p) => p.months === h)?.worstCaseByCategoryJpy),
+                    )}
+                  />
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-[11px] text-muted">{t('forecast.ceilingNote')}</p>
+            {pcts && limitJpy > 0 && limitJpy < pcts.p50 && (
+              <p className="mt-1 text-[11px]" style={{ color: 'var(--serious)' }}>
+                {t('forecast.limitBelowMedian', {
+                  limit: fmtJpy(limitJpy, lang),
+                  median: fmtJpy(pcts.p50, lang),
+                })}
+              </p>
+            )}
+          </Card>
+
+          <Collapsible
+            id="savings.upcoming"
+            title={t('upcoming.title')}
+            hint={t('upcoming.hint')}
+            summary={fmtJpy(upcoming.totalJpy, lang)}
+          >
+            {upcoming.groups.length === 0 ? (
+              <p className="text-sm text-muted">{t('upcoming.empty')}</p>
+            ) : (
+              <ul className="space-y-3">
+                {upcoming.groups.map((g) => (
+                  <li key={g.monthId}>
+                    <div className="flex items-baseline justify-between gap-3 text-xs font-semibold text-ink">
+                      <span>{fmtMonth(g.monthId, lang, true)}</span>
+                      <span className="tabular-nums">{fmtJpy(g.totalJpy, lang)}</span>
+                    </div>
+                    <ul className="mt-1">
+                      {g.items.map((e) => (
+                        <li
+                          key={e.id}
+                          className="flex items-baseline justify-between gap-3 border-t border-hairline py-1.5 first:border-0"
+                        >
+                          <span className="min-w-0 truncate text-sm text-ink">
+                            {e.day ? `${e.day} · ` : ''}
+                            {e.label || t('fields.label')}
+                          </span>
+                          <span className="shrink-0 text-sm tabular-nums text-ink-2">
+                            {fmtJpy(e.amount, lang)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
                 ))}
-              </div>
-            </Card>
-          )}
+                <li className="flex items-baseline justify-between gap-3 border-t border-hairline pt-2 text-sm font-semibold text-ink">
+                  <span>{t('savings.debtTotal')}</span>
+                  <span className="tabular-nums">{fmtJpy(upcoming.totalJpy, lang)}</span>
+                </li>
+              </ul>
+            )}
+            <p className="mt-3 text-[11px] text-muted">{t('upcoming.note')}</p>
+          </Collapsible>
+
+          <Collapsible
+            id="savings.backtest"
+            title={t('backtest.title')}
+            hint={t('backtest.hint')}
+            defaultOpen={false}
+            summary={
+              backtest
+                ? fmtPercent(Math.abs(backtest.errorRatio), lang)
+                : t('common.none')
+            }
+          >
+            {backtest === null ? (
+              <p className="text-sm text-muted">{t('backtest.none')}</p>
+            ) : (
+              <>
+                <p className="text-sm text-ink">
+                  {backtest.errorRatio < 0
+                    ? t('backtest.short', {
+                        error: fmtPercent(Math.abs(backtest.errorRatio), lang),
+                      })
+                    : t('backtest.over', { error: fmtPercent(backtest.errorRatio, lang) })}
+                </p>
+                <p className="mt-1 text-xs text-ink-2">
+                  {t('backtest.detail', {
+                    n: backtest.trainMonthCount,
+                    cut: fmtMonth(backtest.cutMonthId, lang),
+                    predicted: fmtJpy(backtest.predictedJpy, lang),
+                    months: backtest.testMonthIds.length,
+                    actual: fmtJpy(backtest.actualJpy, lang),
+                  })}
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  {t('backtest.inside', {
+                    n: backtest.insideBand,
+                    m: backtest.testMonthIds.length,
+                  })}
+                </p>
+              </>
+            )}
+          </Collapsible>
 
           <Collapsible
             id="savings.debts"

@@ -112,6 +112,14 @@ export interface Settings {
   /** ingresos previstos por defecto, en yenes: base de la prevision de ahorro */
   defaultIncomeJpy: number
   /**
+   * Meta de ahorro: "de aqui a `savingsGoalMonths` meses quiero tener
+   * `savingsGoalJpy` de patrimonio". 0 = sin meta, y entonces la prevision no
+   * enseña ni la linea ni la cuenta atras.
+   */
+  savingsGoalJpy: number
+  /** plazo de la meta, en meses desde hoy */
+  savingsGoalMonths: number
+  /**
    * Plantilla de facturas fijas (agua, luz...) para un mes que no tiene uno
    * anterior del que copiar. Si ya hay un mes anterior, manda lo que haya en
    * el (ver `autoFillFixed`): esto solo evita arrancar en blanco el primero.
