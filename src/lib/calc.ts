@@ -1179,6 +1179,244 @@ export function upcomingExpenses(data: AppData, today = new Date()): Upcoming {
 }
 
 /* ------------------------------------------------------------------ *
+ * Estadisticas: tasa de ahorro, fijos y ticket por trimestre
+ * ------------------------------------------------------------------ */
+
+export interface SavingsRatePoint {
+  monthId: string
+  incomeJpy: number
+  spentJpy: number
+  /** (ingresos - gasto) / ingresos; null si ese mes no tiene ingresos */
+  rate: number | null
+  /** el mes en curso, que esta a medias y no se puede comparar con los cerrados */
+  inProgress: boolean
+  /** tasa que saldria si el mes acabara al ritmo que lleva; solo el mes en curso */
+  projectedRate: number | null
+}
+
+/**
+ * Tasa de ahorro mes a mes, para dibujarla en barras. El mes en curso viene
+ * marcado (`inProgress`) y con su proyeccion a cierre aparte: mezclarlo con
+ * los cerrados haria creer que se ahorra muchisimo el dia 3.
+ */
+export function savingsRateSeries(
+  data: AppData,
+  monthIds: string[],
+  today = new Date(),
+): SavingsRatePoint[] {
+  const currentId = monthIdOfDate(today)
+  return monthIds.map((monthId) => {
+    const incomeJpy = monthIncomeJpy(data, monthId)
+    const spentJpy = monthTotals(data, monthId).totalJpy
+    const inProgress = monthId === currentId
+    const projected = inProgress ? projectMonth(data, monthId, today) : 0
+    return {
+      monthId,
+      incomeJpy,
+      spentJpy,
+      rate: incomeJpy > 0 ? (incomeJpy - spentJpy) / incomeJpy : null,
+      inProgress,
+      projectedRate: inProgress && incomeJpy > 0 ? (incomeJpy - projected) / incomeJpy : null,
+    }
+  })
+}
+
+/**
+ * Junta las tasas de ahorro de varios documentos: suma ingresos y gastos de
+ * cada mes y rehace la division. Sumar las tasas de cada uno no valdria -una
+ * tasa es un cociente, no un importe-.
+ */
+export function mergeSavingsRateSeries(sides: SavingsRatePoint[][]): SavingsRatePoint[] {
+  const withData = sides.filter((s) => s.length)
+  if (withData.length <= 1) return withData[0] ?? []
+
+  const byMonth = new Map<string, SavingsRatePoint>()
+  for (const side of withData) {
+    for (const p of side) {
+      const cur = byMonth.get(p.monthId)
+      if (!cur) {
+        byMonth.set(p.monthId, { ...p })
+        continue
+      }
+      cur.incomeJpy += p.incomeJpy
+      cur.spentJpy += p.spentJpy
+      cur.inProgress = cur.inProgress || p.inProgress
+    }
+  }
+  // la proyeccion del mes en curso se rehace con los totales ya sumados
+  const projectedSpend = new Map<string, number>()
+  for (const side of withData) {
+    for (const p of side) {
+      if (!p.inProgress || p.projectedRate === null) continue
+      projectedSpend.set(
+        p.monthId,
+        (projectedSpend.get(p.monthId) ?? 0) + p.incomeJpy * (1 - p.projectedRate),
+      )
+    }
+  }
+  return [...byMonth.values()]
+    .sort((a, b) => a.monthId.localeCompare(b.monthId))
+    .map((p) => ({
+      ...p,
+      rate: p.incomeJpy > 0 ? (p.incomeJpy - p.spentJpy) / p.incomeJpy : null,
+      projectedRate:
+        p.inProgress && p.incomeJpy > 0 && projectedSpend.has(p.monthId)
+          ? (p.incomeJpy - projectedSpend.get(p.monthId)!) / p.incomeJpy
+          : null,
+    }))
+}
+
+/** Cuantos meses hay entre dos 'YYYY-MM' (0 si son el mismo). */
+export function monthsBetween(from: string, to: string): number {
+  return from <= to ? monthRange(from, to).length - 1 : 0
+}
+
+export interface RecurringItem {
+  label: string
+  categoryId: string
+  /** lo que costo la ultima vez */
+  amountJpy: number
+  /** lo que costaba antes de ese ultimo cambio de precio; null si nunca cambio */
+  previousAmountJpy: number | null
+  /** variacion del ultimo cambio de precio; null si nunca cambio */
+  changeRatio: number | null
+  /** ha subido de precio */
+  raised: boolean
+  /** en cuantos meses distintos aparece */
+  monthCount: number
+  firstMonthId: string
+  lastMonthId: string
+  /** cada cuantos meses aparece de media; null si solo aparecio una vez */
+  everyMonths: number | null
+  /** lo que costara al ano si sigue apareciendo igual de a menudo */
+  yearlyJpy: number
+  /** lo que llevas pagado en el periodo mirado */
+  totalJpy: number
+}
+
+/**
+ * Los fijos y las suscripciones: los apuntes marcados como recurrentes,
+ * agrupados por concepto (normalizado, ver `normalizeLabel`), con cada
+ * cuanto aparecen, lo que costarian al ano y si han subido de precio.
+ *
+ * Lo interesante aqui no es el total del mes -eso ya esta en "Gastos fijos"-
+ * sino el goteo: cada cuanto vuelve y si algun dia subio sin avisar.
+ */
+export function recurringItems(data: AppData, opts: { monthIds?: string[] } = {}): RecurringItem[] {
+  const allow = opts.monthIds ? new Set(opts.monthIds) : null
+  const groups = new Map<string, { label: string; categoryId: string; byMonth: Map<string, number> }>()
+
+  for (const e of data.expenses) {
+    if (e.kind !== 'recurring') continue
+    if (allow && !allow.has(e.monthId)) continue
+    if (!isValidMonthId(e.monthId)) continue
+    const key = normalizeLabel(e.label)
+    if (!key) continue
+    const g = groups.get(key) ?? { label: e.label.trim(), categoryId: e.categoryId, byMonth: new Map() }
+    // varios apuntes del mismo concepto en un mes cuentan como uno solo
+    g.byMonth.set(e.monthId, (g.byMonth.get(e.monthId) ?? 0) + e.amount)
+    groups.set(key, g)
+  }
+
+  const out: RecurringItem[] = []
+  for (const g of groups.values()) {
+    const months = [...g.byMonth.keys()].sort()
+    const amounts = months.map((m) => g.byMonth.get(m)!)
+    const amountJpy = amounts[amounts.length - 1]
+    // el ultimo importe distinto del actual: con eso se ve si subio o bajo
+    let previousAmountJpy: number | null = null
+    for (let i = amounts.length - 2; i >= 0; i--) {
+      if (amounts[i] !== amountJpy) {
+        previousAmountJpy = amounts[i]
+        break
+      }
+    }
+    const changeRatio =
+      previousAmountJpy !== null && previousAmountJpy !== 0
+        ? amountJpy / previousAmountJpy - 1
+        : null
+    const firstMonthId = months[0]
+    const lastMonthId = months[months.length - 1]
+    const everyMonths =
+      months.length > 1 ? monthsBetween(firstMonthId, lastMonthId) / (months.length - 1) : null
+
+    out.push({
+      label: g.label,
+      categoryId: g.categoryId,
+      amountJpy,
+      previousAmountJpy,
+      changeRatio,
+      raised: changeRatio !== null && changeRatio > 0,
+      monthCount: months.length,
+      firstMonthId,
+      lastMonthId,
+      everyMonths,
+      // sin dos apariciones no se sabe cada cuanto vuelve: se cuenta una al ano
+      yearlyJpy: everyMonths && everyMonths > 0 ? (amountJpy * 12) / everyMonths : amountJpy,
+      totalJpy: sum(amounts),
+    })
+  }
+
+  return out.sort((a, b) => b.yearlyJpy - a.yearlyJpy)
+}
+
+/** '2026-08' -> '2026-Q3'. */
+export function quarterOf(monthId: string): string {
+  const [y, m] = monthId.split('-').map(Number)
+  return `${y}-Q${Math.floor((m - 1) / 3) + 1}`
+}
+
+export interface QuarterTicket {
+  /** '2026-Q3' */
+  quarterId: string
+  totalJpy: number
+  count: number
+  /** ticket medio del trimestre */
+  avgJpy: number
+}
+
+/**
+ * Ticket medio de un comercio por TRIMESTRE, no por mes: mes a mes casi todo
+ * son una o dos compras, asi que la media salta sin querer decir nada y los
+ * meses en que no se pisa el sitio abren huecos. Por trimestres hay bastantes
+ * tickets para que la media signifique algo.
+ *
+ * Solo salen los trimestres en los que hubo alguna compra: un trimestre sin
+ * ninguna no es "ticket medio cero", es que no se fue.
+ */
+export function quarterlyTicket(
+  data: AppData,
+  label: string,
+  opts: { monthIds?: string[] } = {},
+): QuarterTicket[] {
+  const key = normalizeLabel(label)
+  if (!key) return []
+  const allow = opts.monthIds ? new Set(opts.monthIds) : null
+
+  const byQuarter = new Map<string, { totalJpy: number; count: number }>()
+  for (const e of data.expenses) {
+    if (e.kind === 'noCost') continue
+    if (normalizeLabel(e.label) !== key) continue
+    if (allow && !allow.has(e.monthId)) continue
+    if (!isValidMonthId(e.monthId)) continue
+    const q = quarterOf(e.monthId)
+    const cur = byQuarter.get(q) ?? { totalJpy: 0, count: 0 }
+    cur.totalJpy += e.amount
+    cur.count += 1
+    byQuarter.set(q, cur)
+  }
+
+  return [...byQuarter.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([quarterId, v]) => ({
+      quarterId,
+      totalJpy: v.totalJpy,
+      count: v.count,
+      avgJpy: v.count ? v.totalJpy / v.count : 0,
+    }))
+}
+
+/* ------------------------------------------------------------------ *
  * Ayudas de presentacion
  * ------------------------------------------------------------------ */
 

@@ -78,6 +78,36 @@ function savingsSeed(): AppData {
   }
 }
 
+/**
+ * Tres meses con gasto, una suscripcion que sube de precio y un comercio que
+ * se repite: lo justo para las tarjetas nuevas de Estadisticas. Relativo a la
+ * fecha real, como el resto de fixtures de meses cerrados.
+ */
+function statsSeed(): AppData {
+  const base = emptyData()
+  const m = (n: number) => shiftMonth(monthIdOf(), n)
+  const month = (id: string) => ({
+    id,
+    rentJpy: 0,
+    extras: [],
+    fxRate: 0.0056,
+    limitJpy: 200000,
+    incomeJpy: 200000,
+  })
+  return {
+    ...base,
+    settings: { ...base.settings, defaultIncomeJpy: 200000 },
+    months: [month(m(-2)), month(m(-1)), month(m(0))],
+    expenses: [
+      { id: 'a1', monthId: m(-2), categoryId: 'eating_out', label: 'uber', amount: 3000, kind: 'normal' },
+      { id: 'a2', monthId: m(-1), categoryId: 'eating_out', label: 'Uber', amount: 5000, kind: 'normal' },
+      { id: 'a3', monthId: m(0), categoryId: 'groceries', label: 'seiyu', amount: 4000, kind: 'normal', day: 2 },
+      { id: 'r1', monthId: m(-2), categoryId: 'fixed_transport', label: 'netflix', amount: 1490, kind: 'recurring' },
+      { id: 'r2', monthId: m(-1), categoryId: 'fixed_transport', label: 'Netflix', amount: 1990, kind: 'recurring' },
+    ],
+  }
+}
+
 beforeEach(() => {
   localStorage.clear()
   window.location.hash = '#/month/2026-08'
@@ -375,6 +405,53 @@ describe('la aplicacion', () => {
     // patrimonio 550000 de 1000000: faltan 450000
     expect(screen.getByText(/Te faltan/)).toBeInTheDocument()
     expect(screen.getByText(/dentro del plazo/)).toBeInTheDocument()
+  })
+
+
+  it('Estadisticas ensena tasa de ahorro, fijos con su subida y ticket por trimestre', async () => {
+    const user = userEvent.setup()
+    window.location.hash = `#/month/${monthIdOf()}`
+    render(<App initial={statsSeed()} />)
+    await user.click(screen.getAllByRole('button', { name: /Estadísticas/ })[0])
+
+    // tasa de ahorro por mes, plegable y abierta
+    expect(screen.getByRole('button', { name: /Tasa de ahorro por mes/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    // el mes en curso no se compara con los cerrados, y se dice
+    expect(screen.getAllByText(/El mes en curso va rayado/).length).toBeGreaterThan(0)
+
+    // fijos y suscripciones: netflix, cada mes, y el aviso de que subio
+    // Netflix sale tambien en el ranking de comercios: aqui basta con que este
+    expect(screen.getAllByText('Netflix').length).toBeGreaterThan(0)
+    expect(screen.getByText(/cada mes · 23,9 mil ¥ al año/)).toBeInTheDocument()
+    expect(screen.getByText(/subió/)).toBeInTheDocument()
+
+    // ticket medio por trimestre, con su selector de comercio
+    expect(screen.getByRole('button', { name: /Ticket medio por trimestre/ })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Comercio' })).toBeInTheDocument()
+  })
+
+  it('las secciones de Estadisticas se pliegan y lo recuerdan', async () => {
+    const user = userEvent.setup()
+    window.location.hash = `#/month/${monthIdOf()}`
+    const { unmount } = render(<App initial={statsSeed()} />)
+    await user.click(screen.getAllByRole('button', { name: /Estadísticas/ })[0])
+
+    const card = screen.getByRole('button', { name: /Fijos y suscripciones/ })
+    await user.click(card)
+    expect(card).toHaveAttribute('aria-expanded', 'false')
+    // plegada, la cifra del año sigue a la vista
+    expect(within(card).getByText(/23,9 mil ¥/)).toBeInTheDocument()
+    unmount()
+
+    render(<App initial={statsSeed()} />)
+    await user.click(screen.getAllByRole('button', { name: /Estadísticas/ })[0])
+    expect(screen.getByRole('button', { name: /Fijos y suscripciones/ })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
   })
 
   it('con el ajuste de sobregasto apagado, pasarse de limite no toca Ahorros', async () => {

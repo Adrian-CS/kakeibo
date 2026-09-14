@@ -15,6 +15,7 @@ import {
   leakJpy,
   median,
   monthIncomeJpy,
+  monthsBetween,
   monthsOfRunway,
   monthBurn,
   monthRange,
@@ -27,12 +28,17 @@ import {
   projectSavings,
   mergeNetWorthMonthly,
   mergeSavingsBands,
+  mergeSavingsRateSeries,
   netWorthMonthly,
   percentiles,
   projectSavingsBands,
+  quarterOf,
+  quarterlyTicket,
   recentActiveAverageJpy,
+  recurringItems,
   savingsGoal,
   savingsRate,
+  savingsRateSeries,
   sumPercentiles,
   shiftMonth,
   snapshotTotals,
@@ -1140,6 +1146,203 @@ describe('prevision', () => {
     it('sin nada apuntado a futuro no hay grupos', () => {
       expect(upcomingExpenses(forecastSeed(), today)).toEqual({ groups: [], totalJpy: 0, count: 0 })
     })
+  })
+})
+
+
+/* ------------------------------------------------------------------ *
+ * Estadisticas de la fase 3
+ * ------------------------------------------------------------------ */
+
+describe('tasa de ahorro mes a mes', () => {
+  const today = new Date('2026-08-15T00:00:00')
+
+  function seed(): AppData {
+    const base = emptyData(today)
+    return {
+      ...base,
+      settings: { ...base.settings, defaultIncomeJpy: 200000 },
+      months: [
+        { id: '2026-07', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+        { id: '2026-08', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 0 },
+      ],
+      expenses: [
+        { id: 'e1', monthId: '2026-07', categoryId: 'eating_out', label: 'x', amount: 150000, kind: 'normal' },
+        { id: 'e2', monthId: '2026-08', categoryId: 'eating_out', label: 'y', amount: 31000, kind: 'normal' },
+      ],
+    }
+  }
+
+  it('calcula la tasa de cada mes', () => {
+    const points = savingsRateSeries(seed(), ['2026-07'], today)
+    expect(points[0].rate).toBeCloseTo(0.25, 10)
+    expect(points[0].inProgress).toBe(false)
+    expect(points[0].projectedRate).toBeNull()
+  })
+
+  it('marca el mes en curso y le añade su proyeccion a cierre', () => {
+    // dia 15 de 31: 31000 gastados van camino de 64066
+    const p = savingsRateSeries(seed(), ['2026-08'], today)[0]
+    expect(p.inProgress).toBe(true)
+    expect(p.rate).toBeCloseTo((200000 - 31000) / 200000, 10)
+    expect(p.projectedRate!).toBeCloseTo((200000 - (31000 / 15) * 31) / 200000, 6)
+    // la proyeccion es peor que lo que lleva: por eso no se comparan
+    expect(p.projectedRate!).toBeLessThan(p.rate!)
+  })
+
+  it('sin ingresos no hay tasa que dibujar', () => {
+    const data = seed()
+    const sinIngresos: AppData = { ...data, settings: { ...data.settings, defaultIncomeJpy: 0 } }
+    expect(savingsRateSeries(sinIngresos, ['2026-07'], today)[0].rate).toBeNull()
+  })
+
+  it('al juntar dos documentos se suman ingresos y gastos, no las tasas', () => {
+    // 50 % y 0 % con ingresos distintos no son un 25 %: son 300000 de
+    // ingresos y 200000 de gasto, o sea un 33 %
+    const mio = [
+      { monthId: '2026-07', incomeJpy: 200000, spentJpy: 100000, rate: 0.5, inProgress: false, projectedRate: null },
+    ]
+    const suyo = [
+      { monthId: '2026-07', incomeJpy: 100000, spentJpy: 100000, rate: 0, inProgress: false, projectedRate: null },
+    ]
+    const merged = mergeSavingsRateSeries([mio, suyo])
+    expect(merged[0].incomeJpy).toBe(300000)
+    expect(merged[0].rate).toBeCloseTo(1 / 3, 10)
+  })
+
+  it('con un solo documento no cambia nada', () => {
+    const one = savingsRateSeries(seed(), ['2026-07'], today)
+    expect(mergeSavingsRateSeries([one, []])).toEqual(one)
+  })
+})
+
+describe('fijos y suscripciones', () => {
+  function seed(): AppData {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    const r = (id: string, monthId: string, label: string, amount: number) => ({
+      id,
+      monthId,
+      categoryId: 'fixed_transport',
+      label,
+      amount,
+      kind: 'recurring' as const,
+    })
+    return {
+      ...base,
+      expenses: [
+        r('n1', '2026-05', 'Netflix', 1490),
+        r('n2', '2026-06', 'netflix ', 1490),
+        r('n3', '2026-07', 'Netflix', 1990),
+        // cada tres meses
+        r('s1', '2026-01', 'seguro', 30000),
+        r('s2', '2026-04', 'seguro', 30000),
+        r('s3', '2026-07', 'seguro', 30000),
+        // una sola vez
+        r('u1', '2026-07', 'gimnasio', 8000),
+        // no es recurrente: no entra
+        { id: 'x1', monthId: '2026-07', categoryId: 'eating_out', label: 'uber', amount: 5000, kind: 'normal' as const },
+      ],
+    }
+  }
+
+  it('agrupa por concepto aunque cambien mayusculas y espacios', () => {
+    const netflix = recurringItems(seed()).find((i) => i.label.toLowerCase() === 'netflix')!
+    expect(netflix.monthCount).toBe(3)
+    expect(netflix.everyMonths).toBe(1)
+    expect(netflix.amountJpy).toBe(1990)
+    expect(netflix.totalJpy).toBe(1490 + 1490 + 1990)
+  })
+
+  it('avisa de la subida de precio y de cuanto', () => {
+    const netflix = recurringItems(seed()).find((i) => i.label.toLowerCase() === 'netflix')!
+    expect(netflix.previousAmountJpy).toBe(1490)
+    expect(netflix.raised).toBe(true)
+    expect(netflix.changeRatio!).toBeCloseTo(1990 / 1490 - 1, 10)
+  })
+
+  it('saca cada cuanto vuelve y lo que cuesta al ano', () => {
+    const seguro = recurringItems(seed()).find((i) => i.label === 'seguro')!
+    expect(seguro.everyMonths).toBe(3)
+    expect(seguro.yearlyJpy).toBe(30000 * 4)
+    expect(seguro.raised).toBe(false)
+    expect(seguro.changeRatio).toBeNull()
+  })
+
+  it('con una sola aparicion no se inventa una periodicidad', () => {
+    const gym = recurringItems(seed()).find((i) => i.label === 'gimnasio')!
+    expect(gym.everyMonths).toBeNull()
+    expect(gym.yearlyJpy).toBe(8000)
+  })
+
+  it('ordena por lo que cuesta al ano y respeta el filtro de meses', () => {
+    const items = recurringItems(seed())
+    expect(items[0].label).toBe('seguro')
+    expect(items.map((i) => i.label.toLowerCase())).not.toContain('uber')
+
+    const soloJulio = recurringItems(seed(), { monthIds: ['2026-07'] })
+    expect(soloJulio.every((i) => i.monthCount === 1)).toBe(true)
+  })
+
+  it('monthsBetween cuenta los meses de por medio', () => {
+    expect(monthsBetween('2026-01', '2026-07')).toBe(6)
+    expect(monthsBetween('2026-07', '2026-07')).toBe(0)
+    expect(monthsBetween('2026-07', '2026-01')).toBe(0)
+  })
+})
+
+describe('ticket medio por trimestre', () => {
+  function seed(): AppData {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    const e = (id: string, monthId: string, label: string, amount: number) => ({
+      id,
+      monthId,
+      categoryId: 'eating_out',
+      label,
+      amount,
+      kind: 'normal' as const,
+    })
+    return {
+      ...base,
+      expenses: [
+        e('a', '2026-01', 'Uber', 1000),
+        e('b', '2026-02', 'uber ', 2000),
+        e('c', '2026-03', 'UBER', 3000),
+        e('d', '2026-07', 'uber', 5000),
+        e('f', '2026-07', 'seiyu', 9000),
+        { ...e('g', '2026-08', 'uber', 7000), kind: 'noCost' as const },
+      ],
+    }
+  }
+
+  it('reparte los meses en trimestres', () => {
+    expect(quarterOf('2026-01')).toBe('2026-Q1')
+    expect(quarterOf('2026-03')).toBe('2026-Q1')
+    expect(quarterOf('2026-04')).toBe('2026-Q2')
+    expect(quarterOf('2026-12')).toBe('2026-Q4')
+  })
+
+  it('agrega por trimestre el ticket medio de un comercio', () => {
+    // Q1: tres tickets (1000, 2000, 3000) -> media 2000
+    expect(quarterlyTicket(seed(), 'uber')).toEqual([
+      { quarterId: '2026-Q1', totalJpy: 6000, count: 3, avgJpy: 2000 },
+      { quarterId: '2026-Q3', totalJpy: 5000, count: 1, avgJpy: 5000 },
+    ])
+  })
+
+  it('no inventa trimestres vacios: un trimestre sin compras no es ticket cero', () => {
+    expect(quarterlyTicket(seed(), 'uber').map((q) => q.quarterId)).not.toContain('2026-Q2')
+  })
+
+  it('deja fuera los apuntes sin coste y respeta el filtro de meses', () => {
+    const soloQ1 = quarterlyTicket(seed(), 'uber', { monthIds: ['2026-01', '2026-02', '2026-03'] })
+    expect(soloQ1).toHaveLength(1)
+    // el de agosto es "sin coste": no cuenta como ticket
+    expect(quarterlyTicket(seed(), 'uber').some((q) => q.quarterId === '2026-Q3' && q.count === 1)).toBe(true)
+  })
+
+  it('un comercio que no existe no da serie', () => {
+    expect(quarterlyTicket(seed(), 'no existe')).toEqual([])
+    expect(quarterlyTicket(seed(), '  ')).toEqual([])
   })
 })
 

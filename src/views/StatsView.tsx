@@ -7,10 +7,16 @@ import {
   computeYoy,
   datedCount,
   hasRealSpend,
+  mergeSavingsRateSeries,
   monthBurn,
   monthTotals,
   noCostItems,
+  projectMonth,
+  quarterlyTicket,
+  recurringItems,
+  savingsRateSeries,
   shiftMonth,
+  sum,
   topExpenses,
   topLabels,
 } from '../lib/calc'
@@ -25,7 +31,7 @@ import {
   combinedTopLabels,
   combinedYoy,
 } from '../lib/householdCalc'
-import { emptyData } from '../lib/defaults'
+import { emptyData, monthIdOf } from '../lib/defaults'
 import { useHousehold, type HouseholdViewScope } from '../state/household'
 import {
   fmtCompact,
@@ -38,8 +44,18 @@ import {
   fmtSignedPercent,
 } from '../lib/format'
 import { seriesVar } from '../lib/palette'
-import { Card, Icon, IconButton, Segmented, StatTile, Toggle } from '../components/ui'
-import { DataTable, Donut, HBars, Lines, Sparkline, StackedColumns, type StackDatum } from '../components/charts'
+import type { AppData } from '../lib/types'
+import { Card, Collapsible, Icon, IconButton, Segmented, Select, StatTile, Toggle } from '../components/ui'
+import {
+  Columns,
+  DataTable,
+  Donut,
+  HBars,
+  Lines,
+  Sparkline,
+  StackedColumns,
+  type StackDatum,
+} from '../components/charts'
 
 type Range = '6' | '12' | '24' | 'all'
 type BiggestScope = 'period' | 'month'
@@ -60,6 +76,7 @@ export function StatsView({
   const [excludeExtra, setExcludeExtra] = useState(false)
   const [tables, setTables] = useState(false)
   const [biggestScope, setBiggestScope] = useState<BiggestScope>('period')
+  const [ticketLabel, setTicketLabel] = useState('')
   const [scope, setScope] = useState<HouseholdViewScope>('mine')
 
   const lastMonths = range === 'all' ? 0 : Number(range)
@@ -141,6 +158,43 @@ export function StatsView({
     [isTogether, data, household.partnerData, links, source, monthIds.join(',')],
   )
 
+  // los documentos que entran en las cifras: en "Juntos" el mio y el de mi
+  // pareja, en el resto solo el que se esta mirando (mismo criterio que en
+  // Ahorros)
+  const sides = useMemo<AppData[]>(
+    () =>
+      isTogether ? [data, household.partnerData].filter((d): d is AppData => !!d) : [source],
+    [isTogether, data, household.partnerData, source],
+  )
+  const currentId = monthIdOf()
+
+  const rateSeries = useMemo(
+    () => mergeSavingsRateSeries(sides.map((d) => savingsRateSeries(d, monthIds))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sides, monthIds.join(',')],
+  )
+  const hasIncome = rateSeries.some((p) => p.rate !== null)
+  // `recurringItems` y `quarterlyTicket` solo leen `expenses`, asi que para
+  // la vista combinada basta con juntar los apuntes de los dos
+  const bothSides = useMemo(
+    () => ({ ...source, expenses: sides.flatMap((d) => d.expenses) }),
+    [source, sides],
+  )
+  const recurring = useMemo(
+    () => recurringItems(bothSides, { monthIds }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bothSides, monthIds.join(',')],
+  )
+  const recurringYearlyJpy = sum(recurring.map((r) => r.yearlyJpy))
+  // el comercio del ticket medio: el elegido si sigue en la lista, y si no
+  // el que mas pesa del periodo
+  const ticketPick = labels.some((l) => l.label === ticketLabel) ? ticketLabel : (labels[0]?.label ?? '')
+  const ticket = useMemo(
+    () => (ticketPick ? quarterlyTicket(bothSides, ticketPick, { monthIds }) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bothSides, ticketPick, monthIds.join(',')],
+  )
+
   const series = cats.map((c) => ({ key: c.id, label: categoryLabel(c, lang), color: seriesVar(c.colorSlot) }))
   const jpy = (n: number) => fmtJpy(n, lang)
   const compact = (n: number) => fmtCompact(n, lang)
@@ -171,6 +225,11 @@ export function StatsView({
     fullLabel: fmtMonth(m.monthId, lang, true),
     values: m.byCategory,
     reference: m.limitJpy || undefined,
+    inProgress: m.monthId === currentId,
+    projected:
+      m.monthId === currentId
+        ? sum(sides.map((d) => projectMonth(d, m.monthId)))
+        : undefined,
   }))
 
   const donutData = cats
@@ -302,8 +361,12 @@ export function StatsView({
           fmtValue={jpy}
           fmtTick={compact}
           referenceLabel={t('totals.limit')}
+          projectionLabel={t('totals.projection')}
           title={t('stats.byCategoryMonth')}
         />
+        {stackData.some((d) => d.inProgress) && (
+          <p className="mt-2 text-[11px] text-muted">{t('stats.inProgressNote')}</p>
+        )}
         {tables && (
           <DataTable
             caption={t('stats.byCategoryMonth')}
@@ -323,9 +386,60 @@ export function StatsView({
         )}
       </Card>
 
+      {/* tasa de ahorro mes a mes */}
+      <Collapsible
+        id="stats.savingsRate"
+        title={t('stats.savingsRate')}
+        hint={t('stats.savingsRateHint')}
+        summary={
+          rateSeries.at(-1)?.rate == null
+            ? t('common.none')
+            : fmtPercent(rateSeries.at(-1)!.rate!, lang)
+        }
+      >
+        {hasIncome ? (
+          <>
+            <Columns
+              data={rateSeries.map((p) => ({
+                key: p.monthId,
+                axisLabel: fmtMonthAxis(p.monthId, lang),
+                fullLabel: fmtMonth(p.monthId, lang, true),
+                value: p.rate,
+                inProgress: p.inProgress,
+                projected: p.projectedRate,
+              }))}
+              fmtValue={(n) => fmtPercent(n, lang)}
+              fmtTick={(n) => fmtPercent(n, lang)}
+              title={t('stats.savingsRate')}
+            />
+            {rateSeries.some((p) => p.inProgress) && (
+              <p className="mt-2 text-[11px] text-muted">{t('stats.inProgressNote')}</p>
+            )}
+            {tables && (
+              <DataTable
+                caption={t('stats.savingsRate')}
+                columns={[t('common.month'), t('fields.income'), t('totals.total'), t('stats.savingsRate')]}
+                rows={rateSeries.map((p) => [
+                  fmtMonth(p.monthId, lang),
+                  fmtNumber(p.incomeJpy, lang),
+                  fmtNumber(p.spentJpy, lang),
+                  p.rate === null ? '—' : fmtPercent(p.rate, lang),
+                ])}
+              />
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted">{t('stats.savingsRateNoIncome')}</p>
+        )}
+      </Collapsible>
+
       <div className="grid gap-3 lg:grid-cols-2">
         {/* reparto del mes en foco */}
-        <Card title={`${t('stats.distribution')} · ${fmtMonth(focusId, lang, true)}`}>
+        <Collapsible
+          id="stats.distribution"
+          title={`${t('stats.distribution')} · ${fmtMonth(focusId, lang, true)}`}
+          summary={`${compact(focus.totalJpy)} ¥`}
+        >
           <Donut
             data={donutData}
             centerLabel={t('totals.total')}
@@ -345,9 +459,14 @@ export function StatsView({
               ])}
             />
           )}
-        </Card>
+        </Collapsible>
 
-        <Card title={t('stats.topLabels')} hint={t('stats.topLabelsHint')}>
+        <Collapsible
+          id="stats.topLabels"
+          title={t('stats.topLabels')}
+          hint={t('stats.topLabelsHint')}
+          summary={labels.length ? `${compact(labels[0].totalJpy)} ¥` : t('common.none')}
+        >
           <HBars
             data={labels.map((l) => ({
               key: l.label,
@@ -370,12 +489,12 @@ export function StatsView({
               ])}
             />
           )}
-        </Card>
+        </Collapsible>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
         {/* media diaria por mes */}
-        <Card title={t('stats.perDay')}>
+        <Collapsible id="stats.perDay" title={t('stats.perDay')} summary={jpy(stats.perDayJpy)}>
           <Lines
             data={perDayPoints}
             series={[{ key: 'day', label: t('stats.perDay'), color: seriesVar(0) }]}
@@ -396,9 +515,14 @@ export function StatsView({
               ])}
             />
           )}
-        </Card>
+        </Collapsible>
 
-        <Card title={`${t('stats.burn')} · ${fmtMonth(focusId, lang)}`} hint={t('stats.burnHint')}>
+        <Collapsible
+          id="stats.burn"
+          title={`${t('stats.burn')} · ${fmtMonth(focusId, lang)}`}
+          hint={t('stats.burnHint')}
+          summary={jpy(focus.totalJpy)}
+        >
           {hasDays ? (
             <>
               <Lines
@@ -427,21 +551,158 @@ export function StatsView({
           ) : (
             <p className="text-sm text-muted">{t('stats.burnNoDays')}</p>
           )}
-        </Card>
+        </Collapsible>
       </div>
 
-      <Card
+      {/* fijos y suscripciones: el goteo, no el total del mes */}
+      <Collapsible
+        id="stats.recurring"
+        title={t('stats.recurring')}
+        hint={t('stats.recurringHint')}
+        summary={`${compact(recurringYearlyJpy)} ¥`}
+      >
+        {recurring.length === 0 ? (
+          <p className="text-sm text-muted">{t('stats.recurringEmpty')}</p>
+        ) : (
+          <>
+            <ul>
+              {recurring.map((r) => (
+                <li
+                  key={r.label}
+                  className="flex items-baseline justify-between gap-3 border-t border-hairline py-2 first:border-0"
+                >
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        aria-hidden="true"
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{
+                          background: seriesVar(
+                            cats.find((c) => c.id === r.categoryId)?.colorSlot ?? 0,
+                          ),
+                        }}
+                      />
+                      <span className="truncate text-sm text-ink">{r.label || '—'}</span>
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-muted">
+                      {r.everyMonths === null
+                        ? t('stats.onceOnly')
+                        : r.everyMonths <= 1
+                          ? t('stats.everyMonth')
+                          : t('stats.everyNMonths', {
+                              // "cada 3 meses", no "cada 3,0 meses"
+                              n: fmtNumber(r.everyMonths, lang, r.everyMonths % 1 === 0 ? 0 : 1),
+                            })}
+                      {' · '}
+                      {compact(r.yearlyJpy)} ¥ {t('stats.perYear')}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block text-sm tabular-nums text-ink">{jpy(r.amountJpy)}</span>
+                    {r.changeRatio !== null && (
+                      <span
+                        className="mt-0.5 block text-[11px] tabular-nums"
+                        title={t('stats.wasBefore', { amount: jpy(r.previousAmountJpy!) })}
+                        style={{ color: r.raised ? 'var(--critical)' : 'var(--good-text)' }}
+                      >
+                        {r.raised
+                          ? t('stats.raised', { pct: fmtPercent(r.changeRatio, lang) })
+                          : t('stats.lowered', { pct: fmtPercent(Math.abs(r.changeRatio), lang) })}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+              <li className="flex items-baseline justify-between gap-3 border-t border-hairline pt-2 text-sm font-semibold text-ink">
+                <span>{t('stats.recurringYearTotal')}</span>
+                <span className="tabular-nums">{jpy(recurringYearlyJpy)}</span>
+              </li>
+            </ul>
+            {tables && (
+              <DataTable
+                caption={t('stats.recurring')}
+                columns={[
+                  t('fields.label'),
+                  t('common.amount'),
+                  t('stats.count'),
+                  t('stats.perYear'),
+                ]}
+                rows={recurring.map((r) => [
+                  r.label || '—',
+                  fmtNumber(r.amountJpy, lang),
+                  r.monthCount,
+                  fmtNumber(r.yearlyJpy, lang),
+                ])}
+              />
+            )}
+          </>
+        )}
+      </Collapsible>
+
+      {/* ticket medio por trimestre: mes a mes seria ruido */}
+      <Collapsible
+        id="stats.ticket"
+        title={t('stats.ticket')}
+        hint={t('stats.ticketHint')}
+        summary={ticket.length ? `${compact(ticket.at(-1)!.avgJpy)} ¥` : t('common.none')}
+      >
+        {labels.length === 0 ? (
+          <p className="text-sm text-muted">{t('stats.noData')}</p>
+        ) : (
+          <>
+            <div className="mb-3 max-w-xs">
+              <Select
+                value={ticketPick}
+                ariaLabel={t('stats.ticketPick')}
+                onChange={setTicketLabel}
+                options={labels.map((l) => ({ value: l.label, label: l.label || '—' }))}
+              />
+            </div>
+            {ticket.length === 0 ? (
+              <p className="text-sm text-muted">{t('stats.ticketEmpty')}</p>
+            ) : (
+              <>
+                <Lines
+                  data={ticket.map((q, i) => ({
+                    x: i,
+                    label: q.quarterId,
+                    values: { avg: q.avgJpy },
+                  }))}
+                  series={[{ key: 'avg', label: t('stats.ticket'), color: seriesVar(4) }]}
+                  fmtValue={jpy}
+                  fmtTick={compact}
+                  fmtX={(_, label) => label}
+                  title={t('stats.ticket')}
+                  area
+                />
+                <DataTable
+                  caption={t('stats.ticket')}
+                  columns={[t('stats.quarter'), t('stats.ticketCount'), t('stats.avg'), t('common.total')]}
+                  rows={ticket.map((q) => [
+                    q.quarterId,
+                    q.count,
+                    fmtNumber(q.avgJpy, lang),
+                    fmtNumber(q.totalJpy, lang),
+                  ])}
+                />
+              </>
+            )}
+          </>
+        )}
+      </Collapsible>
+
+      <Collapsible
+        id="stats.yoy"
         title={`${t('stats.yoy')} · ${yoy.year}`}
         hint={t('stats.yoyHint')}
-        actions={
+        summary={
           yoy.comparable > 0 ? (
-            <span
-              className="text-sm font-semibold tabular-nums"
-              style={{ color: yoy.ratio <= 0 ? 'var(--good-text)' : 'var(--critical)' }}
-            >
+            <span style={{ color: yoy.ratio <= 0 ? 'var(--good-text)' : 'var(--critical)' }}>
               {fmtSignedPercent(yoy.ratio, lang)}
             </span>
-          ) : undefined
+          ) : (
+            t('common.none')
+          )
         }
       >
         {yoy.comparable === 0 ? (
@@ -491,11 +752,16 @@ export function StatsView({
             )}
           </>
         )}
-      </Card>
+      </Collapsible>
 
-      <Card
+      <Collapsible
+        id="stats.topExpenses"
         title={t('stats.topExpenses')}
-        actions={
+        summary={biggest.length ? `${compact(biggest[0].amount)} ¥` : t('common.none')}
+      >
+        {/* el selector vive dentro: la cabecera plegable no lleva controles,
+            que pulsarlos abriria y cerraria la tarjeta sin querer */}
+        <div className="mb-3">
           <Segmented<BiggestScope>
             label={t('stats.topExpenses')}
             value={biggestScope}
@@ -505,8 +771,7 @@ export function StatsView({
               { id: 'month', label: `${t('stats.scopeMonth')} (${fmtMonth(focusId, lang)})` },
             ]}
           />
-        }
-      >
+        </div>
         <DataTable
           caption={t('stats.topExpenses')}
           columns={[t('fields.label'), t('common.month'), t('common.category'), t('common.jpy')]}
@@ -517,9 +782,14 @@ export function StatsView({
             fmtNumber(e.amount, lang),
           ])}
         />
-      </Card>
+      </Collapsible>
 
-      <Card title={`🎁 ${t('stats.noCost')}`} hint={t('stats.noCostHint')}>
+      <Collapsible
+        id="stats.noCost"
+        title={`🎁 ${t('stats.noCost')}`}
+        hint={t('stats.noCostHint')}
+        summary={gifts.length ? `${compact(sum(gifts.map((g) => g.amount)))} ¥` : t('common.none')}
+      >
         {gifts.length === 0 ? (
           <p className="text-sm text-muted">{t('stats.noCostEmpty')}</p>
         ) : (
@@ -534,7 +804,7 @@ export function StatsView({
             ])}
           />
         )}
-      </Card>
+      </Collapsible>
     </div>
   )
 }

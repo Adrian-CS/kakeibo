@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 /* ------------------------------------------------------------------ *
  * Medida del contenedor: los SVG se dibujan al ancho real, nunca
@@ -164,6 +164,26 @@ export interface StackDatum {
   values: Record<string, number>
   /** linea de referencia opcional (limite del mes) */
   reference?: number
+  /** el mes esta a medias: se dibuja rayado, para no leerlo como uno cerrado */
+  inProgress?: boolean
+  /** total al que iria a parar ese mes si siguiera al ritmo que lleva */
+  projected?: number
+}
+
+/**
+ * Rayado diagonal para "esto no esta cerrado todavia". Se pinta encima de la
+ * barra con el color del papel, asi que funciona igual en claro y en oscuro
+ * y sobre cualquier color de categoria.
+ */
+function HatchPattern({ id }: { id: string }) {
+  return (
+    <defs>
+      <pattern id={id} patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)">
+        <rect width="5" height="5" fill="transparent" />
+        <line x1="0" y1="0" x2="0" y2="5" stroke="var(--surface-1)" strokeWidth="2.5" />
+      </pattern>
+    </defs>
+  )
 }
 
 export function StackedColumns({
@@ -173,6 +193,7 @@ export function StackedColumns({
   fmtValue,
   fmtTick,
   referenceLabel,
+  projectionLabel,
   title,
 }: {
   data: StackDatum[]
@@ -181,14 +202,19 @@ export function StackedColumns({
   fmtValue: (n: number) => string
   fmtTick: (n: number) => string
   referenceLabel?: string
+  /** como se llama la proyeccion del mes en curso en el globo */
+  projectionLabel?: string
   title: string
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const [hover, setHover] = useState<number | null>(null)
+  // useId() trae dos puntos, que rompen las referencias url(#...)
+  const hatchId = `h${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
 
   const totals = data.map((d) => series.reduce((a, s) => a + (d.values[s.key] ?? 0), 0))
   const refMax = Math.max(0, ...data.map((d) => d.reference ?? 0))
-  const max = Math.max(1, ...totals, refMax)
+  const projMax = Math.max(0, ...data.map((d) => d.projected ?? 0))
+  const max = Math.max(1, ...totals, refMax, projMax)
   const ticks = niceTicks(max)
   const top = ticks[ticks.length - 1]
 
@@ -215,6 +241,7 @@ export function StackedColumns({
           aria-label={`${title}. ${data.length} puntos.`}
           className="block overflow-visible"
         >
+          <HatchPattern id={hatchId} />
           {ticks.map((tv) => (
             <g key={tv}>
               <line x1={padL} x2={padL + plotW} y1={y(tv)} y2={y(tv)} stroke={GRID} strokeWidth="1" />
@@ -264,6 +291,32 @@ export function StackedColumns({
                     />
                   )
                 })}
+                {/* el mes a medias va rayado y con su proyeccion de puntos:
+                    asi se ve de un vistazo que no compite con los cerrados */}
+                {d.inProgress && segs.length > 0 && (
+                  <rect
+                    x={x}
+                    y={y(totals[i])}
+                    width={barW}
+                    height={Math.max(0, y(0) - y(totals[i]))}
+                    fill={`url(#${hatchId})`}
+                    opacity="0.55"
+                    pointerEvents="none"
+                  />
+                )}
+                {d.inProgress && d.projected !== undefined && d.projected > totals[i] && (
+                  <rect
+                    x={x}
+                    y={y(d.projected)}
+                    width={barW}
+                    height={Math.max(0, y(totals[i]) - y(d.projected))}
+                    fill="none"
+                    stroke={MUTED}
+                    strokeWidth="1"
+                    strokeDasharray="3 3"
+                    pointerEvents="none"
+                  />
+                )}
                 {d.reference !== undefined && d.reference > 0 && (
                   <line
                     x1={padL + i * band + 1}
@@ -337,9 +390,200 @@ export function StackedColumns({
           {data[hover].reference !== undefined && (
             <TooltipRow label={referenceLabel ?? 'Limite'} value={fmtValue(data[hover].reference!)} />
           )}
+          {data[hover].inProgress && data[hover].projected !== undefined && (
+            <TooltipRow
+              label={projectionLabel ?? '...'}
+              value={fmtValue(data[hover].projected!)}
+            />
+          )}
         </Tooltip>
       )}
       <Legend series={series} />
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ *
+ * Columnas con el cero en medio (tasa de ahorro)
+ * ------------------------------------------------------------------ */
+
+export interface ColumnDatum {
+  key: string
+  axisLabel: string
+  fullLabel: string
+  /** null = ese mes no se puede calcular (sin ingresos, por ejemplo) */
+  value: number | null
+  /** el mes esta a medias: barra rayada */
+  inProgress?: boolean
+  /** a donde llegaria al ritmo que lleva: contorno de puntos */
+  projected?: number | null
+}
+
+/**
+ * Columnas que admiten valores negativos, con el cero como linea de apoyo.
+ * Hace falta para la tasa de ahorro: un mes en que se gasta mas de lo que
+ * entra es negativo, y dibujarlo como si fuera cero seria mentir.
+ *
+ * El mes en curso sale rayado y con su proyeccion a cierre en puntos, por lo
+ * mismo que en las columnas apiladas: a mitad de mes casi no se ha gastado y
+ * la tasa saldria buenisima al lado de meses ya cerrados.
+ */
+export function Columns({
+  data,
+  height = 180,
+  fmtValue,
+  fmtTick,
+  colorOf,
+  title,
+}: {
+  data: ColumnDatum[]
+  height?: number
+  fmtValue: (n: number) => string
+  fmtTick: (n: number) => string
+  /** color de cada barra segun su valor (por defecto, verde/rojo) */
+  colorOf?: (v: number) => string
+  title: string
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>()
+  const [hover, setHover] = useState<number | null>(null)
+  const hatchId = `h${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+
+  const values = data.flatMap((d) => [d.value, d.projected].filter((v): v is number => v != null))
+  const maxV = Math.max(0, ...values)
+  const minV = Math.min(0, ...values)
+  const upTicks = maxV > 0 ? niceTicks(maxV) : [0]
+  const downTicks = minV < 0 ? niceTicks(-minV) : [0]
+  const topV = upTicks[upTicks.length - 1]
+  const bottomV = -downTicks[downTicks.length - 1]
+  const span = Math.max(topV - bottomV, 1e-9)
+  const ticks = [...new Set([...upTicks, ...downTicks.map((t) => -t)])].sort((a, b) => a - b)
+
+  const padL = 44
+  const padR = 8
+  const padT = 10
+  const axisH = 22
+  const plotW = Math.max(0, width - padL - padR)
+  const plotH = height - padT - axisH
+  const band = data.length ? plotW / data.length : plotW
+  const barW = Math.min(24, Math.max(6, band - 10))
+  const y = (v: number) => padT + plotH - ((v - bottomV) / span) * plotH
+  const color = colorOf ?? ((v: number) => (v >= 0 ? 'var(--good)' : 'var(--critical)'))
+  const labelEvery = band < 28 ? Math.ceil(28 / band) : 1
+
+  return (
+    <div ref={ref} className="relative w-full">
+      {width > 0 && (
+        <svg
+          width={width}
+          height={height}
+          role="img"
+          aria-label={`${title}. ${data.length} puntos.`}
+          className="block overflow-visible"
+        >
+          <HatchPattern id={hatchId} />
+          {ticks.map((tv) => (
+            <g key={tv}>
+              <line x1={padL} x2={padL + plotW} y1={y(tv)} y2={y(tv)} stroke={GRID} strokeWidth="1" />
+              <text
+                x={padL - 6}
+                y={y(tv) + 3}
+                textAnchor="end"
+                fontSize="10"
+                fill={MUTED}
+                className="tabular-nums"
+              >
+                {fmtTick(tv)}
+              </text>
+            </g>
+          ))}
+          <line x1={padL} x2={padL + plotW} y1={y(0)} y2={y(0)} stroke={AXIS} strokeWidth="1" />
+
+          {data.map((d, i) => {
+            const x = padL + i * band + (band - barW) / 2
+            const v = d.value
+            const barTop = v === null ? 0 : y(Math.max(0, v))
+            const barH = v === null ? 0 : Math.abs(y(v) - y(0))
+            return (
+              <g key={d.key}>
+                {v !== null && (
+                  <>
+                    <path
+                      d={
+                        v >= 0
+                          ? barPathUp(x, barTop, barW, Math.max(0.75, barH))
+                          : `M${x},${y(0)} h${barW} v${Math.max(0.75, barH)} h${-barW} Z`
+                      }
+                      fill={color(v)}
+                      opacity={hover === null || hover === i ? 1 : 0.5}
+                    />
+                    {d.inProgress && (
+                      <rect
+                        x={x}
+                        y={Math.min(y(0), y(v))}
+                        width={barW}
+                        height={Math.max(0.75, barH)}
+                        fill={`url(#${hatchId})`}
+                        opacity="0.55"
+                        pointerEvents="none"
+                      />
+                    )}
+                  </>
+                )}
+                {d.inProgress && d.projected != null && (
+                  <rect
+                    x={x}
+                    y={Math.min(y(0), y(d.projected))}
+                    width={barW}
+                    height={Math.max(0.75, Math.abs(y(d.projected) - y(0)))}
+                    fill="none"
+                    stroke={MUTED}
+                    strokeWidth="1"
+                    strokeDasharray="3 3"
+                    pointerEvents="none"
+                  />
+                )}
+                {i % labelEvery === 0 && (
+                  <text
+                    x={padL + i * band + band / 2}
+                    y={height - 6}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fill={MUTED}
+                  >
+                    {d.axisLabel}
+                  </text>
+                )}
+                <rect
+                  x={padL + i * band}
+                  y={padT}
+                  width={band}
+                  height={plotH}
+                  fill="transparent"
+                  onPointerEnter={() => setHover(i)}
+                  onPointerMove={() => setHover(i)}
+                  onPointerLeave={() => setHover(null)}
+                  onFocus={() => setHover(i)}
+                  onBlur={() => setHover(null)}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${d.fullLabel}: ${d.value === null ? '—' : fmtValue(d.value)}`}
+                />
+              </g>
+            )
+          })}
+        </svg>
+      )}
+
+      {hover !== null && data[hover] && (
+        <Tooltip x={padL + hover * band + band / 2} y={8} width={width}>
+          <div className="mb-1 font-semibold text-ink">{data[hover].fullLabel}</div>
+          <TooltipRow
+            label={title}
+            value={data[hover].value === null ? '—' : fmtValue(data[hover].value!)}
+            strong
+          />
+        </Tooltip>
+      )}
     </div>
   )
 }
