@@ -469,6 +469,11 @@ describe('ahorros', () => {
   it('convierte divisas y resta las deudas', () => {
     expect(accountToJpy(1000, 'JPY', 0.0056)).toBe(1000)
     expect(accountToJpy(100, 'EUR', 0.005)).toBe(20000)
+    // el yen no tiene centimos: 923 € a 0,0056 son 164.821 ¥ redondos, no
+    // 164.821,42857... (que acababa colandose en los ajustes que guardan un
+    // patrimonio calculado)
+    expect(accountToJpy(923, 'EUR', 0.0056)).toBe(164821)
+    expect(Number.isInteger(accountToJpy(1, 'EUR', 0.0056))).toBe(true)
     const totals = snapshotTotals(
       {
         id: 's1',

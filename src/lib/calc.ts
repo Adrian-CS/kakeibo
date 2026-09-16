@@ -599,8 +599,11 @@ export function projectMonth(data: AppData, monthId: string, today = new Date())
 /** Convierte el saldo de una cuenta a yenes usando el tipo de cambio dado. */
 export function accountToJpy(amount: number, currency: string, fxRate: number): number {
   if (currency === 'JPY') return amount
-  // fxRate es JPY -> moneda secundaria, asi que invertimos
-  return fxRate > 0 ? amount / fxRate : 0
+  // fxRate es JPY -> moneda secundaria, asi que invertimos. Y se redondea:
+  // el yen no tiene centimos, asi que 923 € a 0,0056 son 164.821 ¥, no
+  // 164.821,42857142858 (que es lo que acababa escrito en los ajustes que
+  // guardan un patrimonio calculado, como el punto de partida de la meta)
+  return fxRate > 0 ? Math.round(amount / fxRate) : 0
 }
 
 export interface SnapshotTotals {

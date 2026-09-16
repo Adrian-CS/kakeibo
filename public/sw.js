@@ -5,7 +5,7 @@
  * pidiendo, asi que tras la primera visita la app abre sin conexion y
  * siempre que haya red se sirve la version nueva.
  */
-const CACHE = 'kakeibo-v1'
+const CACHE = 'kakeibo-v2'
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()
@@ -32,7 +32,13 @@ self.addEventListener('fetch', (event) => {
     (async () => {
       const cache = await caches.open(CACHE)
       try {
-        const fresh = await fetch(req)
+        // la navegacion se pide saltandose la cache del navegador: GitHub
+        // Pages sirve el index con max-age, asi que sin esto un despliegue
+        // nuevo podia tardar en verse aunque el service worker pida red
+        // primero. Los .js y .css llevan hash en el nombre, esos si conviene
+        // que los cachee el navegador.
+        const fresh =
+          req.mode === 'navigate' ? await fetch(req, { cache: 'reload' }) : await fetch(req)
         if (fresh && fresh.status === 200) cache.put(req, fresh.clone())
         return fresh
       } catch {

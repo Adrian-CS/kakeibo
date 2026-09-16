@@ -378,7 +378,14 @@ export function SettingsView() {
               >
                 <div className="flex items-center gap-1.5">
                   <NumberInput
-                    value={data.settings.savingsGoalStartJpy ?? ''}
+                    // redondeado tambien al leerlo: un valor con decimales
+                    // guardado por una version anterior no tiene por que
+                    // seguir viendose asi
+                    value={
+                      data.settings.savingsGoalStartJpy == null
+                        ? ''
+                        : Math.round(data.settings.savingsGoalStartJpy)
+                    }
                     placeholder={t('goal.startHint')}
                     onChange={(e) => {
                       const n = parseAmount(e.target.value)
@@ -386,7 +393,7 @@ export function SettingsView() {
                         dispatch({
                           type: 'patchSettings',
                           patch: {
-                            savingsGoalStartJpy: n,
+                            savingsGoalStartJpy: Math.round(n),
                             savingsGoalStartMonthId:
                               data.settings.savingsGoalStartMonthId ?? monthIdOf(),
                           },
@@ -402,7 +409,7 @@ export function SettingsView() {
                       dispatch({
                         type: 'patchSettings',
                         patch: {
-                          savingsGoalStartJpy: netWorthTodayJpy,
+                          savingsGoalStartJpy: Math.round(netWorthTodayJpy),
                           savingsGoalStartMonthId: monthIdOf(),
                         },
                       })
