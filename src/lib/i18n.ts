@@ -53,6 +53,8 @@ const es = {
   'fields.extras': 'Extras fijos',
   'fields.income': 'Ingresos previstos',
   'fields.incomeHint': 'Base de la previsión de ahorro',
+  'fields.actualIncome': 'Ingresos reales',
+  'fields.actualIncomeHint': 'Lo que entró de verdad. Vacío = se usan los previstos',
   'fields.fx': 'Tipo de cambio',
   'fields.fxHint': '1 ¥ = ? (moneda secundaria)',
   'fields.limit': 'Límite del mes',
@@ -115,6 +117,19 @@ const es = {
   'stats.scopeMonth': 'Este mes',
   'stats.noCost': 'Sin coste',
   'stats.noCostHint': 'Apuntes informativos (regalos, etc.): no cuentan en el gasto',
+  'stats.unlogged': 'Gasto sin apuntar',
+  'stats.unloggedHint': 'Lo que salió de tus cuentas y no está apuntado como gasto',
+  'stats.unloggedEmpty':
+    'Hacen falta dos fotos de ahorros que cubran el mes (una hasta el día 1 y otra desde el último) y los ingresos del mes.',
+  'stats.unloggedFormula':
+    'Entraron {income} y el patrimonio cambió {delta}: salieron {real}. Apuntado: {logged}.',
+  'stats.unloggedWindow': 'Entre las fotos del {from} y el {to}',
+  'stats.unloggedForecastWarn':
+    'Algún mes usa los ingresos previstos porque no hay reales: ahí esto también recoge lo que cobraste de más o de menos. Ponlos en la pestaña Mes.',
+  'stats.unloggedSlack': 'Las fotos no caen justo en el mes: la ventana se pasa {n} días.',
+  'stats.unloggedAvg': 'Media por mes',
+  'stats.unloggedNote':
+    'Esta cifra se traga todo lo que mueva el patrimonio sin ser gasto: cuentas que no están en las fotos, inversiones que suben o bajan solas y lo que cobraste distinto de lo que pusiste. Es un aviso de por dónde se escapa el dinero, no una factura.',
   'stats.savingsRate': 'Tasa de ahorro por mes',
   'stats.savingsRateHint': 'Lo que te queda cada mes, sobre lo que entra',
   'stats.savingsRateNoIncome':
@@ -463,6 +478,8 @@ const ja: Partial<Record<Key, string>> = {
   'fields.extras': '固定費',
   'fields.income': '見込み収入',
   'fields.incomeHint': '貯金の見込みの元になる金額',
+  'fields.actualIncome': '実際の収入',
+  'fields.actualIncomeHint': '実際に入った額。空欄なら見込みを使います',
   'fields.fx': '為替相場',
   'fields.fxHint': '1円 = ？（サブ通貨）',
   'fields.limit': '今月の上限',
@@ -522,6 +539,18 @@ const ja: Partial<Record<Key, string>> = {
   'stats.scopeMonth': '今月',
   'stats.noCost': '無償',
   'stats.noCostHint': '記録だけの費目（贈り物など）: 出費には入らない',
+  'stats.unlogged': '記入もれの出費',
+  'stats.unloggedHint': '口座から出たのに、出費として記入されていない分',
+  'stats.unloggedEmpty':
+    'その月をはさむ記録が二つ（1日までと末日以降）と、その月の収入が必要です。',
+  'stats.unloggedFormula': '{income}入って純資産が{delta}動いたので、{real}出ました。記入済み：{logged}。',
+  'stats.unloggedWindow': '{from}と{to}の記録のあいだ',
+  'stats.unloggedForecastWarn':
+    '実際の収入がない月は見込みを使うので、多かった分・少なかった分もここに混ざります。「月」タブで入れられます。',
+  'stats.unloggedSlack': '記録が月ちょうどではありません：{n}日はみ出しています。',
+  'stats.unloggedAvg': '月平均',
+  'stats.unloggedNote':
+    '出費でなくても純資産を動かすものは全部ここに入ります：記録にない口座、勝手に増減する投資、見込みと違った収入。請求書ではなく、お金の抜け道の手がかりとして読んでください。',
   'stats.savingsRate': '月ごとの貯蓄率',
   'stats.savingsRateHint': '入ってきたお金のうち、毎月残る分',
   'stats.savingsRateNoIncome': '設定で見込み収入を入れると、毎月いくら残るか出ます。',
@@ -854,6 +883,8 @@ const en: Partial<Record<Key, string>> = {
   'fields.extras': 'Fixed extras',
   'fields.income': 'Expected income',
   'fields.incomeHint': 'Basis for the savings projection',
+  'fields.actualIncome': 'Actual income',
+  'fields.actualIncomeHint': 'What actually came in. Empty = the expected figure is used',
   'fields.fx': 'Exchange rate',
   'fields.fxHint': '1 ¥ = ? (secondary currency)',
   'fields.limit': 'Month limit',
@@ -913,6 +944,19 @@ const en: Partial<Record<Key, string>> = {
   'stats.scopeMonth': 'This month',
   'stats.noCost': 'No cost',
   'stats.noCostHint': 'Informational entries (gifts, etc.): not counted as spending',
+  'stats.unlogged': 'Spending not logged',
+  'stats.unloggedHint': 'What left your accounts and is not logged as an expense',
+  'stats.unloggedEmpty':
+    'It needs two savings snapshots bracketing the month (one up to the 1st, one from the last day) and the income for that month.',
+  'stats.unloggedFormula':
+    '{income} came in and net worth moved {delta}, so {real} went out. Logged: {logged}.',
+  'stats.unloggedWindow': 'Between the snapshots of {from} and {to}',
+  'stats.unloggedForecastWarn':
+    'Some month falls back to expected income because there is no actual figure: there, this also picks up earning more or less than planned. You can set it in the Month tab.',
+  'stats.unloggedSlack': 'The snapshots do not land on the month: the window overshoots by {n} days.',
+  'stats.unloggedAvg': 'Monthly average',
+  'stats.unloggedNote':
+    'This figure swallows anything that moves your net worth without being spending: accounts missing from the snapshots, investments moving on their own, and income that differed from what you entered. Read it as a hint about where money leaks, not as a bill.',
   'stats.savingsRate': 'Savings rate by month',
   'stats.savingsRateHint': 'What is left each month, against what comes in',
   'stats.savingsRateNoIncome': 'Set your expected income in Settings to see what is left each month.',

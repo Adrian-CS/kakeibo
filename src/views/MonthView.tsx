@@ -720,6 +720,18 @@ export function MonthView({
                 }}
               />
             </Field>
+            {/* lo que de verdad entro: solo lo usa "gasto sin apuntar", que
+                con una prevision no podria distinguir el gasto que falta de
+                haber cobrado distinto */}
+            <Field label={t('fields.actualIncome')} hint={t('fields.actualIncomeHint')}>
+              <NumberInput
+                value={month?.actualIncomeJpy ?? ''}
+                onChange={(e) => {
+                  const n = parseAmount(e.target.value)
+                  if (n !== null) patch({ actualIncomeJpy: n })
+                }}
+              />
+            </Field>
             <Field label={t('fields.fx')} hint={`1 ¥ = ${totals.fxRate} ${cur}`}>
               <div className="flex items-center gap-1.5">
                 <NumberInput

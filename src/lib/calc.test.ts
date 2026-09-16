@@ -15,6 +15,7 @@ import {
   leakJpy,
   median,
   monthIncomeJpy,
+  monthActualIncomeJpy,
   monthsBetween,
   monthsOfRunway,
   monthBurn,
@@ -28,6 +29,7 @@ import {
   projectSavings,
   mergeNetWorthMonthly,
   mergeSavingsBands,
+  mergeUnloggedSpend,
   mergeSavingsRateSeries,
   netWorthMonthly,
   percentiles,
@@ -44,6 +46,8 @@ import {
   snapshotTotals,
   topExpenses,
   topLabels,
+  unloggedSpend,
+  unloggedSpendSeries,
   upcomingExpenses,
 } from './calc'
 import { emptyData } from './defaults'
@@ -1450,6 +1454,137 @@ describe('ticket medio por trimestre', () => {
   it('un comercio que no existe no da serie', () => {
     expect(quarterlyTicket(seed(), 'no existe')).toEqual([])
     expect(quarterlyTicket(seed(), '  ')).toEqual([])
+  })
+})
+
+
+/* ------------------------------------------------------------------ *
+ * Gasto sin apuntar
+ * ------------------------------------------------------------------ */
+
+describe('gasto sin apuntar', () => {
+  /**
+   * Julio: entran 250.000, se apuntan 100.000 de gasto y el patrimonio sube
+   * de 500.000 a 570.000. O sea que salieron 180.000 y solo 100.000 estan
+   * apuntados: faltan 80.000 por apuntar.
+   */
+  function seed(): AppData {
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    return {
+      ...base,
+      months: [
+        {
+          id: '2026-07',
+          rentJpy: 0,
+          extras: [],
+          fxRate: 0.0056,
+          limitJpy: 200000,
+          incomeJpy: 250000,
+          actualIncomeJpy: 250000,
+        },
+      ],
+      expenses: [
+        { id: 'e1', monthId: '2026-07', categoryId: 'eating_out', label: 'x', amount: 100000, kind: 'normal' },
+      ],
+      snapshots: [
+        { id: 's1', date: '2026-07-01', accounts: [{ id: 'a', name: 'banco', amount: 500000, currency: 'JPY' }] },
+        { id: 's2', date: '2026-08-01', accounts: [{ id: 'b', name: 'banco', amount: 570000, currency: 'JPY' }] },
+      ],
+    }
+  }
+
+  it('saca lo que salio de verdad y lo que falta por apuntar', () => {
+    const u = unloggedSpend(seed(), '2026-07')!
+    expect(u.deltaJpy).toBe(70000)
+    expect(u.realSpendJpy).toBe(180000)
+    expect(u.loggedJpy).toBe(100000)
+    expect(u.unloggedJpy).toBe(80000)
+    expect(u.usedForecastIncome).toBe(false)
+    expect(u.fromDate).toBe('2026-07-01')
+    expect(u.toDate).toBe('2026-08-01')
+    // la ventana cubre el mes justo, sin pasarse por ningun lado
+    expect(u.slackDays).toBe(1)
+  })
+
+  it('sale negativo si apuntaste mas de lo que salio', () => {
+    const data = seed()
+    const conDeMas: AppData = {
+      ...data,
+      expenses: [{ ...data.expenses[0], amount: 200000 }],
+    }
+    expect(unloggedSpend(conDeMas, '2026-07')!.unloggedJpy).toBe(-20000)
+  })
+
+  it('avisa cuando ha tenido que usar los ingresos previstos', () => {
+    const data = seed()
+    const sinReales: AppData = {
+      ...data,
+      months: [{ ...data.months[0], actualIncomeJpy: undefined }],
+    }
+    const u = unloggedSpend(sinReales, '2026-07')!
+    expect(u.usedForecastIncome).toBe(true)
+    // con los previstos la cuenta sale igual, pero ya no es de fiar del todo
+    expect(u.incomeJpy).toBe(250000)
+  })
+
+  it('manda el ingreso real sobre el previsto', () => {
+    const data = seed()
+    // cobraste 30.000 menos de lo previsto: eso no es gasto sin apuntar
+    const menos: AppData = {
+      ...data,
+      months: [{ ...data.months[0], actualIncomeJpy: 220000 }],
+    }
+    expect(monthActualIncomeJpy(menos, '2026-07')).toBe(220000)
+    expect(unloggedSpend(menos, '2026-07')!.unloggedJpy).toBe(50000)
+  })
+
+  it('un 0 en el ingreso real cuenta como "sin poner"', () => {
+    const data = seed()
+    const cero: AppData = { ...data, months: [{ ...data.months[0], actualIncomeJpy: 0 }] }
+    expect(monthActualIncomeJpy(cero, '2026-07')).toBeNull()
+    expect(unloggedSpend(cero, '2026-07')!.usedForecastIncome).toBe(true)
+  })
+
+  it('dice cuantos dias se sale la ventana del mes', () => {
+    const data = seed()
+    const anchas: AppData = {
+      ...data,
+      snapshots: [
+        { ...data.snapshots[0], date: '2026-06-25' },
+        { ...data.snapshots[1], date: '2026-08-05' },
+      ],
+    }
+    // seis dias por delante del mes y cinco por detras
+    expect(unloggedSpend(anchas, '2026-07')!.slackDays).toBe(11)
+  })
+
+  it('sin las dos fotos, o sin ingresos, no hay descuadre que calcular', () => {
+    const data = seed()
+    expect(unloggedSpend({ ...data, snapshots: [data.snapshots[0]] }, '2026-07')).toBeNull()
+    expect(unloggedSpend({ ...data, snapshots: [] }, '2026-07')).toBeNull()
+    const sinIngresos: AppData = {
+      ...data,
+      settings: { ...data.settings, defaultIncomeJpy: 0 },
+      months: [{ ...data.months[0], incomeJpy: 0, actualIncomeJpy: 0 }],
+    }
+    expect(unloggedSpend(sinIngresos, '2026-07')).toBeNull()
+    // y un mes anterior a la primera foto tampoco
+    expect(unloggedSpend(data, '2026-05')).toBeNull()
+  })
+
+  it('la serie salta los meses que no se pueden calcular', () => {
+    expect(unloggedSpendSeries(seed(), ['2026-05', '2026-06', '2026-07']).map((u) => u.monthId)).toEqual([
+      '2026-07',
+    ])
+  })
+
+  it('al juntar dos documentos se suman los dos lados', () => {
+    const mio = unloggedSpendSeries(seed(), ['2026-07'])
+    const merged = mergeUnloggedSpend([mio, mio])
+    expect(merged[0].unloggedJpy).toBe(160000)
+    expect(merged[0].incomeJpy).toBe(500000)
+    // y con un solo lado no cambia nada
+    expect(mergeUnloggedSpend([mio, []])).toEqual(mio)
   })
 })
 

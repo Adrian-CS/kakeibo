@@ -1467,6 +1467,153 @@ export function quarterlyTicket(
 }
 
 /* ------------------------------------------------------------------ *
+ * Gasto que no esta apuntado
+ * ------------------------------------------------------------------ */
+
+/**
+ * Lo que de verdad entro ese mes, si se ha puesto; null si no. A diferencia
+ * de `monthIncomeJpy` (que es una prevision y cae a la de Ajustes), esto solo
+ * devuelve un numero cuando hay un dato real detras: el descuadre no se puede
+ * calcular con una estimacion sin mentir.
+ */
+export function monthActualIncomeJpy(data: AppData, monthId: string): number | null {
+  const own = getMonth(data, monthId)?.actualIncomeJpy
+  return typeof own === 'number' && own > 0 ? own : null
+}
+
+export interface UnloggedSpend {
+  monthId: string
+  /** fecha de la foto con la que se abre la ventana */
+  fromDate: string
+  /** fecha de la foto con la que se cierra */
+  toDate: string
+  /** dias de la ventana que caen fuera del mes (cuanto se pasa por cada lado) */
+  slackDays: number
+  incomeJpy: number
+  /** true si no habia ingresos reales y se han usado los previstos */
+  usedForecastIncome: boolean
+  startNetJpy: number
+  endNetJpy: number
+  /** lo que cambio el patrimonio entre las dos fotos */
+  deltaJpy: number
+  /** lo que tienes apuntado ese mes (alquiler y extras incluidos) */
+  loggedJpy: number
+  /** lo que salio de verdad: ingresos menos lo que subio el patrimonio */
+  realSpendJpy: number
+  /** lo que salio y no esta apuntado. Negativo = apuntaste mas de lo que salio */
+  unloggedJpy: number
+}
+
+/** Dias enteros entre dos 'YYYY-MM-DD' (siempre >= 0). */
+function daysBetween(from: string, to: string): number {
+  const a = Date.parse(`${from}T00:00:00Z`)
+  const b = Date.parse(`${to}T00:00:00Z`)
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0
+  return Math.max(0, Math.round((b - a) / 86400000))
+}
+
+/**
+ * Cuanto se gasto de verdad ese mes y cuanto de eso no esta apuntado.
+ *
+ * La cuenta es la del sentido comun, no hay magia:
+ *
+ *     gasto real  = ingresos - lo que subio el patrimonio
+ *     sin apuntar = gasto real - lo que tienes apuntado
+ *
+ * El patrimonio sale de las fotos de Ahorros: la ultima hecha hasta el primer
+ * dia del mes y la primera hecha a partir del ultimo, para que la ventana
+ * cubra el mes entero. Sin esas dos fotos no hay nada que comparar y devuelve
+ * null, igual que sin ingresos.
+ *
+ * Que se traga este numero, y por eso conviene leerlo con cabeza:
+ *   - si los ingresos son los previstos y no los reales, un mes que cobraste
+ *     de mas sale como "gasto sin apuntar" (`usedForecastIncome` lo avisa);
+ *   - cuentas que no salen en las fotos, o inversiones que suben y bajan
+ *     solas, mueven el patrimonio sin que nadie haya gastado nada;
+ *   - las fotos casi nunca caen justo el 1 y el 31: `slackDays` dice cuantos
+ *     dias se sale la ventana del mes.
+ *
+ * El tipo de cambio no estorba: `snapshotSeries` valora todas las fotos al
+ * mismo tipo, asi que la diferencia entre dos no se mueve porque el euro suba.
+ */
+export function unloggedSpend(data: AppData, monthId: string): UnloggedSpend | null {
+  if (!isValidMonthId(monthId)) return null
+  const firstDay = `${monthId}-01`
+  const lastDay = `${monthId}-${String(daysInMonth(monthId)).padStart(2, '0')}`
+
+  const series = snapshotSeries(data)
+  // la ultima foto hasta el primer dia del mes abre la ventana, y la primera
+  // a partir del ultimo dia la cierra: asi el mes queda cubierto entero
+  const start = [...series].reverse().find((s) => s.date <= firstDay)
+  const end = series.find((s) => s.date >= lastDay)
+  if (!start || !end || start.date >= end.date) return null
+
+  const actual = monthActualIncomeJpy(data, monthId)
+  const incomeJpy = actual ?? monthIncomeJpy(data, monthId)
+  if (incomeJpy <= 0) return null
+
+  const deltaJpy = end.netJpy - start.netJpy
+  const loggedJpy = monthTotals(data, monthId).totalJpy
+  const realSpendJpy = incomeJpy - deltaJpy
+
+  return {
+    monthId,
+    fromDate: start.date,
+    toDate: end.date,
+    slackDays: daysBetween(start.date, firstDay) + daysBetween(lastDay, end.date),
+    incomeJpy,
+    usedForecastIncome: actual === null,
+    startNetJpy: start.netJpy,
+    endNetJpy: end.netJpy,
+    deltaJpy,
+    loggedJpy,
+    realSpendJpy,
+    unloggedJpy: realSpendJpy - loggedJpy,
+  }
+}
+
+/** `unloggedSpend` de varios meses, saltando los que no se pueden calcular. */
+export function unloggedSpendSeries(data: AppData, monthIds: string[]): UnloggedSpend[] {
+  return monthIds
+    .map((id) => unloggedSpend(data, id))
+    .filter((x): x is UnloggedSpend => x !== null)
+}
+
+/**
+ * Junta el descuadre de varios documentos mes a mes, sumando ingresos, gasto
+ * y patrimonio de cada lado. Un mes que solo tiene uno de los dos lados
+ * cuenta igual, con lo que se sepa: es mejor que dejar el mes fuera.
+ */
+export function mergeUnloggedSpend(sides: UnloggedSpend[][]): UnloggedSpend[] {
+  const withData = sides.filter((s) => s.length)
+  if (withData.length <= 1) return withData[0] ?? []
+
+  const byMonth = new Map<string, UnloggedSpend>()
+  for (const side of withData) {
+    for (const p of side) {
+      const cur = byMonth.get(p.monthId)
+      if (!cur) {
+        byMonth.set(p.monthId, { ...p })
+        continue
+      }
+      cur.incomeJpy += p.incomeJpy
+      cur.startNetJpy += p.startNetJpy
+      cur.endNetJpy += p.endNetJpy
+      cur.deltaJpy += p.deltaJpy
+      cur.loggedJpy += p.loggedJpy
+      cur.realSpendJpy += p.realSpendJpy
+      cur.unloggedJpy += p.unloggedJpy
+      cur.usedForecastIncome = cur.usedForecastIncome || p.usedForecastIncome
+      // la ventana que se enseña es la mas ancha de las dos
+      if (p.fromDate < cur.fromDate) cur.fromDate = p.fromDate
+      if (p.toDate > cur.toDate) cur.toDate = p.toDate
+      cur.slackDays = Math.max(cur.slackDays, p.slackDays)
+    }
+  }
+  return [...byMonth.values()].sort((a, b) => a.monthId.localeCompare(b.monthId))
+}
+
+/* ------------------------------------------------------------------ *
  * Ayudas de presentacion
  * ------------------------------------------------------------------ */
 

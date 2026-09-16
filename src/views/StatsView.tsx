@@ -8,6 +8,7 @@ import {
   datedCount,
   hasRealSpend,
   mergeSavingsRateSeries,
+  mergeUnloggedSpend,
   monthBurn,
   monthTotals,
   noCostItems,
@@ -17,6 +18,7 @@ import {
   savingsRateSeries,
   shiftMonth,
   sum,
+  unloggedSpendSeries,
   topExpenses,
   topLabels,
 } from '../lib/calc'
@@ -35,6 +37,7 @@ import { emptyData, monthIdOf } from '../lib/defaults'
 import { useHousehold, type HouseholdViewScope } from '../state/household'
 import {
   fmtCompact,
+  fmtDate,
   fmtJpy,
   fmtMoney,
   fmtMonth,
@@ -174,6 +177,13 @@ export function StatsView({
     [sides, monthIds.join(',')],
   )
   const hasIncome = rateSeries.some((p) => p.rate !== null)
+  const unlogged = useMemo(
+    () => mergeUnloggedSpend(sides.map((d) => unloggedSpendSeries(d, monthIds))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sides, monthIds.join(',')],
+  )
+  const unloggedTotalJpy = sum(unlogged.map((u) => u.unloggedJpy))
+  const lastUnlogged = unlogged.at(-1)
   // `recurringItems` y `quarterlyTicket` solo leen `expenses`, asi que para
   // la vista combinada basta con juntar los apuntes de los dos
   const bothSides = useMemo(
@@ -430,6 +440,89 @@ export function StatsView({
           </>
         ) : (
           <p className="text-sm text-muted">{t('stats.savingsRateNoIncome')}</p>
+        )}
+      </Collapsible>
+
+      {/* lo que salio de las cuentas y no esta apuntado */}
+      <Collapsible
+        id="stats.unlogged"
+        title={t('stats.unlogged')}
+        hint={t('stats.unloggedHint')}
+        summary={unlogged.length ? `${compact(unloggedTotalJpy)} ¥` : t('common.none')}
+      >
+        {unlogged.length === 0 ? (
+          <p className="text-sm text-muted">{t('stats.unloggedEmpty')}</p>
+        ) : (
+          <>
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <StatTile label={t('common.total')} value={jpy(unloggedTotalJpy)} />
+              <StatTile
+                label={t('stats.unloggedAvg')}
+                value={jpy(unloggedTotalJpy / unlogged.length)}
+                hint={`${unlogged.length} ${t(unlogged.length === 1 ? 'stats.monthsOne' : 'stats.months')}`}
+              />
+            </div>
+            <Columns
+              data={unlogged.map((u) => ({
+                key: u.monthId,
+                axisLabel: fmtMonthAxis(u.monthId, lang),
+                fullLabel: fmtMonth(u.monthId, lang, true),
+                value: u.unloggedJpy,
+              }))}
+              // al reves que en la tasa de ahorro: aqui lo alto es lo malo, y
+              // un descuadre negativo (apuntaste de mas) no es una virtud
+              colorOf={(v) => (v >= 0 ? 'var(--serious)' : 'var(--axis)')}
+              fmtValue={jpy}
+              fmtTick={compact}
+              title={t('stats.unlogged')}
+            />
+            {lastUnlogged && (
+              <p className="mt-2 text-xs text-ink-2">
+                <span className="font-semibold">{fmtMonth(lastUnlogged.monthId, lang, true)}</span>{' '}
+                {t('stats.unloggedFormula', {
+                  income: jpy(lastUnlogged.incomeJpy),
+                  // con el signo delante: "cambió +25.000" se lee, "cambió
+                  // 25.000" no dice si subió o bajó
+                  delta: `${lastUnlogged.deltaJpy >= 0 ? '+' : ''}${jpy(lastUnlogged.deltaJpy)}`,
+                  real: jpy(lastUnlogged.realSpendJpy),
+                  logged: jpy(lastUnlogged.loggedJpy),
+                })}
+                <span className="mt-0.5 block text-[11px] text-muted">
+                  {t('stats.unloggedWindow', {
+                    from: fmtDate(lastUnlogged.fromDate, lang),
+                    to: fmtDate(lastUnlogged.toDate, lang),
+                  })}
+                  {lastUnlogged.slackDays > 7 &&
+                    ` · ${t('stats.unloggedSlack', { n: lastUnlogged.slackDays })}`}
+                </span>
+              </p>
+            )}
+            {unlogged.some((u) => u.usedForecastIncome) && (
+              <p className="mt-2 text-[11px]" style={{ color: 'var(--serious)' }}>
+                {t('stats.unloggedForecastWarn')}
+              </p>
+            )}
+            <p className="mt-2 text-[11px] text-muted">{t('stats.unloggedNote')}</p>
+            {tables && (
+              <DataTable
+                caption={t('stats.unlogged')}
+                columns={[
+                  t('common.month'),
+                  t('fields.income'),
+                  t('savings.net'),
+                  t('totals.total'),
+                  t('stats.unlogged'),
+                ]}
+                rows={unlogged.map((u) => [
+                  fmtMonth(u.monthId, lang),
+                  fmtNumber(u.incomeJpy, lang),
+                  fmtNumber(u.deltaJpy, lang),
+                  fmtNumber(u.loggedJpy, lang),
+                  fmtNumber(u.unloggedJpy, lang),
+                ])}
+              />
+            )}
+          </>
         )}
       </Collapsible>
 

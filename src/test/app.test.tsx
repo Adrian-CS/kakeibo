@@ -507,6 +507,70 @@ describe('la aplicacion', () => {
     expect(screen.getByLabelText('Cuánto quieres ahorrar')).toBeInTheDocument()
   })
 
+
+  it('Estadisticas dice cuanto salio de las cuentas sin estar apuntado', async () => {
+    const user = userEvent.setup()
+    window.location.hash = `#/month/${monthIdOf()}`
+    const base = emptyData()
+    const closed = shiftMonth(monthIdOf(), -1)
+    const data: AppData = {
+      ...base,
+      months: [
+        {
+          id: closed,
+          rentJpy: 0,
+          extras: [],
+          fxRate: 0.0056,
+          limitJpy: 200000,
+          incomeJpy: 200000,
+          actualIncomeJpy: 200000,
+        },
+      ],
+      expenses: [
+        { id: 'e1', monthId: closed, categoryId: 'eating_out', label: 'uber', amount: 100000, kind: 'normal' },
+      ],
+      snapshots: [
+        { id: 's1', date: `${closed}-01`, accounts: [{ id: 'a', name: 'banco', amount: 500000, currency: 'JPY' }] },
+        { id: 's2', date: `${monthIdOf()}-01`, accounts: [{ id: 'b', name: 'banco', amount: 570000, currency: 'JPY' }] },
+      ],
+    }
+    render(<App initial={data} />)
+    await user.click(screen.getAllByRole('button', { name: /Estadísticas/ })[0])
+
+    // entraron 200.000 y el patrimonio subio 70.000: salieron 130.000, de los
+    // que solo 100.000 estan apuntados
+    const card = screen.getByRole('button', { name: /Gasto sin apuntar/ })
+    expect(card).toBeInTheDocument()
+    expect(screen.getByText(/salieron 130\.000 ¥/)).toBeInTheDocument()
+    expect(screen.getAllByText('30.000 ¥').length).toBeGreaterThan(0)
+    // los ingresos son reales, asi que no sale el aviso
+    expect(screen.queryByText(/ingresos previstos porque no hay reales/)).not.toBeInTheDocument()
+  })
+
+  it('avisa cuando el descuadre se ha calculado con ingresos previstos', async () => {
+    const user = userEvent.setup()
+    window.location.hash = `#/month/${monthIdOf()}`
+    const base = emptyData()
+    const closed = shiftMonth(monthIdOf(), -1)
+    const data: AppData = {
+      ...base,
+      settings: { ...base.settings, defaultIncomeJpy: 200000 },
+      months: [
+        { id: closed, rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 200000, incomeJpy: 200000 },
+      ],
+      expenses: [
+        { id: 'e1', monthId: closed, categoryId: 'eating_out', label: 'uber', amount: 100000, kind: 'normal' },
+      ],
+      snapshots: [
+        { id: 's1', date: `${closed}-01`, accounts: [{ id: 'a', name: 'banco', amount: 500000, currency: 'JPY' }] },
+        { id: 's2', date: `${monthIdOf()}-01`, accounts: [{ id: 'b', name: 'banco', amount: 570000, currency: 'JPY' }] },
+      ],
+    }
+    render(<App initial={data} />)
+    await user.click(screen.getAllByRole('button', { name: /Estadísticas/ })[0])
+    expect(screen.getByText(/ingresos previstos porque no hay reales/)).toBeInTheDocument()
+  })
+
   it('con el ajuste de sobregasto apagado, pasarse de limite no toca Ahorros', async () => {
     const user = userEvent.setup()
     window.location.hash = `#/month/${monthIdOf()}`

@@ -73,6 +73,12 @@ export interface MonthData {
   limitJpy: number
   /** ingresos previstos del mes, en yenes: base de la prevision de ahorro */
   incomeJpy: number
+  /**
+   * Lo que de verdad entro ese mes, si se sabe. Solo lo usa "gasto sin
+   * apuntar" (ver `unloggedSpend`), que necesita ingresos de verdad y no una
+   * prevision. Vacio o 0 = sin poner: entonces se cae a `incomeJpy`.
+   */
+  actualIncomeJpy?: number
   note?: string
   updatedAt?: string
 }
