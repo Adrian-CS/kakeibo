@@ -1044,6 +1044,113 @@ describe('prevision', () => {
       expect(goal.missingJpy).toBe(500000)
     })
 
+    describe('modo "ahorrar X"', () => {
+      function saving(anchorMode: 'fixed' | 'rolling', extra: Partial<AppData['settings']> = {}): AppData {
+        const seed = forecastSeed()
+        return {
+          ...seed,
+          settings: {
+            ...seed.settings,
+            savingsGoalJpy: 80000,
+            savingsGoalMonths: 3,
+            savingsGoalMode: 'save',
+            savingsGoalAnchor: anchorMode,
+            ...extra,
+          },
+        }
+      }
+
+      it('contado desde hoy mide ritmo: el objetivo es lo que tienes mas la meta', () => {
+        const goal = savingsGoal(saving('rolling'), today)!
+        expect(goal.targetJpy).toBe(580000)
+        expect(goal.baseJpy).toBe(500000)
+        // en este modo lo que falta es siempre la meta entera: no acumula
+        expect(goal.missingJpy).toBe(80000)
+        expect(goal.savedJpy).toBe(0)
+        expect(goal.dueMonthId).toBe('2026-11')
+        expect(goal.monthsLeft).toBe(3)
+        expect(goal.requiredMonthlyJpy).toBeCloseTo(80000 / 3, 6)
+        // a 135000 al mes se juntan de sobra en un mes
+        expect(goal.etaMonthId).toBe('2026-09')
+        expect(goal.onTrack).toBe(true)
+      })
+
+      it('contado desde el dia en que se fijo mide progreso: acumula lo ahorrado', () => {
+        const goal = savingsGoal(
+          saving('fixed', { savingsGoalStartJpy: 450000, savingsGoalStartMonthId: '2026-06' }),
+          today,
+        )!
+        expect(goal.targetJpy).toBe(530000)
+        // de 450000 a 500000: llevas 50000 de los 80000
+        expect(goal.savedJpy).toBe(50000)
+        expect(goal.missingJpy).toBe(30000)
+        // el plazo no se mueve: fijada en junio a tres meses, vence en septiembre
+        expect(goal.dueMonthId).toBe('2026-09')
+        expect(goal.monthsLeft).toBe(1)
+        // lo que falta, entre el mes que queda (no entre los tres del plazo)
+        expect(goal.requiredMonthlyJpy).toBe(30000)
+        expect(goal.onTrack).toBe(true)
+      })
+
+      it('un mes malo aleja del objetivo solo en el modo de progreso', () => {
+        // el patrimonio cae de 500000 a 400000
+        const worse = (data: AppData): AppData => ({
+          ...data,
+          snapshots: [
+            ...data.snapshots,
+            {
+              id: 's2',
+              date: '2026-08-10',
+              accounts: [{ id: 'a2', name: 'banco', amount: 400000, currency: 'JPY' }],
+            },
+          ],
+        })
+        const fixed = savingsGoal(
+          worse(saving('fixed', { savingsGoalStartJpy: 450000, savingsGoalStartMonthId: '2026-06' })),
+          today,
+        )!
+        // sigue faltando llegar a 530000, y ahora has perdido terreno
+        expect(fixed.targetJpy).toBe(530000)
+        expect(fixed.savedJpy).toBe(-50000)
+        expect(fixed.missingJpy).toBe(130000)
+
+        const rolling = savingsGoal(worse(saving('rolling')), today)!
+        // aqui la meta baja contigo: siguen siendo 80000 desde donde estes
+        expect(rolling.targetJpy).toBe(480000)
+        expect(rolling.missingJpy).toBe(80000)
+      })
+
+      it('con el plazo vencido, lo que falta es para ya y no se llega a tiempo', () => {
+        const goal = savingsGoal(
+          saving('fixed', { savingsGoalStartJpy: 450000, savingsGoalStartMonthId: '2026-01' }),
+          today,
+        )!
+        expect(goal.dueMonthId).toBe('2026-04')
+        expect(goal.monthsLeft).toBe(0)
+        // sin meses por delante no se divide entre cero: es todo de golpe
+        expect(goal.requiredMonthlyJpy).toBe(30000)
+        expect(goal.onTrack).toBe(false)
+      })
+
+      it('sin punto de partida guardado empieza a contar hoy, en vez de romperse', () => {
+        const goal = savingsGoal(saving('fixed'), today)!
+        expect(goal.baseJpy).toBe(500000)
+        expect(goal.targetJpy).toBe(580000)
+        expect(goal.dueMonthId).toBe('2026-11')
+      })
+    })
+
+    it('un documento guardado antes de que hubiera modos sigue siendo "tener X" desde hoy', () => {
+      const seed = withGoal(1000000, 12)
+      const settings = { ...seed.settings } as Partial<AppData['settings']>
+      delete settings.savingsGoalMode
+      delete settings.savingsGoalAnchor
+      const old = { ...seed, settings: settings as AppData['settings'] }
+      expect(savingsGoal(old, today)).toEqual(savingsGoal(seed, today))
+      expect(savingsGoal(old, today)!.mode).toBe('target')
+      expect(savingsGoal(old, today)!.anchor).toBe('rolling')
+    })
+
     it('sin meta puesta o sin foto no hay nada que decir', () => {
       expect(savingsGoal(forecastSeed(), today)).toBeNull()
       expect(savingsGoal({ ...withGoal(1000000, 12), snapshots: [] }, today)).toBeNull()

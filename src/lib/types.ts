@@ -112,13 +112,32 @@ export interface Settings {
   /** ingresos previstos por defecto, en yenes: base de la prevision de ahorro */
   defaultIncomeJpy: number
   /**
-   * Meta de ahorro: "de aqui a `savingsGoalMonths` meses quiero tener
-   * `savingsGoalJpy` de patrimonio". 0 = sin meta, y entonces la prevision no
-   * enseña ni la linea ni la cuenta atras.
+   * Meta de ahorro. 0 = sin meta, y entonces la prevision no enseña ni la
+   * linea ni la cuenta atras. Que significa la cifra lo dice
+   * `savingsGoalMode`.
    */
   savingsGoalJpy: number
-  /** plazo de la meta, en meses desde hoy */
+  /** plazo de la meta, en meses */
   savingsGoalMonths: number
+  /**
+   * Las dos maneras de decir una meta:
+   *   'target' -> "quiero TENER 1.500.000" (cifra absoluta de patrimonio)
+   *   'save'   -> "quiero AHORRAR 80.000" (sobre el punto de partida)
+   */
+  savingsGoalMode: 'target' | 'save'
+  /**
+   * Desde cuando se cuentan la meta y su plazo:
+   *   'fixed'   -> desde el dia que se fijo (`savingsGoalStartJpy` y
+   *                `savingsGoalStartMonthId`). Mide progreso: un mes malo te
+   *                aleja del objetivo y el plazo no se mueve.
+   *   'rolling' -> siempre desde hoy. Mide ritmo: un mes malo no te quita lo
+   *                andado, pero tampoco se acumula lo ahorrado.
+   */
+  savingsGoalAnchor: 'fixed' | 'rolling'
+  /** patrimonio del dia en que se fijo la meta (solo cuenta con 'fixed') */
+  savingsGoalStartJpy?: number
+  /** 'YYYY-MM' en que se fijo la meta (solo cuenta con 'fixed') */
+  savingsGoalStartMonthId?: string
   /**
    * Plantilla de facturas fijas (agua, luz...) para un mes que no tiene uno
    * anterior del que copiar. Si ya hay un mes anterior, manda lo que haya en

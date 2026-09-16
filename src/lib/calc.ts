@@ -1004,17 +1004,27 @@ export function sumPercentiles(sides: (BurnPercentiles | null)[]): BurnPercentil
 }
 
 export interface SavingsGoalStatus {
-  /** patrimonio que se quiere tener */
+  /** como se dijo la meta: "tener X" o "ahorrar X" */
+  mode: 'target' | 'save'
+  /** desde cuando se cuenta: el dia que se fijo, o siempre hoy */
+  anchor: 'fixed' | 'rolling'
+  /** patrimonio al que hay que llegar */
   targetJpy: number
-  /** en cuantos meses */
+  /** plazo, en meses */
   months: number
   /** 'YYYY-MM' en que se cumple el plazo */
   dueMonthId: string
-  /** patrimonio de partida (ultima foto) */
+  /** meses que quedan hasta el plazo (0 si ya vencio) */
+  monthsLeft: number
+  /** patrimonio desde el que se mide (el de hoy, o el del dia en que se fijo) */
+  baseJpy: number
+  /** patrimonio de hoy (ultima foto) */
   startJpy: number
+  /** lo que llevas ahorrado desde el punto de partida; puede ser negativo */
+  savedJpy: number
   /** lo que falta (0 si ya se llego) */
   missingJpy: number
-  /** cuanto habria que ahorrar cada mes para llegar a tiempo */
+  /** cuanto habria que ahorrar cada mes que queda para llegar a tiempo */
   requiredMonthlyJpy: number
   /** ahorro mensual al ritmo tipico (ingresos - gasto p50); null sin historial */
   medianMonthlyJpy: number | null
@@ -1025,21 +1035,53 @@ export interface SavingsGoalStatus {
 }
 
 /**
- * La meta: "de aqui a X meses quiero tener Y". Traduce esos dos numeros de
- * Ajustes a lo unico que se puede hacer con ellos: cuanto falta, cuanto hay
- * que ahorrar al mes para llegar y cuando se llegaria al ritmo de siempre.
+ * La meta, dicha de las dos maneras en que la gente la dice:
+ *   - "quiero TENER 1.500.000 dentro de un ano" (`mode: 'target'`)
+ *   - "quiero AHORRAR 80.000 en tres meses"     (`mode: 'save'`)
+ *
+ * Y contada desde uno de estos dos sitios (`anchor`):
+ *   - 'fixed':   desde el dia en que se fijo la meta, que queda guardado. Mide
+ *     PROGRESO: lo ahorrado se acumula ("llevas 45.000 de 80.000") y un mes
+ *     malo te aleja de verdad del objetivo. El plazo tampoco se mueve: si la
+ *     fijaste en enero a tres meses, vence en abril, queden los meses que
+ *     queden.
+ *   - 'rolling': siempre desde hoy. Mide RITMO: la pregunta es "¿puedo juntar
+ *     80.000 en tres meses a lo que ahorro?", no "cuanto llevo". Un mes malo
+ *     no te quita lo andado, pero tampoco se acumula lo ahorrado: en este
+ *     modo, con `mode: 'save'`, lo que falta es siempre la cifra entera de la
+ *     meta, y lo que se mueve es la fecha estimada de llegada.
+ *
+ * Con `mode: 'target'` el anclaje solo decide si el plazo corre desde hoy o
+ * desde el dia en que se fijo: la cifra objetivo ya es absoluta.
  *
  * Devuelve null si no hay meta puesta o no hay ninguna foto de la que partir.
  */
 export function savingsGoal(data: AppData, today = new Date(), lastMonths = 12): SavingsGoalStatus | null {
-  const targetJpy = data.settings.savingsGoalJpy ?? 0
-  const months = data.settings.savingsGoalMonths ?? 0
+  const { settings } = data
+  const goalJpy = settings.savingsGoalJpy ?? 0
+  const months = settings.savingsGoalMonths ?? 0
   const last = snapshotSeries(data).at(-1)
-  if (targetJpy <= 0 || months <= 0 || !last) return null
+  if (goalJpy <= 0 || months <= 0 || !last) return null
 
-  const startJpy = last.netJpy
-  const missingJpy = Math.max(0, targetJpy - startJpy)
+  const mode = settings.savingsGoalMode ?? 'target'
+  const anchor = settings.savingsGoalAnchor ?? 'rolling'
   const currentId = monthIdOfDate(today)
+  const startJpy = last.netJpy
+
+  // el punto desde el que se mide. Con 'fixed' es el patrimonio del dia en
+  // que se fijo la meta; si no se llego a guardar, se usa el de hoy (la meta
+  // sigue valiendo, simplemente empieza a contar ahora)
+  const baseJpy = anchor === 'fixed' ? (settings.savingsGoalStartJpy ?? startJpy) : startJpy
+  const targetJpy = mode === 'save' ? baseJpy + goalJpy : goalJpy
+
+  // el plazo tampoco se mueve con 'fixed': cuenta desde el mes en que se fijo
+  const fromMonthId =
+    anchor === 'fixed' ? (settings.savingsGoalStartMonthId ?? currentId) : currentId
+  const dueMonthId = shiftMonth(fromMonthId, months)
+  const monthsLeft = monthsBetween(currentId, dueMonthId)
+
+  const savedJpy = startJpy - baseJpy
+  const missingJpy = Math.max(0, targetJpy - startJpy)
   const p = percentiles(data, lastMonths, today)
   const income = monthIncomeJpy(data, currentId)
   const medianMonthlyJpy = p && income > 0 ? income - p.p50 : null
@@ -1054,16 +1096,24 @@ export function savingsGoal(data: AppData, today = new Date(), lastMonths = 12):
     // mas de diez anos es lo mismo que "asi no se llega": dar una fecha de
     // 2049 seria fingir una precision que esta cuenta no tiene
     etaMonthId = needed <= 120 ? shiftMonth(currentId, needed) : null
-    onTrack = needed <= months
+    // con el plazo ya vencido, ningun ritmo llega "a tiempo"
+    onTrack = monthsLeft > 0 && needed <= monthsLeft
   }
 
   return {
+    mode,
+    anchor,
     targetJpy,
     months,
-    dueMonthId: shiftMonth(currentId, months),
+    dueMonthId,
+    monthsLeft,
+    baseJpy,
     startJpy,
+    savedJpy,
     missingJpy,
-    requiredMonthlyJpy: missingJpy / months,
+    // repartido entre los meses que quedan, no entre el plazo entero: a un
+    // mes del final, lo que falta hay que ahorrarlo en ese mes
+    requiredMonthlyJpy: monthsLeft > 0 ? missingJpy / monthsLeft : missingJpy,
     medianMonthlyJpy,
     etaMonthId,
     onTrack,

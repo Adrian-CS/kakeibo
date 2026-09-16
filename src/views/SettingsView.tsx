@@ -2,8 +2,8 @@ import { useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import { LANGS } from '../lib/i18n'
 import { clearData, deserialize, exportFileName, serialize, storageSize } from '../lib/storage'
-import { categoryLabel } from '../lib/calc'
-import { fmtNumber, parseAmount } from '../lib/format'
+import { categoryLabel, snapshotSeries } from '../lib/calc'
+import { fmtMonth, fmtNumber, parseAmount } from '../lib/format'
 import { MAX_SLOTS, seriesVar } from '../lib/palette'
 import type { Bucket, Category, Lang, ThemePref } from '../lib/types'
 import {
@@ -22,6 +22,7 @@ import { ImportDialog } from './ImportDialog'
 import { SyncCard } from './SyncCard'
 import { HouseholdCard } from './HouseholdCard'
 import { uid } from '../lib/id'
+import { monthIdOf } from '../lib/defaults'
 import { fetchFxRate } from '../lib/fx'
 import { Toggle } from '../components/ui'
 
@@ -109,6 +110,12 @@ export function SettingsView() {
   const [importOpen, setImportOpen] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // la meta y desde donde se cuenta: por si el documento viene de una copia
+  // anterior a que existieran los modos
+  const goalMode = data.settings.savingsGoalMode ?? 'target'
+  const goalAnchor = data.settings.savingsGoalAnchor ?? 'rolling'
+  const netWorthTodayJpy = snapshotSeries(data).at(-1)?.netJpy ?? 0
 
   const [fxBusy, setFxBusy] = useState(false)
   const [fxMsg, setFxMsg] = useState<string | null>(null)
@@ -206,24 +213,6 @@ export function SettingsView() {
               }}
             />
           </Field>
-          <Field label={t('fields.goal')} hint={t('fields.goalHint')}>
-            <NumberInput
-              value={data.settings.savingsGoalJpy}
-              onChange={(e) => {
-                const n = parseAmount(e.target.value)
-                if (n !== null) dispatch({ type: 'patchSettings', patch: { savingsGoalJpy: n } })
-              }}
-            />
-          </Field>
-          <Field label={t('fields.goalMonths')} hint={t('fields.goalMonthsHint')}>
-            <NumberInput
-              value={data.settings.savingsGoalMonths}
-              onChange={(e) => {
-                const n = parseAmount(e.target.value)
-                if (n !== null) dispatch({ type: 'patchSettings', patch: { savingsGoalMonths: n } })
-              }}
-            />
-          </Field>
           <Field label={t('fields.fx')} hint={t('fields.fxHint')}>
             <NumberInput
               value={data.settings.defaultFxRate}
@@ -315,6 +304,116 @@ export function SettingsView() {
             <Icon name="plus" />
             {t('action.add')}
           </Button>
+        </div>
+      </Card>
+
+      <Card title={t('settings.goal')} hint={t('settings.goalHint')}>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label={t('goal.mode')}>
+              <Segmented<'target' | 'save'>
+                label={t('goal.mode')}
+                value={goalMode}
+                onChange={(v) => dispatch({ type: 'patchSettings', patch: { savingsGoalMode: v } })}
+                options={[
+                  { id: 'target', label: t('goal.mode.target') },
+                  { id: 'save', label: t('goal.mode.save') },
+                ]}
+              />
+            </Field>
+            <Field label={t('goal.anchor')} className="min-w-0">
+              <Segmented<'fixed' | 'rolling'>
+                label={t('goal.anchor')}
+                value={goalAnchor}
+                onChange={(v) => dispatch({ type: 'patchSettings', patch: { savingsGoalAnchor: v } })}
+                options={[
+                  { id: 'fixed', label: t('goal.anchor.fixed') },
+                  { id: 'rolling', label: t('goal.anchor.rolling') },
+                ]}
+              />
+            </Field>
+          </div>
+          <p className="text-[11px] text-muted">
+            {goalAnchor === 'fixed' ? t('goal.anchorFixedHint') : t('goal.anchorRollingHint')}
+          </p>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label={goalMode === 'save' ? t('goal.amountSave') : t('goal.amountTarget')}>
+              <NumberInput
+                value={data.settings.savingsGoalJpy}
+                onChange={(e) => {
+                  const n = parseAmount(e.target.value)
+                  if (n !== null) dispatch({ type: 'patchSettings', patch: { savingsGoalJpy: n } })
+                }}
+              />
+            </Field>
+            <Field
+              label={t('fields.goalMonths')}
+              hint={
+                goalAnchor === 'fixed'
+                  ? t('fields.goalMonthsHintFixed')
+                  : t('fields.goalMonthsHint')
+              }
+            >
+              <NumberInput
+                value={data.settings.savingsGoalMonths}
+                onChange={(e) => {
+                  const n = parseAmount(e.target.value)
+                  if (n !== null) dispatch({ type: 'patchSettings', patch: { savingsGoalMonths: n } })
+                }}
+              />
+            </Field>
+            {/* el punto de partida solo pinta algo si la meta se cuenta desde
+                el dia en que se fijo */}
+            {goalAnchor === 'fixed' && (
+              <Field
+                label={t('goal.start')}
+                hint={
+                  data.settings.savingsGoalStartMonthId
+                    ? t('goal.startSetIn', {
+                        month: fmtMonth(data.settings.savingsGoalStartMonthId, lang),
+                      })
+                    : t('goal.startNone')
+                }
+              >
+                <div className="flex items-center gap-1.5">
+                  <NumberInput
+                    value={data.settings.savingsGoalStartJpy ?? ''}
+                    placeholder={t('goal.startHint')}
+                    onChange={(e) => {
+                      const n = parseAmount(e.target.value)
+                      if (n !== null) {
+                        dispatch({
+                          type: 'patchSettings',
+                          patch: {
+                            savingsGoalStartJpy: n,
+                            savingsGoalStartMonthId:
+                              data.settings.savingsGoalStartMonthId ?? monthIdOf(),
+                          },
+                        })
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() =>
+                      dispatch({
+                        type: 'patchSettings',
+                        patch: {
+                          savingsGoalStartJpy: netWorthTodayJpy,
+                          savingsGoalStartMonthId: monthIdOf(),
+                        },
+                      })
+                    }
+                  >
+                    {t('goal.startToday')}
+                  </Button>
+                </div>
+              </Field>
+            )}
+          </div>
         </div>
       </Card>
 

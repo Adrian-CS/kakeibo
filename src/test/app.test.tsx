@@ -454,6 +454,59 @@ describe('la aplicacion', () => {
     )
   })
 
+
+  it('la meta en modo "ahorrar" desde el dia que se fijo enseña el progreso', async () => {
+    const user = userEvent.setup()
+    window.location.hash = `#/month/${monthIdOf()}`
+    const data = savingsSeed()
+    data.settings = {
+      ...data.settings,
+      savingsGoalJpy: 80000,
+      savingsGoalMonths: 3,
+      savingsGoalMode: 'save',
+      savingsGoalAnchor: 'fixed',
+      // patrimonio de hoy: 600000 - 50000 de deuda = 550000
+      savingsGoalStartJpy: 500000,
+      savingsGoalStartMonthId: shiftMonth(monthIdOf(), -1),
+    }
+    render(<App initial={data} />)
+    await user.click(screen.getAllByRole('button', { name: /Ahorros/ })[0])
+
+    // 50000 de los 80000, y faltan 30000
+    expect(screen.getByText(/Llevas/)).toBeInTheDocument()
+    expect(screen.getByText(/Te faltan/)).toBeInTheDocument()
+  })
+
+  it('la meta en modo "ahorrar" contada desde hoy no habla de progreso', async () => {
+    const user = userEvent.setup()
+    window.location.hash = `#/month/${monthIdOf()}`
+    const data = savingsSeed()
+    data.settings = {
+      ...data.settings,
+      savingsGoalJpy: 80000,
+      savingsGoalMonths: 3,
+      savingsGoalMode: 'save',
+      savingsGoalAnchor: 'rolling',
+    }
+    render(<App initial={data} />)
+    await user.click(screen.getAllByRole('button', { name: /Ahorros/ })[0])
+
+    expect(screen.getByText(/desde donde estás hoy/)).toBeInTheDocument()
+    expect(screen.queryByText(/Llevas/)).not.toBeInTheDocument()
+  })
+
+  it('Ajustes tiene su tarjeta de meta, con las dos formas de decirla', async () => {
+    const user = userEvent.setup()
+    render(<App initial={savingsSeed()} />)
+    await user.click(screen.getAllByRole('button', { name: /Ajustes/ })[0])
+
+    expect(screen.getByRole('group', { name: 'Qué quieres' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Se cuenta desde' })).toBeInTheDocument()
+    // al cambiar a "Ahorrar", el campo del importe cambia de pregunta
+    await user.click(screen.getByRole('button', { name: 'Ahorrar' }))
+    expect(screen.getByLabelText('Cuánto quieres ahorrar')).toBeInTheDocument()
+  })
+
   it('con el ajuste de sobregasto apagado, pasarse de limite no toca Ahorros', async () => {
     const user = userEvent.setup()
     window.location.hash = `#/month/${monthIdOf()}`

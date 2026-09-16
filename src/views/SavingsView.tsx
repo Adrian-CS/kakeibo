@@ -617,11 +617,32 @@ export function SavingsView() {
               </p>
             ) : (
               <p className="mt-2 text-xs text-ink-2">
-                {t('forecast.goalMissing', {
-                  missing: fmtJpy(goal.missingJpy, lang),
-                  monthly: fmtJpy(goal.requiredMonthlyJpy, lang),
-                  due: fmtMonth(goal.dueMonthId, lang),
-                })}{' '}
+                {/* en "ahorrar" contado desde el dia en que se fijo, lo
+                    ahorrado se acumula y se puede enseñar el progreso */}
+                {goal.mode === 'save' && goal.anchor === 'fixed' && (
+                  <>
+                    {t('forecast.goalProgress', {
+                      saved: fmtJpy(goal.savedJpy, lang),
+                      goal: fmtJpy(goal.targetJpy - goal.baseJpy, lang),
+                    })}{' '}
+                  </>
+                )}
+                {goal.mode === 'save' && goal.anchor === 'rolling'
+                  ? // contado desde hoy no hay progreso que contar: lo que
+                    // falta es siempre la meta entera
+                    t('forecast.goalRolling', {
+                      goal: fmtJpy(goal.targetJpy - goal.baseJpy, lang),
+                      monthly: fmtJpy(goal.requiredMonthlyJpy, lang),
+                      due: fmtMonth(goal.dueMonthId, lang),
+                    })
+                  : t('forecast.goalMissing', {
+                      missing: fmtJpy(goal.missingJpy, lang),
+                      monthly: fmtJpy(goal.requiredMonthlyJpy, lang),
+                      due: fmtMonth(goal.dueMonthId, lang),
+                    })}{' '}
+                {goal.monthsLeft === 0 && (
+                  <>{t('forecast.goalOverdue', { due: fmtMonth(goal.dueMonthId, lang) })} </>
+                )}
                 <span
                   style={{
                     color:

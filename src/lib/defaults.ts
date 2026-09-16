@@ -26,6 +26,10 @@ export const DEFAULT_SETTINGS: Settings = {
   // ponga una de verdad
   savingsGoalJpy: 0,
   savingsGoalMonths: 12,
+  // los valores que ya tenia la app antes de que hubiera modos: "quiero
+  // tener X" contado desde hoy
+  savingsGoalMode: 'target',
+  savingsGoalAnchor: 'rolling',
   defaultExtras: [],
   secondaryCurrency: 'EUR',
   autoFillFixed: true,
