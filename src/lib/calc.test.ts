@@ -840,6 +840,35 @@ describe('deudas', () => {
     expect(debtTotalJpy(withSnapshots())).toBe(40000 + 100000)
   })
 
+  it('una deuda pagada no se lista, se borre su fila o se deje a cero', () => {
+    const data = withSnapshots()
+    const pagada: AppData = {
+      ...data,
+      snapshots: [
+        data.snapshots[0],
+        {
+          ...data.snapshots[1],
+          accounts: data.snapshots[1].accounts.map((a) =>
+            a.id === 'a2' ? { ...a, amount: 0 } : a,
+          ),
+        },
+      ],
+    }
+    expect(debtAccounts(pagada).map((a) => a.id)).toEqual(['a3'])
+    // y el total es el mismo que si se hubiera borrado la fila
+    const borrada: AppData = {
+      ...data,
+      snapshots: [
+        data.snapshots[0],
+        {
+          ...data.snapshots[1],
+          accounts: data.snapshots[1].accounts.filter((a) => a.id !== 'a2'),
+        },
+      ],
+    }
+    expect(debtTotalJpy(pagada)).toBe(debtTotalJpy(borrada))
+  })
+
   it('sin fotos no hay deuda que enseñar', () => {
     const base = emptyData(new Date('2026-08-15T00:00:00'))
     expect(debtAccounts(base)).toEqual([])

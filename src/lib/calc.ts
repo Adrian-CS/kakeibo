@@ -663,7 +663,10 @@ export function lastClosedMonthId(data: AppData, today = new Date()): string | n
  */
 export function debtAccounts(data: AppData): Account[] {
   const last = [...data.snapshots].sort((a, b) => a.date.localeCompare(b.date)).at(-1)
-  return (last?.accounts ?? []).filter((a) => a.isDebt)
+  // una deuda a 0 ya no es una deuda: se queda fuera de la lista. Asi da
+  // igual pagarla y borrar su fila que pagarla y dejarla a cero, que es la
+  // misma equivalencia que vale para el gasto sin apuntar
+  return (last?.accounts ?? []).filter((a) => a.isDebt && a.amount !== 0)
 }
 
 /** Suma en yenes de las cuentas marcadas como deuda (ver `debtAccounts`). */
