@@ -1629,6 +1629,71 @@ describe('gasto sin apuntar', () => {
     expect(u.reliable).toBe(true)
   })
 
+  it('pagar una deuda y borrar su fila no inventa un gasto fantasma', () => {
+    // Debes 165.900. Ese mes entran 250.000, gastas 100.000 y pagas la deuda:
+    // el banco queda en 484.100 y borras la fila. Pagar una deuda no cambia
+    // el patrimonio -baja el banco y se va la deuda-, asi que no hay ni un
+    // yen de gasto sin apuntar
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    const data: AppData = {
+      ...base,
+      months: [
+        {
+          id: '2026-07',
+          rentJpy: 0,
+          extras: [],
+          fxRate: 0.0056,
+          limitJpy: 200000,
+          incomeJpy: 250000,
+          actualIncomeJpy: 250000,
+        },
+      ],
+      expenses: [
+        { id: 'e1', monthId: '2026-07', categoryId: 'eating_out', label: 'x', amount: 100000, kind: 'normal' },
+      ],
+      snapshots: [
+        {
+          id: 's1',
+          date: '2026-07-01',
+          accounts: [
+            { id: 'a', name: 'SMBC', amount: 500000, currency: 'JPY' },
+            { id: 'b', name: 'Debo a Tomomi', amount: 165900, currency: 'JPY', isDebt: true },
+          ],
+        },
+        {
+          id: 's2',
+          date: '2026-08-01',
+          accounts: [{ id: 'c', name: 'SMBC', amount: 484100, currency: 'JPY' }],
+        },
+      ],
+    }
+    const u = unloggedSpend(data, '2026-07')!
+    // el patrimonio sube 150.000 (334.100 -> 484.100): los ingresos menos lo
+    // gastado, con el pago de la deuda cancelandose solo
+    expect(u.deltaJpy).toBe(150000)
+    expect(u.realSpendJpy).toBe(100000)
+    expect(u.unloggedJpy).toBe(0)
+    // la deuda borrada no se aparta: se compara, contando como que se fue a cero
+    expect(u.adjustmentsJpy).toBe(0)
+    expect(u.oddAccounts).toEqual([])
+
+    // dejarla a cero en vez de borrarla tiene que dar exactamente lo mismo
+    const aCero: AppData = {
+      ...data,
+      snapshots: [
+        data.snapshots[0],
+        {
+          ...data.snapshots[1],
+          accounts: [
+            ...data.snapshots[1].accounts,
+            { id: 'd', name: 'Debo a Tomomi', amount: 0, currency: 'JPY', isDebt: true },
+          ],
+        },
+      ],
+    }
+    expect(unloggedSpend(aCero, '2026-07')!.unloggedJpy).toBe(0)
+  })
+
   it('tampoco se fia de un descuadre mayor que todo lo que entro', () => {
     const data = seed()
     // el patrimonio sube dos millones en una cuenta que ya existia

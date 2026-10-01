@@ -592,7 +592,9 @@ describe('la aplicacion', () => {
     // 100.000 estan apuntados
     expect(screen.getAllByText('30.000 ¥').length).toBeGreaterThan(0)
     expect(
-      screen.getByText(/1 cuenta\(s\) entraron o salieron del recuento \(\+2\.000\.000 ¥\): cuenta vieja/),
+      screen.getByText(
+        /1 cuenta\(s\) aparecen en la foto nueva y no en la vieja \(\+2\.000\.000 ¥\): cuenta vieja/,
+      ),
     ).toBeInTheDocument()
     // y ya no se descarta el mes entero por eso
     expect(screen.queryByText('Meses que no cuadran')).not.toBeInTheDocument()

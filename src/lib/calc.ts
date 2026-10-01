@@ -1498,15 +1498,16 @@ export interface UnloggedSpend {
   startNetJpy: number
   endNetJpy: number
   /**
-   * Lo que se movio en las cuentas que estan en las DOS fotos. Las que solo
-   * estan en una no entran aqui (ver `adjustmentsJpy`): no se pueden comparar
-   * y su saldo entero se leeria como un gasto -o un ingreso- enorme.
+   * Lo que se movio en las cuentas que ya estaban en la primera foto, estén o
+   * no en la segunda: una que estaba y ya no esta cuenta como que se fue a
+   * cero (la pagaste, la cerraste), que es lo que significa borrar su fila.
+   * Las que aparecen de la nada no entran aqui (ver `adjustmentsJpy`).
    */
   deltaJpy: number
   /**
-   * Lo que suman las cuentas que entraron o salieron del recuento entre las
-   * dos fotos. No es gasto ni ingreso: es una cuenta que se empieza (o se
-   * deja) de apuntar. Se enseña aparte para que cuadre con el patrimonio.
+   * Lo que suman las cuentas que aparecen en la segunda foto y no estaban en
+   * la primera. No es dinero que haya entrado: es una cuenta que se empieza a
+   * apuntar, y no hay con que compararla. Se enseña aparte.
    */
   adjustmentsJpy: number
   /** lo que tienes apuntado ese mes (alquiler y extras incluidos) */
@@ -1521,7 +1522,7 @@ export interface UnloggedSpend {
    * apuntar mas dinero del que hubo-.
    */
   reliable: boolean
-  /** nombres de las cuentas que entraron o salieron del recuento */
+  /** nombres de las cuentas que aparecen en la segunda foto y no en la primera */
   oddAccounts: string[]
   /** lo que movio cada cuenta entre las dos fotos, de mayor a menor */
   accountChanges: AccountChange[]
@@ -1644,15 +1645,21 @@ export function unloggedSpend(data: AppData, monthId: string): UnloggedSpend | n
   const incomeJpy = actual ?? monthIncomeJpy(data, monthId)
   if (incomeJpy <= 0) return null
 
-  // solo cuentan las cuentas que estan en las dos fotos. Una cuenta que
-  // aparece (o desaparece) mete su saldo entero en la diferencia, y eso no es
-  // dinero gastado: es una cuenta que se empieza o se deja de apuntar. Antes
-  // se sumaba todo y un "Abuela 12.400 €" recien apuntado se comia la cifra
-  // del mes entero; ademas la deuda automatica por sobregasto crea una cuenta
-  // nueva CADA mes, asi que practicamente ningun mes se libraba
+  // cuentan las cuentas que ya estaban en la primera foto. Las dos
+  // direcciones no son el mismo caso:
+  //
+  //   - una que APARECE (un "Abuela 12.400 €" que empiezas a apuntar, la
+  //     deuda automatica que la app crea cada mes al pasarte del limite) no
+  //     tiene con que compararse: meter su saldo entero seria inventarse un
+  //     ingreso de dos millones. Se aparta.
+  //   - una que DESAPARECE si se puede comparar: borrar su fila es decir que
+  //     ya no esta, asi que cuenta como que se fue a cero. Es justo lo que
+  //     pasa al pagar una deuda y borrarla: el banco baja y la deuda se va,
+  //     y las dos cosas se cancelan como debe ser. Apartarla dejaria solo la
+  //     bajada del banco y cantaria un gasto fantasma por todo lo pagado.
   const accountChanges = accountChangesBetween(data, start.id, end.id)
-  const comparable = accountChanges.filter((c) => c.fromJpy !== null && c.toJpy !== null)
-  const odd = accountChanges.filter((c) => c.fromJpy === null || c.toJpy === null)
+  const comparable = accountChanges.filter((c) => c.fromJpy !== null)
+  const odd = accountChanges.filter((c) => c.fromJpy === null)
   const deltaJpy = sum(comparable.map((c) => c.deltaJpy))
   const adjustmentsJpy = sum(odd.map((c) => c.deltaJpy))
   const loggedJpy = monthTotals(data, monthId).totalJpy
