@@ -1568,13 +1568,14 @@ describe('gasto sin apuntar', () => {
   it('es de fiar cuando las dos fotos tienen las mismas cuentas', () => {
     const u = unloggedSpend(seed(), '2026-07')!
     expect(u.reliable).toBe(true)
-    expect(u.reasons).toEqual([])
     expect(u.oddAccounts).toEqual([])
+    expect(u.adjustmentsJpy).toBe(0)
   })
 
-  it('no se fia cuando una cuenta solo esta en una de las dos fotos', () => {
-    // el caso de verdad: el patrimonio pega un salto porque empiezas a
-    // apuntar una cuenta que ya tenias, no porque hayas ingresado nada
+  it('una cuenta que solo esta en una foto no se cuenta como gasto: se aparta', () => {
+    // el caso de verdad: empiezas a apuntar una cuenta que ya tenias (12.400 €
+    // de la abuela) y el patrimonio pega un salto de dos millones sin que haya
+    // entrado ni salido un yen
     const data = seed()
     const nuevaCuenta: AppData = {
       ...data,
@@ -1584,22 +1585,48 @@ describe('gasto sin apuntar', () => {
           ...data.snapshots[1],
           accounts: [
             ...data.snapshots[1].accounts,
-            { id: 'c', name: 'cuenta vieja', amount: 2000000, currency: 'JPY' },
+            { id: 'c', name: 'Abuela', amount: 2000000, currency: 'JPY' },
           ],
         },
       ],
     }
     const u = unloggedSpend(nuevaCuenta, '2026-07')!
-    expect(u.reliable).toBe(false)
-    expect(u.reasons).toContain('accountsDiffer')
-    expect(u.oddAccounts).toEqual(['cuenta vieja'])
-    // y se puede señalar al culpable
-    expect(u.accountChanges[0]).toEqual({
-      name: 'cuenta vieja',
-      fromJpy: null,
-      toJpy: 2000000,
-      deltaJpy: 2000000,
-    })
+    // la cifra sale igual que si esa cuenta no existiera
+    expect(u.unloggedJpy).toBe(unloggedSpend(data, '2026-07')!.unloggedJpy)
+    expect(u.deltaJpy).toBe(70000)
+    expect(u.adjustmentsJpy).toBe(2000000)
+    expect(u.oddAccounts).toEqual(['Abuela'])
+    expect(u.reliable).toBe(true)
+  })
+
+  it('la deuda automatica del sobregasto, que nace cada mes, tampoco descuadra nada', () => {
+    // la crea la propia app al cerrar un mes por encima del limite: aparece
+    // en la foto nueva y no en la vieja, mes tras mes
+    const data = seed()
+    const conDeudaAuto: AppData = {
+      ...data,
+      snapshots: [
+        data.snapshots[0],
+        {
+          ...data.snapshots[1],
+          accounts: [
+            ...data.snapshots[1].accounts,
+            {
+              id: 'd',
+              name: 'Deuda generada 26-07-31',
+              amount: 158,
+              currency: 'JPY',
+              isDebt: true,
+              autoDebtMonthId: '2026-07',
+            },
+          ],
+        },
+      ],
+    }
+    const u = unloggedSpend(conDeudaAuto, '2026-07')!
+    expect(u.unloggedJpy).toBe(unloggedSpend(data, '2026-07')!.unloggedJpy)
+    expect(u.adjustmentsJpy).toBe(-158)
+    expect(u.reliable).toBe(true)
   })
 
   it('tampoco se fia de un descuadre mayor que todo lo que entro', () => {
@@ -1614,7 +1641,6 @@ describe('gasto sin apuntar', () => {
     }
     const u = unloggedSpend(salto, '2026-07')!
     expect(u.reliable).toBe(false)
-    expect(u.reasons).toEqual(['tooBig'])
     // no se puede dejar de apuntar mas dinero del que hubo
     expect(Math.abs(u.unloggedJpy)).toBeGreaterThan(u.incomeJpy)
   })

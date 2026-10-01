@@ -548,10 +548,10 @@ describe('la aplicacion', () => {
   })
 
 
-  it('un salto de patrimonio por una cuenta nueva no se cuenta como gasto: se explica', async () => {
+  it('una cuenta que aparece en la segunda foto se aparta en vez de contarse como gasto', async () => {
     // el caso real: el patrimonio pega un salto de millones porque una cuenta
-    // aparece en la segunda foto y no en la primera. Eso no es gasto, y la
-    // tarjeta tiene que decirlo en vez de enseñar un total absurdo
+    // que ya tenias empieza a apuntarse. Eso no es gasto: se deja fuera del
+    // calculo y se dice, en vez de tirar el mes entero a la basura
     const user = userEvent.setup()
     window.location.hash = `#/month/${monthIdOf()}`
     const base = emptyData()
@@ -587,13 +587,16 @@ describe('la aplicacion', () => {
     render(<App initial={data} />)
     await user.click(screen.getAllByRole('button', { name: /Estadísticas/ })[0])
 
-    expect(screen.getByText('Meses que no cuadran')).toBeInTheDocument()
-    expect(screen.getByText(/«cuenta vieja» solo aparece en una de las dos fotos/)).toBeInTheDocument()
-    // y señala el culpable con su importe
-    expect(screen.getByText(/lo que más se movió: cuenta vieja, \+2\.000\.000 ¥/)).toBeInTheDocument()
-    // sin ningun mes que cuadre, no se da una cifra de la que fiarse
-    expect(screen.getByText(/Ningún mes cuadra todavía/)).toBeInTheDocument()
-    expect(screen.queryByText(/-2\.1/)).not.toBeInTheDocument()
+    // la cuenta nueva se aparta y el mes sigue dando una cifra util: 200.000
+    // de ingresos - 70.000 que subio el banco = 130.000 salidos, de los que
+    // 100.000 estan apuntados
+    expect(screen.getAllByText('30.000 ¥').length).toBeGreaterThan(0)
+    expect(
+      screen.getByText(/1 cuenta\(s\) entraron o salieron del recuento \(\+2\.000\.000 ¥\): cuenta vieja/),
+    ).toBeInTheDocument()
+    // y ya no se descarta el mes entero por eso
+    expect(screen.queryByText('Meses que no cuadran')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Ningún mes cuadra todavía/)).not.toBeInTheDocument()
   })
 
   it('avisa cuando el descuadre se ha calculado con ingresos previstos', async () => {

@@ -122,7 +122,9 @@ const es = {
   'stats.unloggedEmpty':
     'Hacen falta dos fotos de ahorros que cubran el mes (una hasta el día 1 y otra desde el último) y los ingresos del mes.',
   'stats.unloggedFormula':
-    'Entraron {income} y el patrimonio cambió {delta}: salieron {real}. Apuntado: {logged}.',
+    'Entraron {income} y las cuentas que están en las dos fotos movieron {delta}: salieron {real}. Apuntado: {logged}.',
+  'stats.unloggedAdjust':
+    '{n} cuenta(s) entraron o salieron del recuento ({amount}): {names}. Eso no es dinero gastado, así que se queda fuera.',
   'stats.unloggedWindow': 'Entre las fotos del {from} y el {to}',
   'stats.unloggedForecastWarn':
     'Algún mes usa los ingresos previstos porque no hay reales: ahí esto también recoge lo que cobraste de más o de menos. Ponlos en la pestaña Mes.',
@@ -552,7 +554,10 @@ const ja: Partial<Record<Key, string>> = {
   'stats.unloggedHint': '口座から出たのに、出費として記入されていない分',
   'stats.unloggedEmpty':
     'その月をはさむ記録が二つ（1日までと末日以降）と、その月の収入が必要です。',
-  'stats.unloggedFormula': '{income}入って純資産が{delta}動いたので、{real}出ました。記入済み：{logged}。',
+  'stats.unloggedFormula':
+    '{income}入って、両方の記録にある口座が{delta}動いたので、{real}出ました。記入済み：{logged}。',
+  'stats.unloggedAdjust':
+    '{n}件の口座が集計に出入りしました（{amount}）：{names}。使ったお金ではないので除外します。',
   'stats.unloggedWindow': '{from}と{to}の記録のあいだ',
   'stats.unloggedForecastWarn':
     '実際の収入がない月は見込みを使うので、多かった分・少なかった分もここに混ざります。「月」タブで入れられます。',
@@ -966,7 +971,9 @@ const en: Partial<Record<Key, string>> = {
   'stats.unloggedEmpty':
     'It needs two savings snapshots bracketing the month (one up to the 1st, one from the last day) and the income for that month.',
   'stats.unloggedFormula':
-    '{income} came in and net worth moved {delta}, so {real} went out. Logged: {logged}.',
+    '{income} came in and the accounts present in both snapshots moved {delta}, so {real} went out. Logged: {logged}.',
+  'stats.unloggedAdjust':
+    '{n} account(s) entered or left the count ({amount}): {names}. That is not money spent, so it stays out.',
   'stats.unloggedWindow': 'Between the snapshots of {from} and {to}',
   'stats.unloggedForecastWarn':
     'Some month falls back to expected income because there is no actual figure: there, this also picks up earning more or less than planned. You can set it in the Month tab.',

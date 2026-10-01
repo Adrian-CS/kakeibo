@@ -510,6 +510,17 @@ export function StatsView({
                   {lastUnlogged.slackDays > 7 &&
                     ` · ${t('stats.unloggedSlack', { n: lastUnlogged.slackDays })}`}
                 </span>
+                {/* las cuentas que entran o salen del recuento mueven el
+                    patrimonio sin que nadie haya gastado: se dicen aparte */}
+                {lastUnlogged.oddAccounts.length > 0 && (
+                  <span className="mt-0.5 block text-[11px] text-muted">
+                    {t('stats.unloggedAdjust', {
+                      n: lastUnlogged.oddAccounts.length,
+                      amount: `${lastUnlogged.adjustmentsJpy >= 0 ? '+' : ''}${jpy(lastUnlogged.adjustmentsJpy)}`,
+                      names: lastUnlogged.oddAccounts.slice(0, 3).join(', '),
+                    })}
+                  </span>
+                )}
               </p>
             )}
               </>
@@ -522,7 +533,12 @@ export function StatsView({
                 <p className="mt-0.5 text-[11px] text-muted">{t('stats.unloggedOddHint')}</p>
                 <ul className="mt-2 space-y-2">
                   {unloggedOdd.map((u) => {
-                    const biggest = u.accountChanges[0]
+                    // la que mas movio DE LAS QUE CUENTAN: las que entran o
+                    // salen del recuento ya se apartan antes, asi que
+                    // señalarlas aqui despistaria
+                    const biggest = u.accountChanges.find(
+                      (c) => c.fromJpy !== null && c.toJpy !== null,
+                    )
                     return (
                       <li key={u.monthId} className="text-[11px] text-ink-2">
                         <span className="text-xs font-medium text-ink">
@@ -530,11 +546,7 @@ export function StatsView({
                         </span>{' '}
                         <span className="tabular-nums">{jpy(u.unloggedJpy)}</span>
                         <span className="mt-0.5 block text-muted">
-                          {u.reasons.includes('accountsDiffer')
-                            ? t('stats.unloggedReasonAccounts', {
-                                names: u.oddAccounts.slice(0, 3).join(', '),
-                              })
-                            : t('stats.unloggedReasonBig', { amount: jpy(u.unloggedJpy) })}
+                          {t('stats.unloggedReasonBig', { amount: jpy(u.unloggedJpy) })}
                           {biggest &&
                             ` · ${t('stats.unloggedBiggestMove', {
                               name: biggest.name,

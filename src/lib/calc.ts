@@ -1497,8 +1497,18 @@ export interface UnloggedSpend {
   usedForecastIncome: boolean
   startNetJpy: number
   endNetJpy: number
-  /** lo que cambio el patrimonio entre las dos fotos */
+  /**
+   * Lo que se movio en las cuentas que estan en las DOS fotos. Las que solo
+   * estan en una no entran aqui (ver `adjustmentsJpy`): no se pueden comparar
+   * y su saldo entero se leeria como un gasto -o un ingreso- enorme.
+   */
   deltaJpy: number
+  /**
+   * Lo que suman las cuentas que entraron o salieron del recuento entre las
+   * dos fotos. No es gasto ni ingreso: es una cuenta que se empieza (o se
+   * deja) de apuntar. Se enseña aparte para que cuadre con el patrimonio.
+   */
+  adjustmentsJpy: number
   /** lo que tienes apuntado ese mes (alquiler y extras incluidos) */
   loggedJpy: number
   /** lo que salio de verdad: ingresos menos lo que subio el patrimonio */
@@ -1506,15 +1516,12 @@ export interface UnloggedSpend {
   /** lo que salio y no esta apuntado. Negativo = apuntaste mas de lo que salio */
   unloggedJpy: number
   /**
-   * Si la cifra se puede leer como gasto. Es false cuando entre las dos fotos
-   * hay cuentas que solo estan en una (eso no es dinero gastado, es una
-   * cuenta que entra o sale del recuento) o cuando el descuadre se pasa de lo
-   * que entro en todo el mes.
+   * Si la cifra se puede leer como gasto: false cuando el descuadre se pasa
+   * de todo lo que entro en el mes, que no se sostiene -no se puede dejar de
+   * apuntar mas dinero del que hubo-.
    */
   reliable: boolean
-  /** por que no es de fiar; vacio si lo es */
-  reasons: ('accountsDiffer' | 'tooBig')[]
-  /** cuentas que solo aparecen en una de las dos fotos */
+  /** nombres de las cuentas que entraron o salieron del recuento */
   oddAccounts: string[]
   /** lo que movio cada cuenta entre las dos fotos, de mayor a menor */
   accountChanges: AccountChange[]
@@ -1536,12 +1543,20 @@ export interface AccountChange {
  * regeneran al duplicar una foto: el mismo banco tiene un id distinto en cada
  * una, asi que por id no se podrian comparar dos fotos.
  */
-function accountsByName(s: Snapshot | undefined, fxRate: number): Map<string, number> {
-  const out = new Map<string, number>()
+function accountsByName(
+  s: Snapshot | undefined,
+  fxRate: number,
+): Map<string, { name: string; jpy: number }> {
+  const out = new Map<string, { name: string; jpy: number }>()
   for (const a of s?.accounts ?? []) {
     const key = normalizeLabel(a.name) || '—'
     const jpy = accountToJpy(a.amount, a.currency, fxRate)
-    out.set(key, (out.get(key) ?? 0) + (a.isDebt ? -jpy : jpy))
+    const signed = a.isDebt ? -jpy : jpy
+    const cur = out.get(key)
+    // se guarda el nombre tal cual lo escribio quien lo apunto: el
+    // normalizado solo vale para casar las dos fotos, no para enseñarlo
+    if (cur) cur.jpy += signed
+    else out.set(key, { name: a.name.trim() || '—', jpy: signed })
   }
   return out
 }
@@ -1565,13 +1580,18 @@ export function accountChangesBetween(
     data.snapshots.find((s) => s.id === endId),
     fx,
   )
-  const names = new Set([...from.keys(), ...to.keys()])
+  const keys = new Set([...from.keys(), ...to.keys()])
 
-  return [...names]
-    .map((name) => {
-      const a = from.get(name) ?? null
-      const b = to.get(name) ?? null
-      return { name, fromJpy: a, toJpy: b, deltaJpy: (b ?? 0) - (a ?? 0) }
+  return [...keys]
+    .map((key) => {
+      const a = from.get(key)
+      const b = to.get(key)
+      return {
+        name: a?.name ?? b?.name ?? key,
+        fromJpy: a ? a.jpy : null,
+        toJpy: b ? b.jpy : null,
+        deltaJpy: (b?.jpy ?? 0) - (a?.jpy ?? 0),
+      }
     })
     .sort((x, y) => Math.abs(y.deltaJpy) - Math.abs(x.deltaJpy))
 }
@@ -1624,25 +1644,21 @@ export function unloggedSpend(data: AppData, monthId: string): UnloggedSpend | n
   const incomeJpy = actual ?? monthIncomeJpy(data, monthId)
   if (incomeJpy <= 0) return null
 
-  const deltaJpy = end.netJpy - start.netJpy
+  // solo cuentan las cuentas que estan en las dos fotos. Una cuenta que
+  // aparece (o desaparece) mete su saldo entero en la diferencia, y eso no es
+  // dinero gastado: es una cuenta que se empieza o se deja de apuntar. Antes
+  // se sumaba todo y un "Abuela 12.400 €" recien apuntado se comia la cifra
+  // del mes entero; ademas la deuda automatica por sobregasto crea una cuenta
+  // nueva CADA mes, asi que practicamente ningun mes se libraba
+  const accountChanges = accountChangesBetween(data, start.id, end.id)
+  const comparable = accountChanges.filter((c) => c.fromJpy !== null && c.toJpy !== null)
+  const odd = accountChanges.filter((c) => c.fromJpy === null || c.toJpy === null)
+  const deltaJpy = sum(comparable.map((c) => c.deltaJpy))
+  const adjustmentsJpy = sum(odd.map((c) => c.deltaJpy))
   const loggedJpy = monthTotals(data, monthId).totalJpy
   const realSpendJpy = incomeJpy - deltaJpy
 
   const unloggedJpy = realSpendJpy - loggedJpy
-  const accountChanges = accountChangesBetween(data, start.id, end.id)
-  const oddAccounts = accountChanges
-    .filter((c) => c.fromJpy === null || c.toJpy === null)
-    .map((c) => c.name)
-
-  // dos motivos para no fiarse de la cifra, y los dos se dicen en voz alta en
-  // vez de enseñar un numero enorme como si fuera gasto:
-  const reasons: UnloggedSpend['reasons'] = []
-  // una cuenta que solo esta en una de las dos fotos no es dinero gastado:
-  // es una cuenta que entra o sale del recuento
-  if (oddAccounts.length) reasons.push('accountsDiffer')
-  // y un descuadre mayor que todo lo que entro en el mes no se sostiene:
-  // no se puede dejar de apuntar mas de lo que hubo
-  if (Math.abs(unloggedJpy) > incomeJpy) reasons.push('tooBig')
 
   return {
     monthId,
@@ -1654,12 +1670,14 @@ export function unloggedSpend(data: AppData, monthId: string): UnloggedSpend | n
     startNetJpy: start.netJpy,
     endNetJpy: end.netJpy,
     deltaJpy,
+    adjustmentsJpy,
     loggedJpy,
     realSpendJpy,
     unloggedJpy,
-    reliable: reasons.length === 0,
-    reasons,
-    oddAccounts,
+    // un descuadre mayor que todo lo que entro en el mes no se sostiene: no
+    // se puede dejar de apuntar mas dinero del que hubo
+    reliable: Math.abs(unloggedJpy) <= incomeJpy,
+    oddAccounts: odd.map((c) => c.name),
     accountChanges,
   }
 }
@@ -1692,12 +1710,12 @@ export function mergeUnloggedSpend(sides: UnloggedSpend[][]): UnloggedSpend[] {
       cur.startNetJpy += p.startNetJpy
       cur.endNetJpy += p.endNetJpy
       cur.deltaJpy += p.deltaJpy
+      cur.adjustmentsJpy += p.adjustmentsJpy
       cur.loggedJpy += p.loggedJpy
       cur.realSpendJpy += p.realSpendJpy
       cur.unloggedJpy += p.unloggedJpy
       cur.usedForecastIncome = cur.usedForecastIncome || p.usedForecastIncome
       cur.reliable = cur.reliable && p.reliable
-      cur.reasons = [...new Set([...cur.reasons, ...p.reasons])]
       cur.oddAccounts = [...cur.oddAccounts, ...p.oddAccounts]
       cur.accountChanges = [...cur.accountChanges, ...p.accountChanges].sort(
         (x, y) => Math.abs(y.deltaJpy) - Math.abs(x.deltaJpy),
