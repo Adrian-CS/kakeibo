@@ -545,6 +545,16 @@ export function StatsView({
                           {fmtMonth(u.monthId, lang, true)}
                         </span>{' '}
                         <span className="tabular-nums">{jpy(u.unloggedJpy)}</span>
+                        {/* la cuenta entera, para que se pueda ver donde
+                            se tuerce sin tener que sacar la tabla */}
+                        <span className="mt-0.5 block text-muted">
+                          {t('stats.unloggedFormula', {
+                            income: jpy(u.incomeJpy),
+                            delta: `${u.deltaJpy >= 0 ? '+' : ''}${jpy(u.deltaJpy)}`,
+                            real: jpy(u.realSpendJpy),
+                            logged: jpy(u.loggedJpy),
+                          })}
+                        </span>
                         <span className="mt-0.5 block text-muted">
                           {t('stats.unloggedReasonBig', { amount: jpy(u.unloggedJpy) })}
                           {biggest &&

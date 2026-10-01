@@ -34,6 +34,7 @@ const es = {
   'totals.used': 'del límite',
   'totals.projection': 'Proyección a fin de mes',
   'totals.perDay': 'Media por día',
+  'totals.projectionTooSoon': 'Con tan pocos días no hay ritmo del que fiarse todavía',
   'totals.extraordinary': 'Extraordinarios',
   'totals.noCost': 'Sin coste',
   'totals.savingsForecast': 'Ahorro previsto',
@@ -204,6 +205,8 @@ const es = {
   'savings.leakCard': 'Fuga: lo que se va solo',
   'savings.leakCardHint': 'Apuntes marcados como recurrentes de {month}',
   'savings.leakEmpty': 'Ningún apunte recurrente en ese mes.',
+  'savings.leakCredits':
+    'Además entran {amount} al mes en abonos fijos ({names}): eso no es fuga, es dinero que llega.',
   'savings.leakNote':
     'Solo cuenta los apuntes marcados como recurrentes (suscripciones, móvil, seguros...). El alquiler y los extras fijos van aparte, en la pestaña Mes.',
   'savings.debtList': 'Lo que debo',
@@ -472,6 +475,7 @@ const ja: Partial<Record<Key, string>> = {
   'totals.used': '上限に対して',
   'totals.projection': '月末の予想',
   'totals.perDay': '一日平均',
+  'totals.projectionTooSoon': '日数が少なすぎて、まだペースが読めません',
   'totals.extraordinary': '臨時',
   'totals.noCost': '無償',
   'totals.savingsForecast': '貯金の見込み',
@@ -633,6 +637,8 @@ const ja: Partial<Record<Key, string>> = {
   'savings.leakCard': '垂れ流し：勝手に出ていく分',
   'savings.leakCardHint': '{month}の「毎月」印の記入',
   'savings.leakEmpty': 'その月に「毎月」印の記入はありません。',
+  'savings.leakCredits':
+    'さらに毎月{amount}の定額の入金があります（{names}）：これは出ていくお金ではありません。',
   'savings.leakNote':
     '「毎月」印の記入だけ（サブスク、携帯、保険...）。家賃と固定の追加費用は「月」タブで別に見られます。',
   'savings.debtList': '借りているもの',
@@ -887,6 +893,7 @@ const en: Partial<Record<Key, string>> = {
   'totals.used': 'of the limit',
   'totals.projection': 'End-of-month projection',
   'totals.perDay': 'Average per day',
+  'totals.projectionTooSoon': 'Too few days in to read a pace yet',
   'totals.extraordinary': 'One-offs',
   'totals.noCost': 'No cost',
   'totals.savingsForecast': 'Projected savings',
@@ -1051,6 +1058,8 @@ const en: Partial<Record<Key, string>> = {
   'savings.leakCard': 'Leak: what goes out on its own',
   'savings.leakCardHint': 'Entries marked as recurring in {month}',
   'savings.leakEmpty': 'No recurring entries that month.',
+  'savings.leakCredits':
+    'On top of that, {amount} a month comes in as fixed credits ({names}): that is not a leak, it is money arriving.',
   'savings.leakNote':
     'Only entries marked as recurring (subscriptions, phone, insurance...). Rent and fixed extras are shown separately, in the Month tab.',
   'savings.debtList': 'What I owe',

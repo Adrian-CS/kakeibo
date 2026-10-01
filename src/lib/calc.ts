@@ -240,21 +240,35 @@ export function savingsRate(data: AppData, monthId: string): number | null {
   return (income - monthTotals(data, monthId).totalJpy) / income
 }
 
+/** Apuntes recurrentes del mes que suman (lo que se va) y que restan (abonos). */
+export function recurringOfMonth(data: AppData, monthId: string): { out: Expense[]; credits: Expense[] } {
+  const items = expensesOfMonth(data, monthId).filter((e) => e.kind === 'recurring')
+  return {
+    out: items.filter((e) => e.amount > 0),
+    credits: items.filter((e) => e.amount < 0),
+  }
+}
+
 /**
  * "Fuga": el gasto del mes que se va sin volver a decidirlo, o sea los
  * apuntes marcados como recurrentes (suscripciones, movil, seguros...).
  *
  * A proposito NO incluye el alquiler ni los extras fijos del mes: esos ya se
  * ven juntos en "Gastos fijos" de la pestana Mes, se deciden una vez y no
- * son de los que se acumulan sin darse cuenta. Puede salir negativa si hay
- * algun abono recurrente apuntado en negativo.
+ * son de los que se acumulan sin darse cuenta.
+ *
+ * Tampoco cuenta los recurrentes en negativo: un abono fijo (el 通勤手当, un
+ * descuento mensual) es dinero que ENTRA, y restarlo de la fuga la dejaria
+ * mas pequena de lo que es -o incluso en negativo-, ademas de aparecer en una
+ * lista que promete "lo que se va solo". Se enseñan aparte.
  */
 export function leakJpy(data: AppData, monthId: string): number {
-  return sum(
-    expensesOfMonth(data, monthId)
-      .filter((e) => e.kind === 'recurring')
-      .map((e) => e.amount),
-  )
+  return sum(recurringOfMonth(data, monthId).out.map((e) => e.amount))
+}
+
+/** Lo que entra cada mes de forma fija (recurrentes en negativo), en positivo. */
+export function recurringCreditJpy(data: AppData, monthId: string): number {
+  return -sum(recurringOfMonth(data, monthId).credits.map((e) => e.amount))
 }
 
 /* ------------------------------------------------------------------ *
@@ -578,6 +592,9 @@ export function datedCount(data: AppData, monthId: string): number {
   return expensesOfMonth(data, monthId).filter((e) => !!e.day).length
 }
 
+/** Dias de mes que hacen falta para que extrapolar signifique algo. */
+export const MIN_DAYS_TO_PROJECT = 5
+
 /**
  * Proyeccion de cierre del mes en curso: lo gastado hasta hoy extrapolado
  * al total de dias. Si el mes no es el actual devuelve el total real.
@@ -589,7 +606,19 @@ export function projectMonth(data: AppData, monthId: string, today = new Date())
   const nDays = daysInMonth(monthId)
   const elapsed = Math.min(today.getDate(), nDays)
   if (elapsed === 0) return t.totalJpy
-  return (t.totalJpy / elapsed) * nDays
+
+  // con dos dias de mes no hay ritmo del que fiarse: multiplicar por treinta
+  // lo que llevas gastado el dia 1 da un numero de risa (y en la grafica
+  // aplastaba todos los meses cerrados contra el cero). Hasta que haya unos
+  // dias, la "proyeccion" es lo que hay
+  if (elapsed < MIN_DAYS_TO_PROJECT) return t.totalJpy
+
+  // y solo se extrapola el gasto del dia a dia. El alquiler, los recibos
+  // fijos, los recurrentes y los extraordinarios se pagan UNA vez: repartirlos
+  // por dias y multiplicarlos por el mes entero contaba treinta alquileres
+  const oneOffJpy = t.fixedJpy + t.extraordinaryJpy
+  const dailyJpy = t.totalJpy - oneOffJpy
+  return oneOffJpy + (dailyJpy / elapsed) * nDays
 }
 
 /* ------------------------------------------------------------------ *
@@ -1262,7 +1291,10 @@ export function savingsRateSeries(
 ): SavingsRatePoint[] {
   const currentId = monthIdOfDate(today)
   return monthIds.map((monthId) => {
-    const incomeJpy = monthIncomeJpy(data, monthId)
+    // si se sabe lo que entro de verdad, manda sobre lo previsto: la tarjeta
+    // promete "lo que te queda, sobre lo que entra", y lo que entro es el
+    // dato real en cuanto lo pones
+    const incomeJpy = monthActualIncomeJpy(data, monthId) ?? monthIncomeJpy(data, monthId)
     const spentJpy = monthTotals(data, monthId).totalJpy
     const inProgress = monthId === currentId
     const projected = inProgress ? projectMonth(data, monthId, today) : 0

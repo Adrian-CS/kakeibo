@@ -37,7 +37,9 @@ import {
   quarterOf,
   quarterlyTicket,
   recentActiveAverageJpy,
+  recurringCreditJpy,
   recurringItems,
+  recurringOfMonth,
   savingsGoal,
   savingsRate,
   savingsRateSeries,
@@ -386,12 +388,72 @@ describe('ritmo del mes', () => {
     expect(burn[30].paceJpy).toBeCloseTo(150000, 6)
   })
 
-  it('proyecta el mes en curso a partir de lo gastado', () => {
+  it('proyecta el mes en curso extrapolando solo el gasto del dia a dia', () => {
     const data = build()
+    // agosto: 80.000 de alquiler (que se paga una vez) y 6.000 del dia a dia
     const p = projectMonth(data, '2026-08', new Date('2026-08-10T12:00:00'))
-    expect(p).toBeCloseTo((86000 / 10) * 31, 6)
+    expect(p).toBeCloseTo(80000 + (6000 / 10) * 31, 6)
     // un mes pasado no se proyecta
     expect(projectMonth(data, '2026-07', new Date('2026-08-10T12:00:00'))).toBe(194590)
+  })
+
+  it('el dia 1 del mes no multiplica por treinta el alquiler', () => {
+    // el fallo que reventaba las graficas: con el alquiler y los recibos
+    // recien apuntados y nada mas, la proyeccion salia treinta veces los
+    // fijos -mas de dos millones- y aplastaba todos los meses cerrados
+    const base = emptyData(new Date('2026-11-01T10:00:00'))
+    const data: AppData = {
+      ...base,
+      months: [
+        {
+          id: '2026-11',
+          rentJpy: 68250,
+          extras: [{ id: 'x', label: 'luz', amount: 3000 }],
+          fxRate: 0.0056,
+          limitJpy: 180000,
+          incomeJpy: 200000,
+        },
+      ],
+      expenses: [
+        { id: 'r', monthId: '2026-11', categoryId: 'fixed_transport', label: 'movil', amount: 2973, kind: 'recurring' },
+      ],
+    }
+    const p = projectMonth(data, '2026-11', new Date('2026-11-01T10:00:00'))
+    // nada del dia a dia todavia: la proyeccion es justo lo que ya hay
+    expect(p).toBe(68250 + 3000 + 2973)
+  })
+
+  it('los primeros dias del mes no se extrapolan: no hay ritmo todavia', () => {
+    const base = emptyData(new Date('2026-11-02T10:00:00'))
+    const data: AppData = {
+      ...base,
+      months: [
+        { id: '2026-11', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 180000, incomeJpy: 200000 },
+      ],
+      expenses: [
+        { id: 'c', monthId: '2026-11', categoryId: 'eating_out', label: 'cena', amount: 15560, kind: 'normal' },
+      ],
+    }
+    // el dia 2 seria 15.560 x 15 = 233.400, un numero de risa
+    expect(projectMonth(data, '2026-11', new Date('2026-11-02T10:00:00'))).toBe(15560)
+    // a partir del quinto dia ya se extrapola
+    expect(projectMonth(data, '2026-11', new Date('2026-11-05T10:00:00'))).toBe((15560 / 5) * 30)
+  })
+
+  it('un gasto extraordinario tampoco se multiplica por los dias que quedan', () => {
+    // una mudanza el dia 6 no son cinco mudanzas al mes
+    const base = emptyData(new Date('2026-11-06T10:00:00'))
+    const data: AppData = {
+      ...base,
+      months: [
+        { id: '2026-11', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 180000, incomeJpy: 200000 },
+      ],
+      expenses: [
+        { id: 'm', monthId: '2026-11', categoryId: 'home', label: 'mudanza', amount: 100000, kind: 'extraordinary' },
+        { id: 'c', monthId: '2026-11', categoryId: 'eating_out', label: 'cafe', amount: 600, kind: 'normal' },
+      ],
+    }
+    expect(projectMonth(data, '2026-11', new Date('2026-11-06T10:00:00'))).toBe(100000 + (600 / 6) * 30)
   })
 })
 
@@ -765,6 +827,26 @@ describe('leakJpy', () => {
     // van aparte en "Gastos fijos": se deciden una vez y no se escapan solos
     const data = build()
     expect(leakJpy(data, '2026-07')).toBeLessThan(monthTotals(data, '2026-07').fixedJpy)
+  })
+
+
+  it('un abono recurrente no cuenta como fuga: es dinero que entra', () => {
+    // el 通勤手当 (el abono de transporte) se apunta como recurrente en
+    // negativo. Sumarlo dejaba la fuga mas pequena de lo que es, y encima
+    // salia listado en "lo que se va solo"
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    const data: AppData = {
+      ...base,
+      expenses: [
+        { id: 'n', monthId: '2026-07', categoryId: 'fixed_transport', label: 'netflix', amount: 1590, kind: 'recurring' },
+        { id: 'm', monthId: '2026-07', categoryId: 'fixed_transport', label: 'movil', amount: 2973, kind: 'recurring' },
+        { id: 't', monthId: '2026-07', categoryId: 'fixed_transport', label: '通勤手当', amount: -13550, kind: 'recurring' },
+      ],
+    }
+    expect(leakJpy(data, '2026-07')).toBe(1590 + 2973)
+    expect(recurringCreditJpy(data, '2026-07')).toBe(13550)
+    expect(recurringOfMonth(data, '2026-07').out.map((e) => e.id)).toEqual(['n', 'm'])
+    expect(recurringOfMonth(data, '2026-07').credits.map((e) => e.id)).toEqual(['t'])
   })
 
   it('un mes sin nada apuntado no fuga nada', () => {

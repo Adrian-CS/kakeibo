@@ -6,10 +6,11 @@ import {
   computeStats,
   debtAccounts,
   debtTotalJpy,
-  expensesOfMonth,
   lastClosedMonthId,
   leakJpy,
   mergeNetWorthMonthly,
+  recurringCreditJpy,
+  recurringOfMonth,
   mergeSavingsBands,
   monthIncomeJpy,
   monthTotals,
@@ -294,13 +295,29 @@ export function SavingsView() {
     () => (refMonthId ? sum(sides.map((d) => leakJpy(d, refMonthId))) : 0),
     [refMonthId, sides],
   )
+  // la lista de la fuga enseña solo lo que sale. Los recurrentes en negativo
+  // (el abono de transporte, un descuento fijo) son dinero que entra: van
+  // aparte, que en una lista titulada "lo que se va solo" no pintan nada
   const leakItems = useMemo(
     () =>
       refMonthId
         ? sides
-            .flatMap((d) => expensesOfMonth(d, refMonthId).filter((e) => e.kind === 'recurring'))
+            .flatMap((d) => recurringOfMonth(d, refMonthId).out)
             .sort((a, b) => b.amount - a.amount)
         : [],
+    [refMonthId, sides],
+  )
+  const leakCredits = useMemo(
+    () =>
+      refMonthId
+        ? sides
+            .flatMap((d) => recurringOfMonth(d, refMonthId).credits)
+            .sort((a, b) => a.amount - b.amount)
+        : [],
+    [refMonthId, sides],
+  )
+  const leakCreditJpy = useMemo(
+    () => (refMonthId ? sum(sides.map((d) => recurringCreditJpy(d, refMonthId))) : 0),
     [refMonthId, sides],
   )
   const debts = useMemo(() => sides.flatMap((d) => debtAccounts(d)), [sides])
@@ -900,6 +917,17 @@ export function SavingsView() {
                   <span className="tabular-nums">{fmtJpy(leak, lang)}</span>
                 </li>
               </ul>
+            )}
+            {leakCredits.length > 0 && (
+              <p className="mt-3 text-[11px]" style={{ color: 'var(--good-text)' }}>
+                {t('savings.leakCredits', {
+                  amount: fmtJpy(leakCreditJpy, lang),
+                  names: leakCredits
+                    .map((e) => e.label || t('fields.label'))
+                    .slice(0, 3)
+                    .join(', '),
+                })}
+              </p>
             )}
             <p className="mt-3 text-[11px] text-muted">{t('savings.leakNote')}</p>
           </Collapsible>

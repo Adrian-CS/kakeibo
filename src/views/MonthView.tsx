@@ -5,6 +5,7 @@ import {
   categoryLabel,
   categoryLimitsJpy,
   daysInMonth,
+  MIN_DAYS_TO_PROJECT,
   getMonth,
   monthTotals,
   projectMonth,
@@ -513,6 +514,13 @@ export function MonthView({
                   lang,
                 )}`
               : eur(totals.perDayJpy)
+          }
+          // los primeros dias del mes no se extrapolan (ver projectMonth), y
+          // sin decirlo la cifra parece congelada
+          hint={
+            isCurrent && new Date().getDate() < MIN_DAYS_TO_PROJECT
+              ? t('totals.projectionTooSoon')
+              : undefined
           }
         />
       </div>
