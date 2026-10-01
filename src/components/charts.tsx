@@ -434,6 +434,7 @@ export function Columns({
   fmtValue,
   fmtTick,
   colorOf,
+  clampTo,
   title,
 }: {
   data: ColumnDatum[]
@@ -442,6 +443,14 @@ export function Columns({
   fmtTick: (n: number) => string
   /** color de cada barra segun su valor (por defecto, verde/rojo) */
   colorOf?: (v: number) => string
+  /**
+   * Tope de la escala. Un solo valor disparatado (una tasa de ahorro del
+   * -700% porque ese mes los ingresos estan mal puestos) aplasta todas las
+   * demas barras contra el cero; con esto la escala se queda en un rango
+   * legible y la barra que se pasa se dibuja cortada, con el borde de puntos.
+   * El valor de verdad sigue estando en el globo y en la etiqueta.
+   */
+  clampTo?: number
   title: string
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
@@ -449,8 +458,9 @@ export function Columns({
   const hatchId = `h${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
 
   const values = data.flatMap((d) => [d.value, d.projected].filter((v): v is number => v != null))
-  const maxV = Math.max(0, ...values)
-  const minV = Math.min(0, ...values)
+  const cap = clampTo && clampTo > 0 ? clampTo : Infinity
+  const maxV = Math.min(Math.max(0, ...values), cap)
+  const minV = Math.max(Math.min(0, ...values), -cap)
   const upTicks = maxV > 0 ? niceTicks(maxV) : [0]
   const downTicks = minV < 0 ? niceTicks(-minV) : [0]
   const topV = upTicks[upTicks.length - 1]
@@ -500,7 +510,10 @@ export function Columns({
 
           {data.map((d, i) => {
             const x = padL + i * band + (band - barW) / 2
-            const v = d.value
+            // la barra se dibuja hasta donde llega la escala; si el valor se
+            // sale, se corta y se marca con el borde de puntos
+            const v = d.value === null ? null : Math.max(bottomV, Math.min(topV, d.value))
+            const clipped = d.value !== null && v !== d.value
             const barTop = v === null ? 0 : y(Math.max(0, v))
             const barH = v === null ? 0 : Math.abs(y(v) - y(0))
             return (
@@ -525,6 +538,17 @@ export function Columns({
                         fill={`url(#${hatchId})`}
                         opacity="0.55"
                         pointerEvents="none"
+                      />
+                    )}
+                    {clipped && (
+                      <line
+                        x1={x - 2}
+                        x2={x + barW + 2}
+                        y1={y(v)}
+                        y2={y(v)}
+                        stroke="var(--surface-1)"
+                        strokeWidth="2"
+                        strokeDasharray="2 2"
                       />
                     )}
                   </>

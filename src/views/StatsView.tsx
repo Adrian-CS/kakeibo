@@ -182,8 +182,13 @@ export function StatsView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [sides, monthIds.join(',')],
   )
-  const unloggedTotalJpy = sum(unlogged.map((u) => u.unloggedJpy))
-  const lastUnlogged = unlogged.at(-1)
+  // los meses que no cuadran (una cuenta que solo esta en una de las dos
+  // fotos, o un descuadre mayor que todo lo que entro) no son gasto: se
+  // quedan fuera del total y de la grafica, y se listan aparte con el motivo
+  const unloggedOk = unlogged.filter((u) => u.reliable)
+  const unloggedOdd = unlogged.filter((u) => !u.reliable)
+  const unloggedTotalJpy = sum(unloggedOk.map((u) => u.unloggedJpy))
+  const lastUnlogged = unloggedOk.at(-1)
   // `recurringItems` y `quarterlyTicket` solo leen `expenses`, asi que para
   // la vista combinada basta con juntar los apuntes de los dos
   const bothSides = useMemo(
@@ -420,8 +425,14 @@ export function StatsView({
               }))}
               fmtValue={(n) => fmtPercent(n, lang)}
               fmtTick={(n) => fmtPercent(n, lang)}
+              clampTo={2}
               title={t('stats.savingsRate')}
             />
+            {rateSeries.some((p) => p.rate !== null && Math.abs(p.rate) > 2) && (
+              <p className="mt-2 text-[11px]" style={{ color: 'var(--serious)' }}>
+                {t('stats.rateClamped')}
+              </p>
+            )}
             {rateSeries.some((p) => p.inProgress) && (
               <p className="mt-2 text-[11px] text-muted">{t('stats.inProgressNote')}</p>
             )}
@@ -448,22 +459,26 @@ export function StatsView({
         id="stats.unlogged"
         title={t('stats.unlogged')}
         hint={t('stats.unloggedHint')}
-        summary={unlogged.length ? `${compact(unloggedTotalJpy)} ¥` : t('common.none')}
+        summary={unloggedOk.length ? `${compact(unloggedTotalJpy)} ¥` : t('common.none')}
       >
         {unlogged.length === 0 ? (
           <p className="text-sm text-muted">{t('stats.unloggedEmpty')}</p>
         ) : (
           <>
+            {unloggedOk.length === 0 ? (
+              <p className="text-sm text-muted">{t('stats.unloggedNoneReliable')}</p>
+            ) : (
+              <>
             <div className="mb-3 grid grid-cols-2 gap-2">
               <StatTile label={t('common.total')} value={jpy(unloggedTotalJpy)} />
               <StatTile
                 label={t('stats.unloggedAvg')}
-                value={jpy(unloggedTotalJpy / unlogged.length)}
-                hint={`${unlogged.length} ${t(unlogged.length === 1 ? 'stats.monthsOne' : 'stats.months')}`}
+                value={jpy(unloggedTotalJpy / unloggedOk.length)}
+                hint={`${unloggedOk.length} ${t(unloggedOk.length === 1 ? 'stats.monthsOne' : 'stats.months')}`}
               />
             </div>
             <Columns
-              data={unlogged.map((u) => ({
+              data={unloggedOk.map((u) => ({
                 key: u.monthId,
                 axisLabel: fmtMonthAxis(u.monthId, lang),
                 fullLabel: fmtMonth(u.monthId, lang, true),
@@ -497,6 +512,42 @@ export function StatsView({
                 </span>
               </p>
             )}
+              </>
+            )}
+
+            {/* los meses que no cuadran, con el motivo y el culpable */}
+            {unloggedOdd.length > 0 && (
+              <div className="mt-3 rounded-lg border border-hairline p-2.5">
+                <p className="text-xs font-semibold text-ink">{t('stats.unloggedOdd')}</p>
+                <p className="mt-0.5 text-[11px] text-muted">{t('stats.unloggedOddHint')}</p>
+                <ul className="mt-2 space-y-2">
+                  {unloggedOdd.map((u) => {
+                    const biggest = u.accountChanges[0]
+                    return (
+                      <li key={u.monthId} className="text-[11px] text-ink-2">
+                        <span className="text-xs font-medium text-ink">
+                          {fmtMonth(u.monthId, lang, true)}
+                        </span>{' '}
+                        <span className="tabular-nums">{jpy(u.unloggedJpy)}</span>
+                        <span className="mt-0.5 block text-muted">
+                          {u.reasons.includes('accountsDiffer')
+                            ? t('stats.unloggedReasonAccounts', {
+                                names: u.oddAccounts.slice(0, 3).join(', '),
+                              })
+                            : t('stats.unloggedReasonBig', { amount: jpy(u.unloggedJpy) })}
+                          {biggest &&
+                            ` · ${t('stats.unloggedBiggestMove', {
+                              name: biggest.name,
+                              amount: `${biggest.deltaJpy >= 0 ? '+' : ''}${jpy(biggest.deltaJpy)}`,
+                            })}`}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
+
             {unlogged.some((u) => u.usedForecastIncome) && (
               <p className="mt-2 text-[11px]" style={{ color: 'var(--serious)' }}>
                 {t('stats.unloggedForecastWarn')}

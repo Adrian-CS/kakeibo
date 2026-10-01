@@ -46,6 +46,7 @@ import {
   snapshotTotals,
   topExpenses,
   topLabels,
+  accountChangesBetween,
   unloggedSpend,
   unloggedSpendSeries,
   upcomingExpenses,
@@ -1561,6 +1562,103 @@ describe('gasto sin apuntar', () => {
     }
     // seis dias por delante del mes y cinco por detras
     expect(unloggedSpend(anchas, '2026-07')!.slackDays).toBe(11)
+  })
+
+
+  it('es de fiar cuando las dos fotos tienen las mismas cuentas', () => {
+    const u = unloggedSpend(seed(), '2026-07')!
+    expect(u.reliable).toBe(true)
+    expect(u.reasons).toEqual([])
+    expect(u.oddAccounts).toEqual([])
+  })
+
+  it('no se fia cuando una cuenta solo esta en una de las dos fotos', () => {
+    // el caso de verdad: el patrimonio pega un salto porque empiezas a
+    // apuntar una cuenta que ya tenias, no porque hayas ingresado nada
+    const data = seed()
+    const nuevaCuenta: AppData = {
+      ...data,
+      snapshots: [
+        data.snapshots[0],
+        {
+          ...data.snapshots[1],
+          accounts: [
+            ...data.snapshots[1].accounts,
+            { id: 'c', name: 'cuenta vieja', amount: 2000000, currency: 'JPY' },
+          ],
+        },
+      ],
+    }
+    const u = unloggedSpend(nuevaCuenta, '2026-07')!
+    expect(u.reliable).toBe(false)
+    expect(u.reasons).toContain('accountsDiffer')
+    expect(u.oddAccounts).toEqual(['cuenta vieja'])
+    // y se puede señalar al culpable
+    expect(u.accountChanges[0]).toEqual({
+      name: 'cuenta vieja',
+      fromJpy: null,
+      toJpy: 2000000,
+      deltaJpy: 2000000,
+    })
+  })
+
+  it('tampoco se fia de un descuadre mayor que todo lo que entro', () => {
+    const data = seed()
+    // el patrimonio sube dos millones en una cuenta que ya existia
+    const salto: AppData = {
+      ...data,
+      snapshots: [
+        data.snapshots[0],
+        { ...data.snapshots[1], accounts: [{ id: 'b', name: 'banco', amount: 2570000, currency: 'JPY' }] },
+      ],
+    }
+    const u = unloggedSpend(salto, '2026-07')!
+    expect(u.reliable).toBe(false)
+    expect(u.reasons).toEqual(['tooBig'])
+    // no se puede dejar de apuntar mas dinero del que hubo
+    expect(Math.abs(u.unloggedJpy)).toBeGreaterThan(u.incomeJpy)
+  })
+
+  it('compara las cuentas por nombre, que los id cambian al duplicar una foto', () => {
+    const data = seed()
+    // misma cuenta, otro id y escrita distinto: tiene que casar igual
+    const duplicada: AppData = {
+      ...data,
+      snapshots: [
+        data.snapshots[0],
+        { ...data.snapshots[1], accounts: [{ id: 'otro', name: ' Banco ', amount: 570000, currency: 'JPY' }] },
+      ],
+    }
+    const u = unloggedSpend(duplicada, '2026-07')!
+    expect(u.oddAccounts).toEqual([])
+    expect(u.accountChanges).toEqual([
+      { name: 'banco', fromJpy: 500000, toJpy: 570000, deltaJpy: 70000 },
+    ])
+  })
+
+  it('una deuda aporta en negativo, asi que pagarla sube el patrimonio', () => {
+    const data = seed()
+    const conDeuda: AppData = {
+      ...data,
+      snapshots: [
+        {
+          ...data.snapshots[0],
+          accounts: [
+            ...data.snapshots[0].accounts,
+            { id: 'd1', name: 'tarjeta', amount: 50000, currency: 'JPY', isDebt: true },
+          ],
+        },
+        {
+          ...data.snapshots[1],
+          accounts: [
+            ...data.snapshots[1].accounts,
+            { id: 'd2', name: 'tarjeta', amount: 20000, currency: 'JPY', isDebt: true },
+          ],
+        },
+      ],
+    }
+    const tarjeta = accountChangesBetween(conDeuda, 's1', 's2').find((c) => c.name === 'tarjeta')!
+    expect(tarjeta).toEqual({ name: 'tarjeta', fromJpy: -50000, toJpy: -20000, deltaJpy: 30000 })
   })
 
   it('sin las dos fotos, o sin ingresos, no hay descuadre que calcular', () => {

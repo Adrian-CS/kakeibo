@@ -1505,6 +1505,75 @@ export interface UnloggedSpend {
   realSpendJpy: number
   /** lo que salio y no esta apuntado. Negativo = apuntaste mas de lo que salio */
   unloggedJpy: number
+  /**
+   * Si la cifra se puede leer como gasto. Es false cuando entre las dos fotos
+   * hay cuentas que solo estan en una (eso no es dinero gastado, es una
+   * cuenta que entra o sale del recuento) o cuando el descuadre se pasa de lo
+   * que entro en todo el mes.
+   */
+  reliable: boolean
+  /** por que no es de fiar; vacio si lo es */
+  reasons: ('accountsDiffer' | 'tooBig')[]
+  /** cuentas que solo aparecen en una de las dos fotos */
+  oddAccounts: string[]
+  /** lo que movio cada cuenta entre las dos fotos, de mayor a menor */
+  accountChanges: AccountChange[]
+}
+
+export interface AccountChange {
+  name: string
+  /** aportacion al patrimonio en la primera foto; null si no estaba */
+  fromJpy: number | null
+  /** aportacion al patrimonio en la segunda; null si ya no esta */
+  toJpy: number | null
+  /** lo que movio (positivo = subio el patrimonio) */
+  deltaJpy: number
+}
+
+/**
+ * Lo que aporta cada cuenta al patrimonio, en yenes y con su signo (una deuda
+ * resta). Las cuentas se agrupan por nombre normalizado porque los `id` se
+ * regeneran al duplicar una foto: el mismo banco tiene un id distinto en cada
+ * una, asi que por id no se podrian comparar dos fotos.
+ */
+function accountsByName(s: Snapshot | undefined, fxRate: number): Map<string, number> {
+  const out = new Map<string, number>()
+  for (const a of s?.accounts ?? []) {
+    const key = normalizeLabel(a.name) || '—'
+    const jpy = accountToJpy(a.amount, a.currency, fxRate)
+    out.set(key, (out.get(key) ?? 0) + (a.isDebt ? -jpy : jpy))
+  }
+  return out
+}
+
+/**
+ * Que hizo cada cuenta entre dos fotos. Es lo que convierte un "faltan dos
+ * millones" en algo accionable: casi siempre el culpable es una cuenta suelta
+ * que aparece, desaparece o pega un salto, no un gasto que no se apunto.
+ */
+export function accountChangesBetween(
+  data: AppData,
+  startId: string,
+  endId: string,
+): AccountChange[] {
+  const fx = data.settings.defaultFxRate
+  const from = accountsByName(
+    data.snapshots.find((s) => s.id === startId),
+    fx,
+  )
+  const to = accountsByName(
+    data.snapshots.find((s) => s.id === endId),
+    fx,
+  )
+  const names = new Set([...from.keys(), ...to.keys()])
+
+  return [...names]
+    .map((name) => {
+      const a = from.get(name) ?? null
+      const b = to.get(name) ?? null
+      return { name, fromJpy: a, toJpy: b, deltaJpy: (b ?? 0) - (a ?? 0) }
+    })
+    .sort((x, y) => Math.abs(y.deltaJpy) - Math.abs(x.deltaJpy))
 }
 
 /** Dias enteros entre dos 'YYYY-MM-DD' (siempre >= 0). */
@@ -1559,6 +1628,22 @@ export function unloggedSpend(data: AppData, monthId: string): UnloggedSpend | n
   const loggedJpy = monthTotals(data, monthId).totalJpy
   const realSpendJpy = incomeJpy - deltaJpy
 
+  const unloggedJpy = realSpendJpy - loggedJpy
+  const accountChanges = accountChangesBetween(data, start.id, end.id)
+  const oddAccounts = accountChanges
+    .filter((c) => c.fromJpy === null || c.toJpy === null)
+    .map((c) => c.name)
+
+  // dos motivos para no fiarse de la cifra, y los dos se dicen en voz alta en
+  // vez de enseñar un numero enorme como si fuera gasto:
+  const reasons: UnloggedSpend['reasons'] = []
+  // una cuenta que solo esta en una de las dos fotos no es dinero gastado:
+  // es una cuenta que entra o sale del recuento
+  if (oddAccounts.length) reasons.push('accountsDiffer')
+  // y un descuadre mayor que todo lo que entro en el mes no se sostiene:
+  // no se puede dejar de apuntar mas de lo que hubo
+  if (Math.abs(unloggedJpy) > incomeJpy) reasons.push('tooBig')
+
   return {
     monthId,
     fromDate: start.date,
@@ -1571,7 +1656,11 @@ export function unloggedSpend(data: AppData, monthId: string): UnloggedSpend | n
     deltaJpy,
     loggedJpy,
     realSpendJpy,
-    unloggedJpy: realSpendJpy - loggedJpy,
+    unloggedJpy,
+    reliable: reasons.length === 0,
+    reasons,
+    oddAccounts,
+    accountChanges,
   }
 }
 
@@ -1607,6 +1696,12 @@ export function mergeUnloggedSpend(sides: UnloggedSpend[][]): UnloggedSpend[] {
       cur.realSpendJpy += p.realSpendJpy
       cur.unloggedJpy += p.unloggedJpy
       cur.usedForecastIncome = cur.usedForecastIncome || p.usedForecastIncome
+      cur.reliable = cur.reliable && p.reliable
+      cur.reasons = [...new Set([...cur.reasons, ...p.reasons])]
+      cur.oddAccounts = [...cur.oddAccounts, ...p.oddAccounts]
+      cur.accountChanges = [...cur.accountChanges, ...p.accountChanges].sort(
+        (x, y) => Math.abs(y.deltaJpy) - Math.abs(x.deltaJpy),
+      )
       // la ventana que se enseña es la mas ancha de las dos
       if (p.fromDate < cur.fromDate) cur.fromDate = p.fromDate
       if (p.toDate > cur.toDate) cur.toDate = p.toDate

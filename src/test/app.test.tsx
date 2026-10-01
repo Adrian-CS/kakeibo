@@ -547,6 +547,55 @@ describe('la aplicacion', () => {
     expect(screen.queryByText(/ingresos previstos porque no hay reales/)).not.toBeInTheDocument()
   })
 
+
+  it('un salto de patrimonio por una cuenta nueva no se cuenta como gasto: se explica', async () => {
+    // el caso real: el patrimonio pega un salto de millones porque una cuenta
+    // aparece en la segunda foto y no en la primera. Eso no es gasto, y la
+    // tarjeta tiene que decirlo en vez de enseñar un total absurdo
+    const user = userEvent.setup()
+    window.location.hash = `#/month/${monthIdOf()}`
+    const base = emptyData()
+    const closed = shiftMonth(monthIdOf(), -1)
+    const data: AppData = {
+      ...base,
+      months: [
+        {
+          id: closed,
+          rentJpy: 0,
+          extras: [],
+          fxRate: 0.0056,
+          limitJpy: 200000,
+          incomeJpy: 200000,
+          actualIncomeJpy: 200000,
+        },
+      ],
+      expenses: [
+        { id: 'e1', monthId: closed, categoryId: 'eating_out', label: 'uber', amount: 100000, kind: 'normal' },
+      ],
+      snapshots: [
+        { id: 's1', date: `${closed}-01`, accounts: [{ id: 'a', name: 'banco', amount: 500000, currency: 'JPY' }] },
+        {
+          id: 's2',
+          date: `${monthIdOf()}-01`,
+          accounts: [
+            { id: 'b', name: 'banco', amount: 570000, currency: 'JPY' },
+            { id: 'c', name: 'cuenta vieja', amount: 2000000, currency: 'JPY' },
+          ],
+        },
+      ],
+    }
+    render(<App initial={data} />)
+    await user.click(screen.getAllByRole('button', { name: /Estadísticas/ })[0])
+
+    expect(screen.getByText('Meses que no cuadran')).toBeInTheDocument()
+    expect(screen.getByText(/«cuenta vieja» solo aparece en una de las dos fotos/)).toBeInTheDocument()
+    // y señala el culpable con su importe
+    expect(screen.getByText(/lo que más se movió: cuenta vieja, \+2\.000\.000 ¥/)).toBeInTheDocument()
+    // sin ningun mes que cuadre, no se da una cifra de la que fiarse
+    expect(screen.getByText(/Ningún mes cuadra todavía/)).toBeInTheDocument()
+    expect(screen.queryByText(/-2\.1/)).not.toBeInTheDocument()
+  })
+
   it('avisa cuando el descuadre se ha calculado con ingresos previstos', async () => {
     const user = userEvent.setup()
     window.location.hash = `#/month/${monthIdOf()}`

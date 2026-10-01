@@ -128,6 +128,15 @@ const es = {
     'Algún mes usa los ingresos previstos porque no hay reales: ahí esto también recoge lo que cobraste de más o de menos. Ponlos en la pestaña Mes.',
   'stats.unloggedSlack': 'Las fotos no caen justo en el mes: la ventana se pasa {n} días.',
   'stats.unloggedAvg': 'Media por mes',
+  'stats.unloggedOdd': 'Meses que no cuadran',
+  'stats.unloggedOddHint': 'Fuera del total: ahí lo que mueve el patrimonio no es gasto',
+  'stats.unloggedReasonAccounts': '«{names}» solo aparece en una de las dos fotos',
+  'stats.unloggedReasonBig': 'el descuadre ({amount}) es mayor que todo lo que entró ese mes',
+  'stats.unloggedBiggestMove': 'lo que más se movió: {name}, {amount}',
+  'stats.unloggedNoneReliable':
+    'Ningún mes cuadra todavía, así que no hay cifra de la que fiarse. Abajo tienes por qué.',
+  'stats.rateClamped':
+    'Algún mes se sale de la escala y su barra va cortada: suele ser que los ingresos de ese mes están mal puestos. El valor exacto sigue en la tabla y al pasar por encima.',
   'stats.unloggedNote':
     'Esta cifra se traga todo lo que mueva el patrimonio sin ser gasto: cuentas que no están en las fotos, inversiones que suben o bajan solas y lo que cobraste distinto de lo que pusiste. Es un aviso de por dónde se escapa el dinero, no una factura.',
   'stats.savingsRate': 'Tasa de ahorro por mes',
@@ -549,6 +558,14 @@ const ja: Partial<Record<Key, string>> = {
     '実際の収入がない月は見込みを使うので、多かった分・少なかった分もここに混ざります。「月」タブで入れられます。',
   'stats.unloggedSlack': '記録が月ちょうどではありません：{n}日はみ出しています。',
   'stats.unloggedAvg': '月平均',
+  'stats.unloggedOdd': '計算が合わない月',
+  'stats.unloggedOddHint': '合計からは除外：そこで純資産を動かしたのは出費ではありません',
+  'stats.unloggedReasonAccounts': '「{names}」が片方の記録にしかありません',
+  'stats.unloggedReasonBig': 'ずれ（{amount}）がその月に入ったお金より大きいです',
+  'stats.unloggedBiggestMove': '一番動いたのは{name}、{amount}',
+  'stats.unloggedNoneReliable': '今のところ計算の合う月がないので、信頼できる数字はありません。理由は下に。',
+  'stats.rateClamped':
+    '目盛りからはみ出す月があり、その棒は切って描いています。たいていはその月の収入の入力ミスです。正確な値は表とカーソルで見られます。',
   'stats.unloggedNote':
     '出費でなくても純資産を動かすものは全部ここに入ります：記録にない口座、勝手に増減する投資、見込みと違った収入。請求書ではなく、お金の抜け道の手がかりとして読んでください。',
   'stats.savingsRate': '月ごとの貯蓄率',
@@ -955,6 +972,15 @@ const en: Partial<Record<Key, string>> = {
     'Some month falls back to expected income because there is no actual figure: there, this also picks up earning more or less than planned. You can set it in the Month tab.',
   'stats.unloggedSlack': 'The snapshots do not land on the month: the window overshoots by {n} days.',
   'stats.unloggedAvg': 'Monthly average',
+  'stats.unloggedOdd': 'Months that do not add up',
+  'stats.unloggedOddHint': 'Left out of the total: what moved net worth there is not spending',
+  'stats.unloggedReasonAccounts': '"{names}" only appears in one of the two snapshots',
+  'stats.unloggedReasonBig': 'the gap ({amount}) is bigger than everything that came in that month',
+  'stats.unloggedBiggestMove': 'biggest mover: {name}, {amount}',
+  'stats.unloggedNoneReliable':
+    'No month adds up yet, so there is no figure to trust. The reasons are below.',
+  'stats.rateClamped':
+    "Some month runs off the scale and its bar is drawn cut: usually that month's income is wrong. The exact value is still in the table and on hover.",
   'stats.unloggedNote':
     'This figure swallows anything that moves your net worth without being spending: accounts missing from the snapshots, investments moving on their own, and income that differed from what you entered. Read it as a hint about where money leaks, not as a bill.',
   'stats.savingsRate': 'Savings rate by month',
