@@ -20,6 +20,7 @@ import type {
   SyncState,
 } from '../lib/types'
 import { loadData, saveData } from '../lib/storage'
+import { idbBackupStore, runDailyBackup } from '../lib/backup'
 import { emptyData, monthIdOf, newMonth } from '../lib/defaults'
 import { getMonth, overspendDebt, shiftMonth } from '../lib/calc'
 import { translator, type TFunc } from '../lib/i18n'
@@ -451,6 +452,14 @@ export function StoreProvider({ children, initial }: { children: ReactNode; init
     return () => {
       if (timer.current) clearTimeout(timer.current)
     }
+  }, [state.data])
+
+  // copia de seguridad del dia, en IndexedDB y aparte de los datos. Se hace
+  // tras un rato de calma y pisa la del dia, asi que acaba guardando la
+  // ultima foto de cada dia sin escribir en cada tecla
+  useEffect(() => {
+    const id = setTimeout(() => void runDailyBackup(idbBackupStore(), state.data), 15000)
+    return () => clearTimeout(id)
   }, [state.data])
 
   // guardar tambien al cerrar / cambiar de app (movil mata la pestana sin avisar)

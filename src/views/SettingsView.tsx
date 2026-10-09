@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import { LANGS } from '../lib/i18n'
 import { clearData, deserialize, exportFileName, serialize, storageSize } from '../lib/storage'
 import { categoryLabel, snapshotSeries } from '../lib/calc'
-import { fmtMonth, fmtNumber, parseAmount } from '../lib/format'
+import { fmtDate, fmtMonth, fmtNumber, parseAmount } from '../lib/format'
 import { MAX_SLOTS, seriesVar } from '../lib/palette'
 import type { Bucket, Category, Lang, ThemePref } from '../lib/types'
 import {
@@ -22,6 +22,7 @@ import { ImportDialog } from './ImportDialog'
 import { SyncCard } from './SyncCard'
 import { HouseholdCard } from './HouseholdCard'
 import { uid } from '../lib/id'
+import { idbBackupStore, type BackupMeta } from '../lib/backup'
 import { monthIdOf } from '../lib/defaults'
 import { fetchFxRate } from '../lib/fx'
 import { Toggle } from '../components/ui'
@@ -117,6 +118,15 @@ export function SettingsView() {
   const goalAnchor = data.settings.savingsGoalAnchor ?? 'rolling'
   const netWorthTodayJpy = snapshotSeries(data).at(-1)?.netJpy ?? 0
 
+  // la lista de copias automaticas: se lee al abrir Ajustes y tras restaurar
+  const [backups, setBackups] = useState<BackupMeta[]>([])
+  const refreshBackups = () => {
+    const store = idbBackupStore()
+    if (!store) return
+    void store.list().then((list) => setBackups([...list].sort((a, b) => b.id.localeCompare(a.id))))
+  }
+  useEffect(refreshBackups, [])
+
   const [fxBusy, setFxBusy] = useState(false)
   const [fxMsg, setFxMsg] = useState<string | null>(null)
 
@@ -145,6 +155,29 @@ export function SettingsView() {
     a.download = exportFileName()
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  /** Baja una copia automatica como fichero: es el mismo JSON que el export. */
+  const downloadBackup = async (b: BackupMeta) => {
+    const json = await idbBackupStore()?.read(b.id)
+    if (!json) return setMsg(t('settings.backupFailed'))
+    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `kakeibo-${b.id.replace(/-/g, '')}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const restoreBackup = async (b: BackupMeta) => {
+    const json = await idbBackupStore()?.read(b.id)
+    if (!json) return setMsg(t('settings.backupFailed'))
+    try {
+      dispatch({ type: 'replace', data: deserialize(json) })
+      setMsg(t('settings.backupRestored', { date: fmtDate(b.id, lang) }))
+    } catch {
+      setMsg(t('settings.backupFailed'))
+    }
   }
 
   const doImportJson = async (file: File) => {
@@ -546,6 +579,41 @@ export function SettingsView() {
           </ConfirmButton>
           <p className="mt-1 text-xs text-muted">{t('settings.resetHint')}</p>
         </div>
+      </Card>
+
+      <Card title={t('settings.backups')} hint={t('settings.backupsHint')}>
+        {backups.length === 0 ? (
+          <p className="text-sm text-muted">{t('settings.backupsEmpty')}</p>
+        ) : (
+          <ul>
+            {backups.map((b) => (
+              <li
+                key={b.id}
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-hairline py-2 first:border-0"
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm text-ink">{fmtDate(b.id, lang)}</span>
+                  <span className="block text-[11px] text-muted tabular-nums">
+                    {fmtNumber(b.size / 1024, lang, 1)} kB
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => void downloadBackup(b)}>
+                    <Icon name="download" />
+                  </Button>
+                  <ConfirmButton
+                    variant="outline"
+                    confirmLabel={`${t('settings.backupRestore')} — ${t('action.confirm')}`}
+                    onConfirm={() => void restoreBackup(b)}
+                  >
+                    {t('settings.backupRestore')}
+                  </ConfirmButton>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-3 text-[11px] text-muted">{t('settings.backupsNote')}</p>
       </Card>
 
       <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} />

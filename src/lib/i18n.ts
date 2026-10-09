@@ -314,6 +314,17 @@ const es = {
   'settings.defaults': 'Valores por defecto',
   'settings.defaultExtrasHint':
     'Se usan solo al crear un mes que no tiene uno anterior del que copiar (el primero, o tras borrar todo)',
+  'settings.backups': 'Copias automáticas',
+  'settings.backupsHint':
+    'Una copia al día en este navegador, por si borras algo sin querer. Las últimas 7 y la de cierre de cada mes',
+  'settings.backupsEmpty': 'Todavía no hay ninguna. Se guarda sola al rato de usar la app.',
+  'settings.backupsNote':
+    'Están en este dispositivo: te salvan de un error, no de perder el móvil. Para eso están la copia manual y la sincronización.',
+  'settings.backupRestore': 'Restaurar',
+  'settings.backupRestored': 'Restaurada la copia del {date}.',
+  'settings.backupFailed': 'No se ha podido leer esa copia.',
+  'settings.lastExport': 'Última copia manual: hace {n} días',
+  'settings.lastExportNever': 'Todavía no has hecho ninguna copia manual a un fichero',
   'settings.data': 'Datos',
   'settings.dataHint':
     'Todo se guarda en este dispositivo, en el navegador. Exporta de vez en cuando para tener copia.',
@@ -741,6 +752,16 @@ const ja: Partial<Record<Key, string>> = {
   'settings.archived': '非表示',
   'settings.defaults': '既定値',
   'settings.defaultExtrasHint': '前の月がない場合だけ使う（最初の月、または全部消したあと）',
+  'settings.backups': '自動バックアップ',
+  'settings.backupsHint': 'このブラウザに一日一つ。直近7つと各月の最後の分',
+  'settings.backupsEmpty': 'まだありません。しばらく使うと自動で保存されます。',
+  'settings.backupsNote':
+    'この端末の中にあります：操作ミスからは守れますが、端末をなくしたら終わりです。そのための手動バックアップと同期です。',
+  'settings.backupRestore': '復元',
+  'settings.backupRestored': '{date}のバックアップを復元しました。',
+  'settings.backupFailed': 'そのバックアップを読めませんでした。',
+  'settings.lastExport': '最後の手動バックアップ：{n}日前',
+  'settings.lastExportNever': 'ファイルへの手動バックアップはまだありません',
   'settings.data': 'データ',
   'settings.dataHint': 'すべてこの端末のブラウザに保存されます。たまに書き出してバックアップを。',
   'settings.storage': '使用容量',
@@ -1166,6 +1187,17 @@ const en: Partial<Record<Key, string>> = {
   'settings.defaults': 'Defaults',
   'settings.defaultExtrasHint':
     'Only used when a month has no previous one to copy from (the first ever, or after deleting everything)',
+  'settings.backups': 'Automatic backups',
+  'settings.backupsHint':
+    'One copy a day in this browser, in case you delete something by mistake. The last 7 plus each month\u2019s closing one',
+  'settings.backupsEmpty': 'None yet. One is saved on its own after a while of using the app.',
+  'settings.backupsNote':
+    'They live on this device: they save you from a mistake, not from losing the phone. That is what the manual backup and the sync are for.',
+  'settings.backupRestore': 'Restore',
+  'settings.backupRestored': 'Restored the backup from {date}.',
+  'settings.backupFailed': 'That backup could not be read.',
+  'settings.lastExport': 'Last manual backup: {n} days ago',
+  'settings.lastExportNever': 'You have not made a manual backup to a file yet',
   'settings.data': 'Data',
   'settings.dataHint':
     'Everything is saved on this device, in the browser. Export it now and then to keep a backup.',
