@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import { LANGS } from '../lib/i18n'
-import { clearData, deserialize, exportFileName, serialize, storageSize } from '../lib/storage'
+import {
+  clearData,
+  daysSince,
+  deserialize,
+  exportFileName,
+  lastExportAt,
+  markExported,
+  serialize,
+  storageSize,
+} from '../lib/storage'
 import { categoryLabel, snapshotSeries } from '../lib/calc'
 import { fmtDate, fmtMonth, fmtNumber, parseAmount } from '../lib/format'
 import { MAX_SLOTS, seriesVar } from '../lib/palette'
@@ -118,6 +127,9 @@ export function SettingsView() {
   const goalAnchor = data.settings.savingsGoalAnchor ?? 'rolling'
   const netWorthTodayJpy = snapshotSeries(data).at(-1)?.netJpy ?? 0
 
+  // cuantos dias hace de la ultima copia manual a un fichero
+  const [sinceExport, setSinceExport] = useState<number | null>(() => daysSince(lastExportAt()))
+
   // la lista de copias automaticas: se lee al abrir Ajustes y tras restaurar
   const [backups, setBackups] = useState<BackupMeta[]>([])
   const refreshBackups = () => {
@@ -155,6 +167,8 @@ export function SettingsView() {
     a.download = exportFileName()
     a.click()
     URL.revokeObjectURL(url)
+    markExported()
+    setSinceExport(0)
   }
 
   /** Baja una copia automatica como fichero: es el mismo JSON que el export. */
@@ -167,6 +181,9 @@ export function SettingsView() {
     a.download = `kakeibo-${b.id.replace(/-/g, '')}.json`
     a.click()
     URL.revokeObjectURL(url)
+    // bajar una copia automatica tambien saca el fichero del movil: cuenta
+    markExported()
+    setSinceExport(0)
   }
 
   const restoreBackup = async (b: BackupMeta) => {
@@ -565,6 +582,22 @@ export function SettingsView() {
         <p className="mt-3 text-xs text-muted">
           {t('settings.storage')}: {fmtNumber(storageSize() / 1024, lang, 1)} kB ·{' '}
           {data.expenses.length} {t('stats.count')} · {data.months.length} {t('stats.months')}
+        </p>
+        {/* el fichero es lo unico que depende de ti: si hace semanas que no
+            sacas uno, conviene decirlo en voz alta */}
+        <p
+          className="mt-1 text-xs"
+          style={{
+            color: sinceExport === null || sinceExport > 30 ? 'var(--serious)' : 'var(--text-muted)',
+          }}
+        >
+          {sinceExport === null
+            ? t('settings.lastExportNever')
+            : sinceExport === 0
+              ? t('settings.lastExportToday')
+              : sinceExport === 1
+                ? t('settings.lastExportYesterday')
+                : t('settings.lastExport', { n: sinceExport })}
         </p>
         <div className="mt-3 border-t border-hairline pt-3">
           <ConfirmButton

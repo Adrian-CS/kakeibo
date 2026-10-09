@@ -84,6 +84,34 @@ export function storageSize(): number {
   return (s.getItem(STORAGE_KEY) ?? '').length
 }
 
+/**
+ * Cuando se hizo la ultima copia manual a un fichero. Va fuera del documento,
+ * en el almacenamiento del dispositivo, y a proposito: el fichero se baja a
+ * ESTE movil, asi que guardarlo dentro de los datos haria que al sincronizar
+ * el otro dispositivo creyera tener una copia que no tiene.
+ */
+const EXPORT_KEY = 'kakeibo:lastExport'
+
+export function markExported(now = new Date()): void {
+  try {
+    safeStorage()?.setItem(EXPORT_KEY, now.toISOString())
+  } catch {
+    /* sin almacenamiento solo se pierde el aviso, no la copia */
+  }
+}
+
+export function lastExportAt(): string | null {
+  return safeStorage()?.getItem(EXPORT_KEY) ?? null
+}
+
+/** Dias enteros desde una fecha ISO; null si no hay fecha o no se entiende. */
+export function daysSince(iso: string | null, now = new Date()): number | null {
+  if (!iso) return null
+  const then = Date.parse(iso)
+  if (Number.isNaN(then)) return null
+  return Math.max(0, Math.floor((now.getTime() - then) / 86400000))
+}
+
 export function serialize(data: AppData): string {
   return JSON.stringify({ ...data, exportedAt: new Date().toISOString() }, null, 1)
 }

@@ -1,5 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { clearData, deserialize, exportFileName, loadData, migrate, saveData, serialize, STORAGE_KEY } from './storage'
+import {
+  clearData,
+  daysSince,
+  deserialize,
+  exportFileName,
+  lastExportAt,
+  loadData,
+  markExported,
+  migrate,
+  saveData,
+  serialize,
+  STORAGE_KEY,
+} from './storage'
 import { emptyData } from './defaults'
 
 describe('persistencia', () => {
@@ -121,5 +133,29 @@ describe('migracion', () => {
 
   it('el nombre del fichero lleva la fecha', () => {
     expect(exportFileName(new Date('2026-08-20T10:00:00'))).toBe('kakeibo-20260820.json')
+  })
+})
+
+describe('aviso de la copia manual', () => {
+  it('cuenta los dias enteros desde la ultima copia', () => {
+    const now = new Date('2026-10-09T10:00:00Z')
+    expect(daysSince('2026-10-09T09:00:00Z', now)).toBe(0)
+    expect(daysSince('2026-10-02T10:00:00Z', now)).toBe(7)
+    // una fecha por delante no da dias negativos
+    expect(daysSince('2026-10-20T10:00:00Z', now)).toBe(0)
+  })
+
+  it('sin fecha, o con una que no se entiende, no hay cuenta que dar', () => {
+    expect(daysSince(null)).toBeNull()
+    expect(daysSince('ayer por la tarde')).toBeNull()
+  })
+
+  it('apunta la copia en el dispositivo, no en los datos', () => {
+    localStorage.clear()
+    expect(lastExportAt()).toBeNull()
+    markExported(new Date('2026-10-09T10:00:00Z'))
+    expect(lastExportAt()).toBe('2026-10-09T10:00:00.000Z')
+    // y no se cuela en el documento que se sincroniza
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
   })
 })

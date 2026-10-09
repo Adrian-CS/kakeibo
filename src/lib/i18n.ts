@@ -324,6 +324,8 @@ const es = {
   'settings.backupRestored': 'Restaurada la copia del {date}.',
   'settings.backupFailed': 'No se ha podido leer esa copia.',
   'settings.lastExport': 'Última copia manual: hace {n} días',
+  'settings.lastExportToday': 'Última copia manual: hoy',
+  'settings.lastExportYesterday': 'Última copia manual: ayer',
   'settings.lastExportNever': 'Todavía no has hecho ninguna copia manual a un fichero',
   'settings.data': 'Datos',
   'settings.dataHint':
@@ -761,6 +763,8 @@ const ja: Partial<Record<Key, string>> = {
   'settings.backupRestored': '{date}のバックアップを復元しました。',
   'settings.backupFailed': 'そのバックアップを読めませんでした。',
   'settings.lastExport': '最後の手動バックアップ：{n}日前',
+  'settings.lastExportToday': '最後の手動バックアップ：今日',
+  'settings.lastExportYesterday': '最後の手動バックアップ：昨日',
   'settings.lastExportNever': 'ファイルへの手動バックアップはまだありません',
   'settings.data': 'データ',
   'settings.dataHint': 'すべてこの端末のブラウザに保存されます。たまに書き出してバックアップを。',
@@ -1197,6 +1201,8 @@ const en: Partial<Record<Key, string>> = {
   'settings.backupRestored': 'Restored the backup from {date}.',
   'settings.backupFailed': 'That backup could not be read.',
   'settings.lastExport': 'Last manual backup: {n} days ago',
+  'settings.lastExportToday': 'Last manual backup: today',
+  'settings.lastExportYesterday': 'Last manual backup: yesterday',
   'settings.lastExportNever': 'You have not made a manual backup to a file yet',
   'settings.data': 'Data',
   'settings.dataHint':
