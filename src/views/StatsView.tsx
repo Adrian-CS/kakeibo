@@ -200,7 +200,14 @@ export function StatsView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [bothSides, monthIds.join(',')],
   )
-  const recurringYearlyJpy = sum(recurring.map((r) => r.yearlyJpy))
+  // igual que en la tarjeta de Fuga: lo que PAGAS va en la lista y en el
+  // total, y los abonos recurrentes (el 通勤手当 y compañía) se dicen aparte.
+  // Mezclados, un ingreso se colaba entre las suscripciones y encima restaba
+  // del "todo junto, al año", que promete lo que te cuesta
+  const recurringOut = recurring.filter((r) => r.yearlyJpy > 0)
+  const recurringCredits = recurring.filter((r) => r.yearlyJpy < 0)
+  const recurringYearlyJpy = sum(recurringOut.map((r) => r.yearlyJpy))
+  const recurringCreditYearlyJpy = -sum(recurringCredits.map((r) => r.yearlyJpy))
   // el comercio del ticket medio: el elegido si sigue en la lista, y si no
   // el que mas pesa del periodo
   const ticketPick = labels.some((l) => l.label === ticketLabel) ? ticketLabel : (labels[0]?.label ?? '')
@@ -727,12 +734,12 @@ export function StatsView({
         hint={t('stats.recurringHint')}
         summary={`${compact(recurringYearlyJpy)} ¥`}
       >
-        {recurring.length === 0 ? (
+        {recurringOut.length === 0 ? (
           <p className="text-sm text-muted">{t('stats.recurringEmpty')}</p>
         ) : (
           <>
             <ul>
-              {recurring.map((r) => (
+              {recurringOut.map((r) => (
                 <li
                   key={r.label}
                   className="flex items-baseline justify-between gap-3 border-t border-hairline py-2 first:border-0"
@@ -793,7 +800,7 @@ export function StatsView({
                   t('stats.count'),
                   t('stats.perYear'),
                 ]}
-                rows={recurring.map((r) => [
+                rows={recurringOut.map((r) => [
                   r.label || '—',
                   fmtNumber(r.amountJpy, lang),
                   r.monthCount,
@@ -802,6 +809,17 @@ export function StatsView({
               />
             )}
           </>
+        )}
+        {recurringCredits.length > 0 && (
+          <p className="mt-3 text-[11px]" style={{ color: 'var(--good-text)' }}>
+            {t('stats.recurringCredits', {
+              amount: jpy(recurringCreditYearlyJpy),
+              names: recurringCredits
+                .map((r) => r.label || '—')
+                .slice(0, 3)
+                .join(', '),
+            })}
+          </p>
         )}
       </Collapsible>
 

@@ -159,6 +159,8 @@ const es = {
   'stats.lowered': 'bajó {pct}',
   'stats.wasBefore': 'antes {amount}',
   'stats.recurringYearTotal': 'Todo junto, al año',
+  'stats.recurringCredits':
+    'Aparte, {amount} al año que entran de forma fija ({names}): eso no cuesta, paga.',
   'stats.ticket': 'Ticket medio por trimestre',
   'stats.ticketHint':
     'Por trimestres y no mes a mes: en un mes suele haber una o dos compras y la media salta sin querer decir nada',
@@ -606,6 +608,8 @@ const ja: Partial<Record<Key, string>> = {
   'stats.lowered': '{pct} 下がった',
   'stats.wasBefore': '以前は {amount}',
   'stats.recurringYearTotal': '全部で年間',
+  'stats.recurringCredits':
+    '別に、年間{amount}が定額で入ってきます（{names}）：費用ではなく収入です。',
   'stats.ticket': '四半期ごとの平均単価',
   'stats.ticketHint': '月ごとではなく四半期ごと：一ヶ月では一、二回の買い物しかなく平均が暴れるため',
   'stats.ticketPick': 'お店',
@@ -1038,6 +1042,8 @@ const en: Partial<Record<Key, string>> = {
   'stats.lowered': 'down {pct}',
   'stats.wasBefore': 'was {amount}',
   'stats.recurringYearTotal': 'All together, a year',
+  'stats.recurringCredits':
+    'Separately, {amount} a year comes in on a fixed basis ({names}): that pays, it does not cost.',
   'stats.ticket': 'Average ticket by quarter',
   'stats.ticketHint':
     'By quarter rather than month: a single month usually holds one or two purchases and the average jumps around meaninglessly',

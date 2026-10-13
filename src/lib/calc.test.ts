@@ -337,6 +337,19 @@ describe('estadisticas', () => {
     expect(s.maxMonth?.monthId).toBe('2026-07')
   })
 
+  it('un abono fijo no es un sitio donde se va el dinero', () => {
+    // el 通勤手当 se apunta en negativo: en un ranking de gasto no pinta nada
+    const base = emptyData(new Date('2026-08-15T00:00:00'))
+    const conAbono: AppData = {
+      ...base,
+      expenses: [
+        { id: 'a', monthId: '2026-07', categoryId: 'eating_out', label: 'uber', amount: 3000, kind: 'normal' },
+        { id: 'b', monthId: '2026-07', categoryId: 'fixed_transport', label: '通勤手当', amount: -13550, kind: 'recurring' },
+      ],
+    }
+    expect(topLabels(conAbono).map((l) => l.label)).toEqual(['uber'])
+  })
+
   it('agrupa conceptos normalizando el nombre', () => {
     const top = topLabels(data, { limit: 5 })
     const uber = top.find((l) => l.label.toLowerCase().trim() === 'uber')

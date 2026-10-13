@@ -527,7 +527,13 @@ export function topLabels(
       })
     }
   }
-  const out = [...map.values()].sort((a, b) => b.totalJpy - a.totalJpy)
+  // un concepto que en total no suma nada no es un sitio donde se va el
+  // dinero: son los abonos fijos (el 通勤手当 y compañia, apuntados en
+  // negativo) o una devolucion mayor que lo comprado. En un ranking titulado
+  // "donde se va el dinero" solo despistan
+  const out = [...map.values()]
+    .filter((l) => l.totalJpy > 0)
+    .sort((a, b) => b.totalJpy - a.totalJpy)
   return opts.limit ? out.slice(0, opts.limit) : out
 }
 

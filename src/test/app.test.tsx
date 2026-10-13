@@ -104,6 +104,8 @@ function statsSeed(): AppData {
       { id: 'a3', monthId: m(0), categoryId: 'groceries', label: 'seiyu', amount: 4000, kind: 'normal', day: 2 },
       { id: 'r1', monthId: m(-2), categoryId: 'fixed_transport', label: 'netflix', amount: 1490, kind: 'recurring' },
       { id: 'r2', monthId: m(-1), categoryId: 'fixed_transport', label: 'Netflix', amount: 1990, kind: 'recurring' },
+      // un abono fijo: entra, no sale
+      { id: 'r3', monthId: m(-1), categoryId: 'fixed_transport', label: '通勤手当', amount: -13550, kind: 'recurring' },
     ],
   }
 }
@@ -427,6 +429,14 @@ describe('la aplicacion', () => {
     expect(screen.getAllByText('Netflix').length).toBeGreaterThan(0)
     expect(screen.getByText(/cada mes · 23,9 mil ¥ al año/)).toBeInTheDocument()
     expect(screen.getByText(/subió/)).toBeInTheDocument()
+
+    // un abono recurrente no es una suscripcion: fuera de la lista y del
+    // total, dicho aparte
+    const fijos = screen.getByRole('button', { name: /Fijos y suscripciones/ }).closest('section')!
+    expect(within(fijos).queryByText('通勤手当')).not.toBeInTheDocument()
+    expect(within(fijos).getByText(/al año que entran de forma fija \(通勤手当\)/)).toBeInTheDocument()
+    // y tampoco es un "comercio" del ranking de gasto
+    expect(screen.queryByRole('option', { name: '通勤手当' })).not.toBeInTheDocument()
 
     // ticket medio por trimestre, con su selector de comercio
     expect(screen.getByRole('button', { name: /Ticket medio por trimestre/ })).toBeInTheDocument()
