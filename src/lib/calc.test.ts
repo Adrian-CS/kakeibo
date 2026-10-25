@@ -49,6 +49,7 @@ import {
   savingsRateSeries,
   sumPercentiles,
   shiftMonth,
+  snapshotDue,
   snapshotTotals,
   topExpenses,
   topLabels,
@@ -1278,6 +1279,50 @@ describe('prevision', () => {
       expect(realSavingsPaceJpy(serie, 2)).toBe(10000)
       // con todos, ese mes raro tira de la media hacia arriba
       expect(realSavingsPaceJpy(serie, 6)).toBeCloseTo(520000 / 3, 6)
+    })
+  })
+
+  describe('la foto del cierre del ciclo', () => {
+    const conFotos = (dates: string[], today: string): AppData => ({
+      ...emptyData(new Date(`${today}T00:00:00`)),
+      snapshots: dates.map((date, i) => ({
+        id: `s${i}`,
+        date,
+        accounts: [{ id: `a${i}`, name: 'banco', amount: 100000, currency: 'JPY' as const }],
+      })),
+    })
+
+    it('avisa la vispera y los dos dias de antes', () => {
+      // cobrando el 30, el ciclo cierra el 29
+      const d = (today: string) => snapshotDue(conFotos([], today), new Date(`${today}T00:00:00`), 30)
+      expect(d('2026-10-29')?.daysLeft).toBe(0)
+      expect(d('2026-10-28')?.daysLeft).toBe(1)
+      expect(d('2026-10-27')?.daysLeft).toBe(2)
+      // tres dias antes todavia no da la lata
+      expect(d('2026-10-26')).toBeNull()
+      expect(d('2026-10-29')?.endDate).toBe('2026-10-29')
+    })
+
+    it('se calla si la foto ya esta hecha', () => {
+      const data = conFotos(['2026-10-28'], '2026-10-29')
+      expect(snapshotDue(data, new Date('2026-10-29T00:00:00'), 30)).toBeNull()
+      // una vieja no cuenta: esa es de otro ciclo
+      const vieja = conFotos(['2026-10-03'], '2026-10-29')
+      expect(snapshotDue(vieja, new Date('2026-10-29T00:00:00'), 30)).not.toBeNull()
+    })
+
+    it('pasado el cierre, el aviso es ya el del ciclo siguiente', () => {
+      // el 30 se cobra: el ciclo de octubre esta cerrado y toca mirar al de
+      // noviembre, que cierra el 29 de noviembre
+      const data = conFotos([], '2026-10-30')
+      expect(snapshotDue(data, new Date('2026-10-30T00:00:00'), 30)).toBeNull()
+      const finde = conFotos([], '2026-11-27')
+      expect(snapshotDue(finde, new Date('2026-11-27T00:00:00'), 30)?.endDate).toBe('2026-11-29')
+    })
+
+    it('sin dia de cobro no hay ciclo que cerrar', () => {
+      const data = conFotos([], '2026-10-29')
+      expect(snapshotDue(data, new Date('2026-10-29T00:00:00'), 0)).toBeNull()
     })
   })
 

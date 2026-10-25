@@ -1069,6 +1069,54 @@ export function daysFromCycleEnd(date: string, payday: number): number | null {
   return Number.isNaN(x) || Number.isNaN(y) ? null : Math.round((y - x) / 86400000)
 }
 
+export interface SnapshotDue {
+  /** 'YYYY-MM' del ciclo que esta a punto de cerrar */
+  monthId: string
+  /** 'YYYY-MM-DD' de la vispera de cobrar: el dia bueno para la foto */
+  endDate: string
+  /** dias que faltan para esa fecha (0 = es hoy) */
+  daysLeft: number
+}
+
+/** 'YYYY-MM-DD' n dias antes o despues de otro. */
+function shiftDate(date: string, n: number): string {
+  const t = Date.parse(`${date}T00:00:00Z`)
+  if (Number.isNaN(t)) return date
+  return new Date(t + n * 86400000).toISOString().slice(0, 10)
+}
+
+/**
+ * Si toca hacer la foto del cierre del ciclo. Medir ahorro es restar el
+ * patrimonio en dos momentos iguales del mes, y el unico momento que vale es
+ * la vispera de cobrar: con la nomina dentro, lo que se mide es la nomina.
+ *
+ * Avisa los dias de antes (`windowDays`) y se calla en cuanto hay una foto
+ * dentro de esa ventana, o si no hay dia de cobro puesto.
+ */
+export function snapshotDue(
+  data: AppData,
+  today = new Date(),
+  payday = 0,
+  windowDays = 2,
+): SnapshotDue | null {
+  if (payday <= 0) return null
+  const todayIso = isoDate(today)
+  // el ciclo en el que se esta ahora: el primero cuyo cierre no ha pasado
+  let monthId = monthIdOfDate(today)
+  let endDate = cycleEnd(monthId, payday)
+  if (todayIso > endDate) {
+    monthId = shiftMonth(monthId, 1)
+    endDate = cycleEnd(monthId, payday)
+  }
+
+  const daysLeft = daysBetween(todayIso, endDate)
+  if (daysLeft > windowDays) return null
+  // ya hecha: una foto pegada al cierre cierra el ciclo igual de bien
+  const from = shiftDate(endDate, -windowDays)
+  if (data.snapshots.some((s) => s.date >= from && s.date <= endDate)) return null
+  return { monthId, endDate, daysLeft }
+}
+
 export interface SavingsBandPoint {
   /** 'YYYY-MM' proyectado */
   monthId: string

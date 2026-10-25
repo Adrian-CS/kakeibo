@@ -184,6 +184,14 @@ const es = {
 
   'savings.title': 'Ahorros y patrimonio',
   'savings.add': 'Nueva foto',
+  'savings.dueToday': 'Hoy toca la foto: mañana cobras.',
+  'savings.cycleUnmeasured':
+    'Este ciclo no está medido: no hay ninguna foto cerca del {date}, que es cuando cerraba. Lo que se ve arriba viene arrastrado del ciclo anterior, no es lo que tenías.',
+  'savings.cycleFar':
+    'La foto de este ciclo se hizo a {days} días de su cierre ({date}), así que lleva nómina sin gastar dentro: comparar este mes con otro no mide ahorro.',
+  'savings.dueSoon': 'La foto del cierre, en {days} días.',
+  'savings.dueWhy':
+    'Con la foto hecha el {date}, justo antes de que entre la nómina, el ciclo queda medido y todo lo demás cuadra solo. Hecha después, lo que se mide es la nómina.',
   'savings.net': 'Patrimonio neto',
   'savings.assets': 'Activos',
   'savings.debts': 'Deudas',
@@ -653,6 +661,14 @@ const ja: Partial<Record<Key, string>> = {
   'stats.min': '一番安い月',
   'savings.title': '貯金と資産',
   'savings.add': '記録を追加',
+  'savings.dueToday': '今日が記録の日です：明日が給料日。',
+  'savings.cycleUnmeasured':
+    'この周期は測れていません：締めの{date}の前後に記録がありません。上に出ている額は前の周期から引き継いだもので、実際の額ではありません。',
+  'savings.cycleFar':
+    'この周期の記録は締め（{date}）の{days}日前のものなので、使っていない給料が入っています。他の月と比べても貯金は測れません。',
+  'savings.dueSoon': '締めの記録まであと{days}日。',
+  'savings.dueWhy':
+    '{date}に、給料が入る直前に記録すれば、その周期がきちんと測れて他の数字も合います。後で記録すると、測っているのは給料になります。',
   'savings.net': '純資産',
   'savings.assets': '資産',
   'savings.debts': '借金',
@@ -1110,6 +1126,14 @@ const en: Partial<Record<Key, string>> = {
   'stats.min': 'Cheapest month',
   'savings.title': 'Savings & net worth',
   'savings.add': 'New snapshot',
+  'savings.dueToday': 'Snapshot day: you get paid tomorrow.',
+  'savings.cycleUnmeasured':
+    'This cycle is not measured: there is no snapshot near {date}, when it closed. The figure above is carried over from the previous cycle, not what you had.',
+  'savings.cycleFar':
+    "This cycle's snapshot was taken {days} days from its close ({date}), so it still holds unspent pay: comparing this month with another does not measure savings.",
+  'savings.dueSoon': 'Closing snapshot in {days} days.',
+  'savings.dueWhy':
+    'Taken on {date}, just before the pay lands, the cycle is measured and everything else adds up on its own. Taken after, what you measure is the pay.',
   'savings.net': 'Net worth',
   'savings.assets': 'Assets',
   'savings.debts': 'Debts',

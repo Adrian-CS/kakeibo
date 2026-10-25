@@ -8,9 +8,11 @@ import {
   debtTotalJpy,
   lastClosedMonthId,
   leakJpy,
+  daysFromCycleEnd,
   mergeNetWorthMonthly,
   recurringCreditJpy,
   recurringOfMonth,
+  referenceDayOfMonth,
   mergeSavingsBands,
   monthIncomeJpy,
   monthTotals,
@@ -22,6 +24,7 @@ import {
   recentActiveAverageJpy,
   savingsGoal,
   savingsRate,
+  snapshotDue,
   snapshotSeries,
   snapshotTotals,
   sum,
@@ -65,6 +68,8 @@ import type { Account, AppData, Snapshot } from '../lib/types'
 const HORIZONS = [6, 12, 24]
 /** Cuantos meses de prevision se dibujan (los mismos que el plazo mas largo). */
 const BAND_MONTHS = 24
+/** cuanto puede alejarse del cierre la foto de un ciclo y seguir midiendolo */
+const CYCLE_GAP_OK = 7
 
 function todayIso(): string {
   const d = new Date()
@@ -372,6 +377,18 @@ export function SavingsView() {
   const monthDelta =
     lived.length >= 2 ? lived[lived.length - 1].netJpy - lived[lived.length - 2].netJpy : null
 
+  // a que distancia del cierre quedo la foto con la que se midio un ciclo.
+  // null cuando esta bien medido (o cuando no hay dia de cobro que comparar)
+  const cycleEndOf = (monthId: string) =>
+    `${monthId}-${String(referenceDayOfMonth(monthId, payday)).padStart(2, '0')}`
+  const cycleGap = (monthId: string): number | null => {
+    if (payday <= 0) return null
+    const m = lived.find((h) => h.monthId === monthId)
+    if (!m || !m.closed) return null
+    const gap = m.date === null ? null : daysFromCycleEnd(m.date, payday)
+    return gap !== null && gap <= CYCLE_GAP_OK ? null : (gap ?? -1)
+  }
+
   // las fotos por mes, de la mas nueva a la mas vieja
   const snapshotMonths = useMemo(() => {
     const byMonth = new Map<string, Snapshot[]>()
@@ -516,6 +533,9 @@ export function SavingsView() {
     ? `${fmtJpy(projectedCategorySpendJpy, lang)} + ${fmtJpy(partnerCategorySpendJpy, lang)}`
     : fmtJpy(projectedCategorySpendJpy, lang)
 
+  // si toca la foto del cierre del ciclo (solo en "lo mio": la foto es de uno)
+  const due = useMemo(() => snapshotDue(data, new Date(), payday), [data, payday])
+
   const addSnapshot = () => {
     const template = series.length ? data.snapshots.find((s) => s.id === last?.id) : undefined
     dispatch({
@@ -555,6 +575,29 @@ export function SavingsView() {
           )}
         </div>
       </div>
+
+      {/* el aviso de la foto del cierre. Es lo unico que hace falta hacer bien
+          para que todo lo demas cuadre: una foto la vispera de cobrar */}
+      {scope === 'mine' && due && (
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                {due.daysLeft === 0
+                  ? t('savings.dueToday')
+                  : t('savings.dueSoon', { days: String(due.daysLeft) })}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted">
+                {t('savings.dueWhy', { date: fmtDate(due.endDate, lang) })}
+              </p>
+            </div>
+            <Button variant="primary" size="sm" onClick={addSnapshot}>
+              <Icon name="plus" />
+              {t('savings.add')}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {partnerMissing ? (
         <Card>
@@ -1057,6 +1100,22 @@ export function SavingsView() {
               )}
               defaultOpen={i === 0}
             >
+              {/* un ciclo sin foto de cierre no es un mes sin ahorrar: es un
+                  mes del que no se sabe. Decirlo es mejor que arrastrar el
+                  valor del anterior como si nada */}
+              {cycleGap(monthId) !== null && (
+                <p className="mb-2 text-[11px]" style={{ color: 'var(--serious)' }}>
+                  {t(
+                    // -1 es "ni una foto en todo el ciclo"; lo demas es una
+                    // foto que la hay, pero demasiado lejos del cierre
+                    cycleGap(monthId) === -1 ? 'savings.cycleUnmeasured' : 'savings.cycleFar',
+                    {
+                      date: fmtDate(cycleEndOf(monthId), lang),
+                      days: String(cycleGap(monthId)),
+                    },
+                  )}
+                </p>
+              )}
               <div className="grid gap-3 lg:grid-cols-2">
                 {items.map((s) => (
                   <SnapshotCard key={s.id} snapshot={s} />
