@@ -286,6 +286,13 @@ const es = {
   'forecast.goalOnTrack': 'A tu ritmo típico llegas en {eta}, dentro del plazo.',
   'forecast.goalLate': 'A tu ritmo típico llegas en {eta}, después del plazo.',
   'forecast.goalNever': 'A tu ritmo típico no llegas: harían falta {monthly} al mes.',
+  'forecast.goalRealOnTrack': 'A lo que ahorras de verdad ({pace} al mes) llegas en {eta}, dentro del plazo.',
+  'forecast.goalRealLate': 'A lo que ahorras de verdad ({pace} al mes) llegas en {eta}, después del plazo.',
+  'forecast.goalRealNever': 'A lo que ahorras de verdad no llegas: harían falta {monthly} al mes.',
+  'forecast.goalPaceModelLow':
+    'Ojo: tu patrimonio sube de verdad, pero la cuenta de «ingresos menos gasto típico» sale negativa, y por eso la línea azul baja. Casi siempre es el ingreso del mes, puesto por debajo de lo que cobras de verdad: revísalo en la pestaña Mes.',
+  'forecast.goalPaceModelHigh':
+    'Ojo: la cuenta de «ingresos menos gasto típico» sale a favor, pero tu patrimonio no sube. Suele ser gasto que no está apuntado: míralo en «Gasto sin apuntar».',
   'forecast.goalUnknown': 'Falta historial de gasto para saber si llegas a tiempo.',
   'forecast.goalDone': 'Meta cumplida: ya tienes {target}.',
   'forecast.goalNone': 'Pon una meta en Ajustes («de aquí a X meses quiero tener Y») y aparecerá aquí.',
@@ -739,6 +746,13 @@ const ja: Partial<Record<Key, string>> = {
   'forecast.goalOnTrack': '普段のペースなら{eta}に到達、期限内です。',
   'forecast.goalLate': '普段のペースなら{eta}に到達、期限の後です。',
   'forecast.goalNever': '普段のペースでは届きません：毎月 {monthly} 必要です。',
+  'forecast.goalRealOnTrack': '実際に貯まっているペース（毎月 {pace}）なら{eta}に到達、期限内です。',
+  'forecast.goalRealLate': '実際に貯まっているペース（毎月 {pace}）なら{eta}に到達、期限の後です。',
+  'forecast.goalRealNever': '実際に貯まっているペースでは届きません：毎月 {monthly} 必要です。',
+  'forecast.goalPaceModelLow':
+    '注意：純資産は実際に増えていますが、「収入 − 普段の支出」の計算はマイナスで、だから青い線は下がります。たいていは月の収入が実際より低く入力されています。「月」タブで確認してください。',
+  'forecast.goalPaceModelHigh':
+    '注意：「収入 − 普段の支出」の計算はプラスですが、純資産は増えていません。たいていは記録していない支出です。「記録していない支出」で確認してください。',
   'forecast.goalUnknown': '間に合うか判断する出費の履歴が足りません。',
   'forecast.goalDone': '目標達成：すでに {target} あります。',
   'forecast.goalNone': '設定で目標（「今から X ヶ月で Y 貯めたい」）を入れるとここに出ます。',
@@ -1186,6 +1200,13 @@ const en: Partial<Record<Key, string>> = {
   'forecast.goalOnTrack': 'At your typical pace you get there in {eta}, within the deadline.',
   'forecast.goalLate': 'At your typical pace you get there in {eta}, after the deadline.',
   'forecast.goalNever': 'At your typical pace you never get there: it would take {monthly} a month.',
+  'forecast.goalRealOnTrack': 'At what you actually save ({pace} a month) you get there in {eta}, within the deadline.',
+  'forecast.goalRealLate': 'At what you actually save ({pace} a month) you get there in {eta}, after the deadline.',
+  'forecast.goalRealNever': 'At what you actually save you never get there: it would take {monthly} a month.',
+  'forecast.goalPaceModelLow':
+    'Careful: your net worth really is going up, but "income minus typical spending" comes out negative, which is why the blue line falls. It is almost always the month\u2019s income, set below what you actually earn: check it in the Month tab.',
+  'forecast.goalPaceModelHigh':
+    'Careful: "income minus typical spending" comes out positive, but your net worth is not going up. That is usually spending you have not logged: look at "Spending not logged".',
   'forecast.goalUnknown': 'Not enough spending history to tell whether you make it in time.',
   'forecast.goalDone': 'Goal met: you already have {target}.',
   'forecast.goalNone': 'Set a goal in Settings ("in X months I want to have Y") and it shows up here.',

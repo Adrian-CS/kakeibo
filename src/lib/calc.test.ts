@@ -41,6 +41,7 @@ import {
   recurringCreditJpy,
   recurringItems,
   recurringOfMonth,
+  realSavingsPaceJpy,
   savingsGoal,
   savingsRate,
   savingsRateSeries,
@@ -1125,9 +1126,10 @@ describe('prevision', () => {
         ],
       }
       expect(netWorthMonthly(dos, today)).toEqual([
-        { monthId: '2026-06', netJpy: 300000, assetsJpy: 300000 },
-        { monthId: '2026-07', netJpy: 300000, assetsJpy: 300000 },
-        { monthId: '2026-08', netJpy: 500000, assetsJpy: 500000 },
+        { monthId: '2026-06', netJpy: 300000, assetsJpy: 300000, measured: true },
+        // julio no tiene foto: el valor viene arrastrado y no cuenta como medido
+        { monthId: '2026-07', netJpy: 300000, assetsJpy: 300000, measured: false },
+        { monthId: '2026-08', netJpy: 500000, assetsJpy: 500000, measured: true },
       ])
     })
 
@@ -1196,6 +1198,80 @@ describe('prevision', () => {
       const serie = netWorthMonthly(data, new Date('2026-11-30T00:00:00'), 25)
       expect(serie.map((m) => m.monthId)).toEqual(['2026-10', '2026-11'])
       expect(serie.at(-1)!.netJpy).toBe(150000)
+      // y noviembre no cuenta como medido: no es que no ahorrara nada, es
+      // que no hay foto con la que saberlo
+      expect(serie.map((m) => m.measured)).toEqual([true, false])
+    })
+
+    it('una foto de justo despues de cobrar es del ciclo nuevo, no del que cerro', () => {
+      const base = emptyData(new Date('2026-10-31T00:00:00'))
+      const data: AppData = {
+        ...base,
+        snapshots: [
+          // la unica de septiembre, a nueve dias de la vispera (dia 29)
+          { id: 's1', date: '2026-09-20', accounts: [{ id: 'a', name: 'banco', amount: 100000, currency: 'JPY' }] },
+          // cobrando el 30, esta ya lleva la nomina dentro: es de octubre
+          { id: 's2', date: '2026-10-01', accounts: [{ id: 'b', name: 'banco', amount: 280000, currency: 'JPY' }] },
+        ],
+      }
+      const serie = netWorthMonthly(data, new Date('2026-10-31T00:00:00'), 30)
+      expect(serie.map((m) => [m.monthId, m.netJpy])).toEqual([
+        // septiembre se queda con la suya aunque este mas lejos del dia 29:
+        // mirar solo la distancia le daba la del 1 de octubre, que es el pico
+        ['2026-09', 100000],
+        ['2026-10', 280000],
+      ])
+      expect(serie.map((m) => m.measured)).toEqual([true, true])
+    })
+
+    it('un ciclo entero sin fotos no cuenta como un mes sin ahorrar', () => {
+      const base = emptyData(new Date('2026-11-30T00:00:00'))
+      const data: AppData = {
+        ...base,
+        snapshots: [
+          { id: 's1', date: '2026-09-24', accounts: [{ id: 'a', name: 'banco', amount: 100000, currency: 'JPY' }] },
+          { id: 's2', date: '2026-11-24', accounts: [{ id: 'b', name: 'banco', amount: 200000, currency: 'JPY' }] },
+        ],
+      }
+      const serie = netWorthMonthly(data, new Date('2026-11-30T00:00:00'), 25)
+      expect(serie.map((m) => [m.monthId, m.netJpy, m.measured])).toEqual([
+        ['2026-09', 100000, true],
+        ['2026-10', 100000, false],
+        ['2026-11', 200000, true],
+      ])
+      // 100.000 en dos meses de calendario, no 100.000 en uno
+      expect(realSavingsPaceJpy(serie)).toBe(50000)
+    })
+
+    it('el ritmo real sale de los meses medidos, repartido por meses de calendario', () => {
+      const m = (monthId: string, netJpy: number, measured = true) => ({
+        monthId,
+        netJpy,
+        assetsJpy: netJpy,
+        measured,
+      })
+      // de agosto a octubre hay dos meses y 75.000 de diferencia
+      expect(realSavingsPaceJpy([m('2026-08', 1000), m('2026-09', 40000), m('2026-10', 76000)])).toBe(
+        37500,
+      )
+      // los meses arrastrados no cuentan como "no ahorre nada", pero el hueco
+      // de calendario si: 2 meses de agosto a octubre, no 1
+      expect(realSavingsPaceJpy([m('2026-08', 1000), m('2026-09', 99999, false), m('2026-10', 76000)])).toBe(
+        37500,
+      )
+      // y puede ser negativo: eso es justo lo que hay que poder decir
+      expect(realSavingsPaceJpy([m('2026-09', 76000), m('2026-10', 56000)])).toBe(-20000)
+      expect(realSavingsPaceJpy([m('2026-10', 1000)])).toBeNull()
+      expect(realSavingsPaceJpy([])).toBeNull()
+    })
+
+    it('solo mira los ultimos ciclos que se le piden', () => {
+      const m = (monthId: string, netJpy: number) => ({ monthId, netJpy, assetsJpy: netJpy, measured: true })
+      const serie = [m('2026-06', 0), m('2026-07', 500000), m('2026-08', 510000), m('2026-09', 520000)]
+      // con dos ciclos, el subidon de julio se queda fuera
+      expect(realSavingsPaceJpy(serie, 2)).toBe(10000)
+      // con todos, ese mes raro tira de la media hacia arriba
+      expect(realSavingsPaceJpy(serie, 6)).toBeCloseTo(520000 / 3, 6)
     })
   })
 
@@ -1386,19 +1462,19 @@ describe('prevision', () => {
   describe('juntar dos documentos (vista "Juntos")', () => {
     it('el patrimonio mes a mes suma el ultimo valor conocido de cada lado', () => {
       const mio = [
-        { monthId: '2026-06', netJpy: 100, assetsJpy: 100 },
-        { monthId: '2026-07', netJpy: 150, assetsJpy: 150 },
+        { monthId: '2026-06', netJpy: 100, assetsJpy: 100, measured: true },
+        { monthId: '2026-07', netJpy: 150, assetsJpy: 150, measured: true },
       ]
-      const suyo = [{ monthId: '2026-07', netJpy: 40, assetsJpy: 40 }]
+      const suyo = [{ monthId: '2026-07', netJpy: 40, assetsJpy: 40, measured: true }]
       // en junio la pareja no tenia foto todavia: suma solo lo mio
       expect(mergeNetWorthMonthly([mio, suyo])).toEqual([
-        { monthId: '2026-06', netJpy: 100, assetsJpy: 100 },
-        { monthId: '2026-07', netJpy: 190, assetsJpy: 190 },
+        { monthId: '2026-06', netJpy: 100, assetsJpy: 100, measured: true },
+        { monthId: '2026-07', netJpy: 190, assetsJpy: 190, measured: true },
       ])
     })
 
     it('con un solo lado (o ninguno) no cambia nada', () => {
-      const mio = [{ monthId: '2026-07', netJpy: 150, assetsJpy: 150 }]
+      const mio = [{ monthId: '2026-07', netJpy: 150, assetsJpy: 150, measured: true }]
       expect(mergeNetWorthMonthly([mio, []])).toEqual(mio)
       expect(mergeNetWorthMonthly([[], []])).toEqual([])
     })

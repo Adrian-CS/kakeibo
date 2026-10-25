@@ -895,6 +895,13 @@ export interface NetWorthMonth {
   monthId: string
   netJpy: number
   assetsJpy: number
+  /**
+   * `true` cuando este mes tiene medida propia: una foto suya, o una dentro de
+   * su ciclo de cobro si hay dia de cobro puesto. `false` cuando el valor
+   * viene arrastrado del mes anterior, que no es lo mismo que "no ahorre
+   * nada": es que no hay foto con la que saberlo.
+   */
+  measured: boolean
 }
 
 /**
@@ -916,15 +923,13 @@ export function referenceDayOfMonth(monthId: string, payday: number): number {
   return Math.min(payday - 1, n)
 }
 
-/** Cuantos dias hay entre dos 'YYYY-MM-DD', en valor absoluto. */
-function dayGap(a: string, b: string): number {
-  const x = Date.parse(`${a}T00:00:00Z`)
-  const y = Date.parse(`${b}T00:00:00Z`)
-  return Number.isNaN(x) || Number.isNaN(y) ? Infinity : Math.abs(x - y) / 86400000
+/**
+ * 'YYYY-MM-DD' del dia en que se cierra el ciclo de `monthId`: la vispera de
+ * cobrar. Es el final de la cuesta abajo, antes de que entre la nomina.
+ */
+function cycleEnd(monthId: string, payday: number): string {
+  return `${monthId}-${String(referenceDayOfMonth(monthId, payday)).padStart(2, '0')}`
 }
-
-/** Cuanto se puede alejar una foto del dia de referencia y seguir valiendo. */
-const REFERENCE_WINDOW_DAYS = 15
 
 export function netWorthMonthly(
   data: AppData,
@@ -950,25 +955,53 @@ export function netWorthMonthly(
     // la foto mas cercana a la vispera de cobrar. Asi un mes no sale peor que
     // otro solo porque su foto cayera antes de la nomina y la del otro despues
     let point = last
+    let measured = series.some((x) => x.date.slice(0, 7) === monthId)
     if (payday > 0) {
-      const ref = `${monthId}-${String(referenceDayOfMonth(monthId, payday)).padStart(2, '0')}`
+      // el ciclo de este mes va de la vispera de cobrar del mes pasado (sin
+      // incluirla) a la de este. Cada foto cae en un ciclo y en uno solo, y el
+      // ciclo lo representa su ultima foto: la mas pegada al final de la
+      // cuesta abajo. Buscar "la mas cercana a la vispera" sin esto deja que
+      // una foto de justo DESPUES de cobrar, que ya es del ciclo siguiente,
+      // represente al mes anterior, que es el pico y no el suelo
+      const end = cycleEnd(monthId, payday)
+      const prevEnd = cycleEnd(shiftMonth(monthId, -1), payday)
       let best: SnapshotTotals | null = null
-      let bestGap = Infinity
       for (const s of series) {
-        const gap = dayGap(s.date, ref)
-        if (gap <= REFERENCE_WINDOW_DAYS && gap < bestGap) {
-          best = s
-          bestGap = gap
-        }
+        if (s.date > prevEnd && s.date <= end) best = s
       }
-      // si no hay ninguna foto cerca de ese dia, se arrastra la ultima
-      // conocida, igual que sin dia de cobro
+      // un ciclo sin ninguna foto no se mide: se arrastra la ultima conocida,
+      // igual que sin dia de cobro, pero sin contar como "no ahorre nada"
+      measured = best !== null
       if (best) point = best
     }
 
-    out.push({ monthId, netJpy: point.netJpy, assetsJpy: point.assetsJpy })
+    out.push({ monthId, netJpy: point.netJpy, assetsJpy: point.assetsJpy, measured })
   }
   return out
+}
+
+/**
+ * Lo que el patrimonio ha subido (o bajado) al mes, medido de verdad: coge los
+ * ultimos `cycles` meses CON medida propia y reparte la diferencia entre los
+ * meses que hay de uno a otro.
+ *
+ * No es lo mismo que `income - gasto tipico`, que es un modelo: esto es lo que
+ * paso. Cuando las dos cuentas no se parecen, la que se equivoca casi siempre
+ * es el modelo (un ingreso mal puesto en Ajustes, un mes con gasto sin apuntar),
+ * y por eso merece la pena enseñar las dos.
+ *
+ * `null` si no hay al menos dos meses medidos.
+ */
+export function realSavingsPaceJpy(series: NetWorthMonth[], cycles = 6): number | null {
+  const measured = series.filter((m) => m.measured)
+  if (measured.length < 2) return null
+  const window = measured.slice(-(cycles + 1))
+  const first = window[0]
+  const last = window[window.length - 1]
+  // por meses de calendario y no por numero de fotos: saltarse un mes no puede
+  // salir como si se hubiera ahorrado el doble en el siguiente
+  const span = monthsBetween(first.monthId, last.monthId)
+  return span > 0 ? (last.netJpy - first.netJpy) / span : null
 }
 
 export interface SavingsBandPoint {
@@ -1035,6 +1068,7 @@ export function mergeNetWorthMonthly(sides: NetWorthMonth[][]): NetWorthMonth[] 
   return monthRange(from, to).map((monthId) => {
     let netJpy = 0
     let assetsJpy = 0
+    let measured = true
     for (const side of withData) {
       let known: NetWorthMonth | undefined
       for (const p of side) {
@@ -1044,9 +1078,13 @@ export function mergeNetWorthMonthly(sides: NetWorthMonth[][]): NetWorthMonth[] 
       if (known) {
         netJpy += known.netJpy
         assetsJpy += known.assetsJpy
+        // el total solo esta medido de verdad si lo estan todos los lados que
+        // ya habian empezado: basta que uno venga arrastrado para que la suma
+        // mezcle un dato de hoy con otro viejo
+        if (!known.measured) measured = false
       }
     }
-    return { monthId, netJpy, assetsJpy }
+    return { monthId, netJpy, assetsJpy, measured }
   })
 }
 
@@ -1119,6 +1157,12 @@ export interface SavingsGoalStatus {
   etaMonthId: string | null
   /** si se llega a tiempo; null cuando no hay con que saberlo */
   onTrack: boolean | null
+  /** lo que ha subido el patrimonio al mes de verdad; null sin meses medidos */
+  realPaceJpy: number | null
+  /** 'YYYY-MM' en que se llegaria a ese ritmo real; null si no se sabe o no se llega */
+  realEtaMonthId: string | null
+  /** si se llega a tiempo al ritmo real; null cuando no hay con que saberlo */
+  realOnTrack: boolean | null
 }
 
 /**
@@ -1143,7 +1187,12 @@ export interface SavingsGoalStatus {
  *
  * Devuelve null si no hay meta puesta o no hay ninguna foto de la que partir.
  */
-export function savingsGoal(data: AppData, today = new Date(), lastMonths = 12): SavingsGoalStatus | null {
+export function savingsGoal(
+  data: AppData,
+  today = new Date(),
+  lastMonths = 12,
+  realPaceJpy: number | null = null,
+): SavingsGoalStatus | null {
   const { settings } = data
   const goalJpy = settings.savingsGoalJpy ?? 0
   const months = settings.savingsGoalMonths ?? 0
@@ -1173,19 +1222,22 @@ export function savingsGoal(data: AppData, today = new Date(), lastMonths = 12):
   const income = monthIncomeJpy(data, currentId)
   const medianMonthlyJpy = p && income > 0 ? income - p.p50 : null
 
-  let etaMonthId: string | null = null
-  let onTrack: boolean | null = null
-  if (missingJpy === 0) {
-    etaMonthId = currentId
-    onTrack = true
-  } else if (medianMonthlyJpy !== null) {
-    const needed = medianMonthlyJpy > 0 ? Math.ceil(missingJpy / medianMonthlyJpy) : Infinity
+  // la misma cuenta para los dos ritmos: el del modelo (ingresos - gasto
+  // tipico) y el medido (lo que el patrimonio ha subido de verdad)
+  const etaAt = (monthlyJpy: number | null): { eta: string | null; onTrack: boolean | null } => {
+    if (missingJpy === 0) return { eta: currentId, onTrack: true }
+    if (monthlyJpy === null) return { eta: null, onTrack: null }
+    const needed = monthlyJpy > 0 ? Math.ceil(missingJpy / monthlyJpy) : Infinity
     // mas de diez anos es lo mismo que "asi no se llega": dar una fecha de
     // 2049 seria fingir una precision que esta cuenta no tiene
-    etaMonthId = needed <= 120 ? shiftMonth(currentId, needed) : null
-    // con el plazo ya vencido, ningun ritmo llega "a tiempo"
-    onTrack = monthsLeft > 0 && needed <= monthsLeft
+    return {
+      eta: needed <= 120 ? shiftMonth(currentId, needed) : null,
+      // con el plazo ya vencido, ningun ritmo llega "a tiempo"
+      onTrack: monthsLeft > 0 && needed <= monthsLeft,
+    }
   }
+  const model = etaAt(medianMonthlyJpy)
+  const real = etaAt(realPaceJpy)
 
   return {
     mode,
@@ -1202,8 +1254,11 @@ export function savingsGoal(data: AppData, today = new Date(), lastMonths = 12):
     // mes del final, lo que falta hay que ahorrarlo en ese mes
     requiredMonthlyJpy: monthsLeft > 0 ? missingJpy / monthsLeft : missingJpy,
     medianMonthlyJpy,
-    etaMonthId,
-    onTrack,
+    etaMonthId: model.eta,
+    onTrack: model.onTrack,
+    realPaceJpy,
+    realEtaMonthId: real.eta,
+    realOnTrack: real.onTrack,
   }
 }
 

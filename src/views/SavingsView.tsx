@@ -19,6 +19,7 @@ import {
   percentiles,
   projectSavings,
   projectSavingsBands,
+  realSavingsPaceJpy,
   recentActiveAverageJpy,
   savingsGoal,
   savingsRate,
@@ -401,7 +402,34 @@ export function SavingsView() {
   }, [sides])
   // la meta es de una persona, no de dos: en "Juntos" no se dibuja, porque
   // mezclarla con el patrimonio de los dos diria algo que no es
-  const goal = useMemo(() => (isTogether ? null : savingsGoal(source)), [isTogether, source])
+  // lo que el patrimonio ha subido de verdad al mes, medido ciclo a ciclo. No
+  // es lo mismo que `ingresos - gasto tipico`: eso es un modelo, y cuando los
+  // dos no se parecen es el modelo el que suele estar mal
+  const sourcePace = useMemo(
+    () => realSavingsPaceJpy(netWorthMonthly(source, new Date(), payday)),
+    [source, payday],
+  )
+  const goal = useMemo(
+    () => (isTogether ? null : savingsGoal(source, new Date(), 12, sourcePace)),
+    [isTogether, source, sourcePace],
+  )
+  // el veredicto sale del ritmo medido cuando lo hay; el del modelo se queda
+  // de reserva para cuando todavia no hay dos ciclos que comparar
+  const verdict = {
+    real: goal?.realPaceJpy != null,
+    eta: goal === null ? null : goal.realPaceJpy !== null ? goal.realEtaMonthId : goal.etaMonthId,
+    onTrack: goal === null ? null : goal.realPaceJpy !== null ? goal.realOnTrack : goal.onTrack,
+  }
+  // cuando el modelo y la realidad no se parecen hay un dato mal puesto, y
+  // callarselo deja la tarjeta diciendo dos cosas contrarias a la vez
+  const paceMismatch =
+    goal === null || goal.realPaceJpy === null || goal.medianMonthlyJpy === null
+      ? null
+      : goal.realPaceJpy > 0 && goal.medianMonthlyJpy <= 0
+        ? ('forecast.goalPaceModelLow' as const)
+        : goal.realPaceJpy <= 0 && goal.medianMonthlyJpy > 0
+          ? ('forecast.goalPaceModelHigh' as const)
+          : null
   const backtest = useMemo(() => backtestForecast(source), [source])
   // los apuntes futuros de los dos: `upcomingExpenses` solo mira `expenses`,
   // asi que juntarlos aqui basta para la vista combinada
@@ -706,26 +734,42 @@ export function SavingsView() {
                 {goal.monthsLeft === 0 && (
                   <>{t('forecast.goalOverdue', { due: fmtMonth(goal.dueMonthId, lang) })} </>
                 )}
+                {/* el veredicto va con lo medido, no con el modelo: lo que
+                    el patrimonio ha hecho de verdad manda sobre una cuenta
+                    que depende del ingreso que haya puesto en Ajustes */}
                 <span
                   style={{
                     color:
-                      goal.onTrack === null
+                      verdict.onTrack === null
                         ? 'var(--text-muted)'
-                        : goal.onTrack
+                        : verdict.onTrack
                           ? 'var(--good-text)'
                           : 'var(--serious)',
                   }}
                 >
-                  {goal.onTrack === null
+                  {verdict.onTrack === null
                     ? t('forecast.goalUnknown')
-                    : goal.etaMonthId === null
-                      ? t('forecast.goalNever', {
+                    : verdict.eta === null
+                      ? t(verdict.real ? 'forecast.goalRealNever' : 'forecast.goalNever', {
                           monthly: fmtJpy(goal.requiredMonthlyJpy, lang),
+                          pace: fmtJpy(goal.realPaceJpy ?? 0, lang),
                         })
-                      : goal.onTrack
-                        ? t('forecast.goalOnTrack', { eta: fmtMonth(goal.etaMonthId, lang) })
-                        : t('forecast.goalLate', { eta: fmtMonth(goal.etaMonthId, lang) })}
+                      : t(
+                          verdict.real
+                            ? verdict.onTrack
+                              ? 'forecast.goalRealOnTrack'
+                              : 'forecast.goalRealLate'
+                            : verdict.onTrack
+                              ? 'forecast.goalOnTrack'
+                              : 'forecast.goalLate',
+                          { eta: fmtMonth(verdict.eta, lang), pace: fmtJpy(goal.realPaceJpy ?? 0, lang) },
+                        )}
                 </span>
+              </p>
+            )}
+            {paceMismatch && (
+              <p className="mt-2 text-[11px]" style={{ color: 'var(--serious)' }}>
+                {t(paceMismatch)}
               </p>
             )}
 
