@@ -263,6 +263,21 @@ export function SettingsView() {
               }}
             />
           </Field>
+          <Field label={t('fields.payday')} hint={t('fields.paydayHint')}>
+            <NumberInput
+              value={data.settings.paydayOfMonth ?? 0}
+              onChange={(e) => {
+                const n = parseAmount(e.target.value)
+                // 1-31, y 0 para "sin poner"
+                if (n !== null) {
+                  dispatch({
+                    type: 'patchSettings',
+                    patch: { paydayOfMonth: Math.max(0, Math.min(31, Math.round(n))) },
+                  })
+                }
+              }}
+            />
+          </Field>
           <Field label={t('fields.fx')} hint={t('fields.fxHint')}>
             <NumberInput
               value={data.settings.defaultFxRate}

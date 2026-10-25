@@ -192,6 +192,13 @@ const es = {
   'savings.autoDebtLabel': 'Deuda generada',
   'savings.empty': 'Apunta cuánto tienes en cada cuenta para seguir la evolución.',
   'savings.evolution': 'Evolución',
+  'savings.evolutionPayday':
+    'Un punto por mes, medido siempre la víspera de cobrar (día {day}): así un mes no sale mejor que otro por la fecha de la foto.',
+  'savings.evolutionNoPayday':
+    'Un punto por mes: la última foto de cada uno. Pon tu día de cobro en Ajustes y se medirá siempre el mismo punto del ciclo.',
+  'savings.snapshotsOfMonth': 'Fotos de {month}',
+  'savings.vsPrevCycle': 'vs el mes pasado, mismo día',
+
   'savings.months': 'Meses de colchón',
   'savings.monthsHint': 'Activos / gasto medio mensual',
   'savings.monthsUnknownHint': 'Aún no hay ningún mes con gasto real del que sacar el ritmo',
@@ -244,6 +251,8 @@ const es = {
   'forecast.goalOverdue': 'El plazo venció en {due}.',
   'fields.goal': 'Meta de ahorro',
   'fields.goalHint': 'Cuánto quieres llegar a tener',
+  'fields.payday': 'Día de cobro',
+  'fields.paydayHint': 'Para medir la evolución siempre en el mismo punto del mes. 0 = sin poner',
   'fields.goalMonths': 'Plazo de la meta',
   'fields.goalMonthsHint': 'De aquí a cuántos meses',
   'fields.goalMonthsHintFixed': 'Meses desde que la fijaste',
@@ -639,6 +648,13 @@ const ja: Partial<Record<Key, string>> = {
   'savings.autoDebtLabel': '発生した負債',
   'savings.empty': '各口座の金額を記録すると、推移を追えます。',
   'savings.evolution': '推移',
+  'savings.evolutionPayday':
+    '月に一点、いつも給料日の前日（{day}日）で測ります：写真を撮った日で月の良し悪しが変わりません。',
+  'savings.evolutionNoPayday':
+    '月に一点、その月の最後の記録です。設定で給料日を入れると、いつも同じ時点で測れます。',
+  'savings.snapshotsOfMonth': '{month}の記録',
+  'savings.vsPrevCycle': '先月の同じ時点と比較',
+
   'savings.months': '生活できる月数',
   'savings.monthsHint': '資産 ÷ 月の平均支出',
   'savings.monthsUnknownHint': '実際の出費がある月がまだ無い',
@@ -690,6 +706,8 @@ const ja: Partial<Record<Key, string>> = {
   'forecast.goalOverdue': '期限は{due}に過ぎました。',
   'fields.goal': '貯金の目標',
   'fields.goalHint': 'いくら貯めたいか',
+  'fields.payday': '給料日',
+  'fields.paydayHint': '推移をいつも同じ時点で測るため。0なら未設定',
   'fields.goalMonths': '目標の期限',
   'fields.goalMonthsHint': '今から何ヶ月後か',
   'fields.goalMonthsHintFixed': '決めた日から何ヶ月か',
@@ -1074,6 +1092,13 @@ const en: Partial<Record<Key, string>> = {
   'savings.autoDebtLabel': 'Debt generated',
   'savings.empty': 'Log how much you have in each account to track how it evolves.',
   'savings.evolution': 'Evolution',
+  'savings.evolutionPayday':
+    'One point per month, always measured the day before payday (day {day}): a month no longer looks better just because of when you took the snapshot.',
+  'savings.evolutionNoPayday':
+    'One point per month: the last snapshot of each. Set your payday in Settings and it will always measure the same point of the cycle.',
+  'savings.snapshotsOfMonth': 'Snapshots from {month}',
+  'savings.vsPrevCycle': 'vs last month, same day',
+
   'savings.months': 'Months of runway',
   'savings.monthsHint': 'Assets / average monthly spend',
   'savings.monthsUnknownHint': "No month with real spending yet to base this on",
@@ -1126,6 +1151,8 @@ const en: Partial<Record<Key, string>> = {
   'forecast.goalOverdue': 'The deadline passed in {due}.',
   'fields.goal': 'Savings goal',
   'fields.goalHint': 'How much you want to have',
+  'fields.payday': 'Payday',
+  'fields.paydayHint': 'So the trend is always measured at the same point of the month. 0 = not set',
   'fields.goalMonths': 'Goal deadline',
   'fields.goalMonthsHint': 'How many months from now',
   'fields.goalMonthsHintFixed': 'Months from when you set it',

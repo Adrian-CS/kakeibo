@@ -32,6 +32,7 @@ import {
   mergeUnloggedSpend,
   mergeSavingsRateSeries,
   netWorthMonthly,
+  referenceDayOfMonth,
   percentiles,
   projectSavingsBands,
   quarterOf,
@@ -1132,6 +1133,69 @@ describe('prevision', () => {
 
     it('sin fotos no hay serie', () => {
       expect(netWorthMonthly(emptyData(today), today)).toEqual([])
+    })
+  })
+
+
+  describe('midiendo siempre el mismo punto del ciclo', () => {
+    it('la vispera de cobrar es el dia de referencia', () => {
+      expect(referenceDayOfMonth('2026-10', 25)).toBe(24)
+      // cobrando el dia 1, el suelo del ciclo es el ultimo dia del mes
+      expect(referenceDayOfMonth('2026-10', 1)).toBe(31)
+      expect(referenceDayOfMonth('2026-02', 1)).toBe(28)
+      // y un dia de cobro imposible se queda en el ultimo del mes
+      expect(referenceDayOfMonth('2026-02', 31)).toBe(28)
+    })
+
+    it('coge la foto mas cercana a la vispera, no la ultima del mes', () => {
+      const base = emptyData(new Date('2026-10-26T00:00:00'))
+      const data: AppData = {
+        ...base,
+        snapshots: [
+          // justo antes de cobrar: el suelo del ciclo
+          { id: 's1', date: '2026-10-24', accounts: [{ id: 'a', name: 'banco', amount: 120000, currency: 'JPY' }] },
+          // justo despues: con la nomina dentro, y es la ultima del mes
+          { id: 's2', date: '2026-10-26', accounts: [{ id: 'b', name: 'banco', amount: 320000, currency: 'JPY' }] },
+        ],
+      }
+      const conCobro = netWorthMonthly(data, new Date('2026-10-26T00:00:00'), 25)
+      expect(conCobro.at(-1)!.netJpy).toBe(120000)
+      // sin dia de cobro manda la ultima del mes, que es justo lo que
+      // hacia que un mes pareciera mucho mejor que el anterior
+      const sinCobro = netWorthMonthly(data, new Date('2026-10-26T00:00:00'))
+      expect(sinCobro.at(-1)!.netJpy).toBe(320000)
+    })
+
+    it('compara meses en el mismo punto: dos ciclos seguidos', () => {
+      const base = emptyData(new Date('2026-10-30T00:00:00'))
+      const data: AppData = {
+        ...base,
+        snapshots: [
+          { id: 's1', date: '2026-09-24', accounts: [{ id: 'a', name: 'banco', amount: 100000, currency: 'JPY' }] },
+          { id: 's2', date: '2026-09-28', accounts: [{ id: 'b', name: 'banco', amount: 300000, currency: 'JPY' }] },
+          { id: 's3', date: '2026-10-24', accounts: [{ id: 'c', name: 'banco', amount: 150000, currency: 'JPY' }] },
+        ],
+      }
+      const serie = netWorthMonthly(data, new Date('2026-10-30T00:00:00'), 25)
+      // suelo de septiembre 100.000, suelo de octubre 150.000: has ahorrado
+      // 50.000. Sin esto, septiembre valdria 300.000 y pareceria un desastre
+      expect(serie.map((m) => [m.monthId, m.netJpy])).toEqual([
+        ['2026-09', 100000],
+        ['2026-10', 150000],
+      ])
+    })
+
+    it('sin ninguna foto cerca de la vispera, arrastra la ultima conocida', () => {
+      const base = emptyData(new Date('2026-11-30T00:00:00'))
+      const data: AppData = {
+        ...base,
+        snapshots: [
+          { id: 's1', date: '2026-10-24', accounts: [{ id: 'a', name: 'banco', amount: 150000, currency: 'JPY' }] },
+        ],
+      }
+      const serie = netWorthMonthly(data, new Date('2026-11-30T00:00:00'), 25)
+      expect(serie.map((m) => m.monthId)).toEqual(['2026-10', '2026-11'])
+      expect(serie.at(-1)!.netJpy).toBe(150000)
     })
   })
 

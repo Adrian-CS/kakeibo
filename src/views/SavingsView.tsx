@@ -23,6 +23,7 @@ import {
   savingsGoal,
   savingsRate,
   snapshotSeries,
+  snapshotTotals,
   sum,
   sumPercentiles,
   upcomingExpenses,
@@ -266,7 +267,7 @@ export function SavingsView() {
     [isTogether, data, household.partnerData, links, source],
   )
   const last = series.at(-1)
-  const prev = series.at(-2)
+  const payday = data.settings.paydayOfMonth ?? 0
   const recentAverageJpy = useMemo(
     () => (isTogether ? null : recentActiveAverageJpy(source, 6)),
     [isTogether, source],
@@ -347,9 +348,42 @@ export function SavingsView() {
   // que hacen combinedSnapshotSeries y combinedProjectSavings: sumar dos
   // previsiones hechas por separado es lo mismo que hace el resto de "Juntos"
   const history = useMemo(
-    () => mergeNetWorthMonthly(sides.map((d) => netWorthMonthly(d))),
-    [sides],
+    () => mergeNetWorthMonthly(sides.map((d) => netWorthMonthly(d, new Date(), payday))),
+    [sides, payday],
   )
+  // netWorthMonthly arrastra el ultimo dato conocido hasta el mes de hoy
+  // porque la prevision tiene que arrancar en hoy. Para lo vivido eso pintaria
+  // una recta plana donde en realidad no hay fotos, asi que la evolucion se
+  // corta en el ultimo mes con foto de verdad
+  const lastSnapshotMonth = useMemo(() => {
+    let max = ''
+    for (const d of sides) for (const s of d.snapshots) {
+      const monthId = s.date.slice(0, 7)
+      if (monthId > max) max = monthId
+    }
+    return max
+  }, [sides])
+  const lived = useMemo(
+    () => (lastSnapshotMonth ? history.filter((h) => h.monthId <= lastSnapshotMonth) : history),
+    [history, lastSnapshotMonth],
+  )
+  // lo que ha cambiado el patrimonio de un mes al siguiente, medido las dos
+  // veces en el mismo punto del ciclo
+  const monthDelta =
+    lived.length >= 2 ? lived[lived.length - 1].netJpy - lived[lived.length - 2].netJpy : null
+
+  // las fotos por mes, de la mas nueva a la mas vieja
+  const snapshotMonths = useMemo(() => {
+    const byMonth = new Map<string, Snapshot[]>()
+    for (const s of [...data.snapshots].sort((a, b) => b.date.localeCompare(a.date))) {
+      const monthId = s.date.slice(0, 7)
+      const list = byMonth.get(monthId)
+      if (list) list.push(s)
+      else byMonth.set(monthId, [s])
+    }
+    return [...byMonth.entries()].sort((a, b) => b[0].localeCompare(a[0]))
+  }, [data.snapshots])
+
   const bands = useMemo(
     () => mergeSavingsBands(sides.map((d) => projectSavingsBands(d, BAND_MONTHS))),
     [sides],
@@ -510,12 +544,15 @@ export function SavingsView() {
               label={t('savings.net')}
               value={fmtJpy(last?.netJpy ?? 0, lang)}
               secondary={fmtMoney((last?.netJpy ?? 0) * data.settings.defaultFxRate, cur, lang)}
+              // mes contra mes y no foto contra foto: dos fotos seguidas
+              // pueden caer una antes de cobrar y otra despues, y entonces
+              // el "delta" es la nomina, no lo que has ahorrado
               delta={
-                prev
-                  ? `${(last!.netJpy - prev.netJpy >= 0 ? '+' : '') + fmtNumber(last!.netJpy - prev.netJpy, lang)} ¥`
-                  : undefined
+                monthDelta === null
+                  ? undefined
+                  : `${(monthDelta >= 0 ? '+' : '') + fmtNumber(monthDelta, lang)} ¥ ${payday > 0 ? t('savings.vsPrevCycle') : t('stats.vsPrev')}`
               }
-              deltaGood={prev ? last!.netJpy >= prev.netJpy : undefined}
+              deltaGood={monthDelta === null ? undefined : monthDelta >= 0}
             />
             <StatTile label={t('savings.assets')} value={fmtJpy(last?.assetsJpy ?? 0, lang)} />
             <StatTile label={t('savings.debts')} value={fmtJpy(last?.debtsJpy ?? 0, lang)} />
@@ -546,11 +583,15 @@ export function SavingsView() {
               </Button>
             }
           >
+            {/* un punto por mes, no una foto por punto: dentro de un mes el
+                patrimonio baja hasta la nomina y pega el salto, asi que
+                encadenar fotos sueltas dibuja un diente de sierra que no
+                dice nada. Las fotos siguen enteras en la tabla y abajo */}
             <Lines
-              data={series.map((s, i) => ({
+              data={lived.map((h, i) => ({
                 x: i,
-                label: fmtDate(s.date, lang),
-                values: { net: s.netJpy, assets: s.assetsJpy },
+                label: fmtMonth(h.monthId, lang, true),
+                values: { net: h.netJpy, assets: h.assetsJpy },
               }))}
               series={[
                 { key: 'net', label: t('savings.net'), color: seriesVar(0) },
@@ -558,10 +599,15 @@ export function SavingsView() {
               ]}
               fmtValue={(n) => fmtJpy(n, lang)}
               fmtTick={(n) => fmtNumber(n / 1000, lang) + 'k'}
-              fmtX={(x) => fmtDate(series[x]?.date ?? '', lang).replace(/ de /g, ' ')}
+              fmtX={(x) => fmtMonthAxis(lived[x]?.monthId ?? '', lang)}
               title={t('savings.evolution')}
               area
             />
+            <p className="mt-2 text-[11px] text-muted">
+              {payday > 0
+                ? t('savings.evolutionPayday', { day: payday })
+                : t('savings.evolutionNoPayday')}
+            </p>
             {tables && (
               <DataTable
                 caption={t('savings.evolution')}
@@ -936,13 +982,30 @@ export function SavingsView() {
 
       {/* fotos individuales: siempre las mias, nunca las de la pareja (de
           solo lectura, no tiene sentido editarlas ni mezclarlas aqui) */}
+      {/* agrupadas por mes y plegables: con los meses van siendo muchas, y
+          sueltas en una lista infinita no hay quien encuentre nada. No se
+          borra ninguna: son datos escritos a mano */}
       {scope === 'mine' && (
-        <div className="grid gap-3 lg:grid-cols-2">
-          {[...data.snapshots]
-            .sort((a, b) => b.date.localeCompare(a.date))
-            .map((s) => (
-              <SnapshotCard key={s.id} snapshot={s} />
-            ))}
+        <div className="space-y-3">
+          {snapshotMonths.map(([monthId, items], i) => (
+            <Collapsible
+              key={monthId}
+              id={`savings.snapshots.${monthId}`}
+              title={fmtMonth(monthId, lang, true)}
+              summary={fmtJpy(
+                lived.find((h) => h.monthId === monthId)?.netJpy ??
+                  snapshotTotals(items[0], data.settings.defaultFxRate).netJpy,
+                lang,
+              )}
+              defaultOpen={i === 0}
+            >
+              <div className="grid gap-3 lg:grid-cols-2">
+                {items.map((s) => (
+                  <SnapshotCard key={s.id} snapshot={s} />
+                ))}
+              </div>
+            </Collapsible>
+          ))}
         </div>
       )}
     </div>

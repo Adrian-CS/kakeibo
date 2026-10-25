@@ -26,6 +26,8 @@ export const DEFAULT_SETTINGS: Settings = {
   // ponga una de verdad
   savingsGoalJpy: 0,
   savingsGoalMonths: 12,
+  // 0 = sin poner: se usa la ultima foto de cada mes
+  paydayOfMonth: 0,
   // los valores que ya tenia la app antes de que hubiera modos: "quiero
   // tener X" contado desde hoy
   savingsGoalMode: 'target',

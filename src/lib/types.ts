@@ -126,6 +126,17 @@ export interface Settings {
   /** plazo de la meta, en meses */
   savingsGoalMonths: number
   /**
+   * Dia del mes en que cobras, 1-31. 0 = sin poner.
+   *
+   * Dentro de un mes el patrimonio es un diente de sierra: baja hasta que
+   * entra la nomina y pega el salto. Sabiendo el dia de cobro, la evolucion
+   * se mide siempre en el mismo punto del ciclo -la vispera de cobrar, que
+   * es el suelo del mes- y comparar un mes con otro significa algo. Sin este
+   * dato se usa la ultima foto de cada mes, que vale si siempre las haces
+   * por las mismas fechas.
+   */
+  paydayOfMonth: number
+  /**
    * Las dos maneras de decir una meta:
    *   'target' -> "quiero TENER 1.500.000" (cifra absoluta de patrimonio)
    *   'save'   -> "quiero AHORRAR 80.000" (sobre el punto de partida)

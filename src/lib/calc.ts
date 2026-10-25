@@ -905,7 +905,32 @@ export interface NetWorthMonth {
  * Hace falta para dibujar historico y prevision en el mismo eje de meses:
  * `snapshotSeries` va por fecha de foto, que no cae igual en cada mes.
  */
-export function netWorthMonthly(data: AppData, today = new Date()): NetWorthMonth[] {
+/**
+ * El dia del mes en que se mide, sabiendo cuando se cobra: la vispera de la
+ * nomina, que es el suelo del ciclo. Con el cobro el dia 1, la vispera cae el
+ * ultimo dia del mes.
+ */
+export function referenceDayOfMonth(monthId: string, payday: number): number {
+  const n = daysInMonth(monthId)
+  if (payday <= 1) return n
+  return Math.min(payday - 1, n)
+}
+
+/** Cuantos dias hay entre dos 'YYYY-MM-DD', en valor absoluto. */
+function dayGap(a: string, b: string): number {
+  const x = Date.parse(`${a}T00:00:00Z`)
+  const y = Date.parse(`${b}T00:00:00Z`)
+  return Number.isNaN(x) || Number.isNaN(y) ? Infinity : Math.abs(x - y) / 86400000
+}
+
+/** Cuanto se puede alejar una foto del dia de referencia y seguir valiendo. */
+const REFERENCE_WINDOW_DAYS = 15
+
+export function netWorthMonthly(
+  data: AppData,
+  today = new Date(),
+  payday = 0,
+): NetWorthMonth[] {
   const series = snapshotSeries(data)
   if (!series.length) return []
   const from = series[0].date.slice(0, 7)
@@ -920,7 +945,28 @@ export function netWorthMonthly(data: AppData, today = new Date()): NetWorthMont
       last = series[i]
       i++
     }
-    out.push({ monthId, netJpy: last.netJpy, assetsJpy: last.assetsJpy })
+
+    // con el dia de cobro puesto se mide siempre el mismo punto del ciclo:
+    // la foto mas cercana a la vispera de cobrar. Asi un mes no sale peor que
+    // otro solo porque su foto cayera antes de la nomina y la del otro despues
+    let point = last
+    if (payday > 0) {
+      const ref = `${monthId}-${String(referenceDayOfMonth(monthId, payday)).padStart(2, '0')}`
+      let best: SnapshotTotals | null = null
+      let bestGap = Infinity
+      for (const s of series) {
+        const gap = dayGap(s.date, ref)
+        if (gap <= REFERENCE_WINDOW_DAYS && gap < bestGap) {
+          best = s
+          bestGap = gap
+        }
+      }
+      // si no hay ninguna foto cerca de ese dia, se arrastra la ultima
+      // conocida, igual que sin dia de cobro
+      if (best) point = best
+    }
+
+    out.push({ monthId, netJpy: point.netJpy, assetsJpy: point.assetsJpy })
   }
   return out
 }
