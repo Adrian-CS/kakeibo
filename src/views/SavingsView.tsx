@@ -19,7 +19,6 @@ import {
   percentiles,
   projectSavings,
   projectSavingsBands,
-  realSavingsPaceJpy,
   recentActiveAverageJpy,
   savingsGoal,
   savingsRate,
@@ -405,13 +404,13 @@ export function SavingsView() {
   // lo que el patrimonio ha subido de verdad al mes, medido ciclo a ciclo. No
   // es lo mismo que `ingresos - gasto tipico`: eso es un modelo, y cuando los
   // dos no se parecen es el modelo el que suele estar mal
-  const sourcePace = useMemo(
-    () => realSavingsPaceJpy(netWorthMonthly(source, new Date(), payday)),
+  const sourceMonthly = useMemo(
+    () => netWorthMonthly(source, new Date(), payday),
     [source, payday],
   )
   const goal = useMemo(
-    () => (isTogether ? null : savingsGoal(source, new Date(), 12, sourcePace)),
-    [isTogether, source, sourcePace],
+    () => (isTogether ? null : savingsGoal(source, new Date(), 12, sourceMonthly)),
+    [isTogether, source, sourceMonthly],
   )
   // el veredicto sale del ritmo medido cuando lo hay; el del modelo se queda
   // de reserva para cuando todavia no hay dos ciclos que comparar

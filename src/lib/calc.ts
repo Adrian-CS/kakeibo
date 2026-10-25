@@ -1191,7 +1191,7 @@ export function savingsGoal(
   data: AppData,
   today = new Date(),
   lastMonths = 12,
-  realPaceJpy: number | null = null,
+  monthly: NetWorthMonth[] = [],
 ): SavingsGoalStatus | null {
   const { settings } = data
   const goalJpy = settings.savingsGoalJpy ?? 0
@@ -1203,6 +1203,17 @@ export function savingsGoal(
   const anchor = settings.savingsGoalAnchor ?? 'rolling'
   const currentId = monthIdOfDate(today)
   const startJpy = last.netJpy
+
+  // "cuanto llevo ahorrado" es una resta entre dos momentos, asi que los dos
+  // tienen que estar en el mismo punto del ciclo: medido contra la ultima
+  // foto a secas, el numero pegaria un salto el dia de cobro y se desinflaria
+  // durante el mes. `startJpy` se queda como lo que tienes HOY, que es otra
+  // cosa y es la que vale para "quiero tener X"
+  const realPaceJpy = realSavingsPaceJpy(monthly)
+  const measuredCycles = monthly.filter((m) => m.measured)
+  const progressJpy = measuredCycles.length
+    ? measuredCycles[measuredCycles.length - 1].netJpy
+    : startJpy
 
   // el punto desde el que se mide. Con 'fixed' es el patrimonio del dia en
   // que se fijo la meta; si no se llego a guardar, se usa el de hoy (la meta
@@ -1216,8 +1227,11 @@ export function savingsGoal(
   const dueMonthId = shiftMonth(fromMonthId, months)
   const monthsLeft = monthsBetween(currentId, dueMonthId)
 
-  const savedJpy = startJpy - baseJpy
-  const missingJpy = Math.max(0, targetJpy - startJpy)
+  // en 'save' el progreso se mide ciclo a ciclo; en 'target' ("quiero tener
+  // 1.500.000") lo que importa es lo que hay hoy de verdad
+  const nowJpy = mode === 'save' ? progressJpy : startJpy
+  const savedJpy = nowJpy - baseJpy
+  const missingJpy = Math.max(0, targetJpy - nowJpy)
   const p = percentiles(data, lastMonths, today)
   const income = monthIncomeJpy(data, currentId)
   const medianMonthlyJpy = p && income > 0 ? income - p.p50 : null

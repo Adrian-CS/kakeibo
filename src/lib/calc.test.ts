@@ -1281,6 +1281,42 @@ describe('prevision', () => {
       return { ...seed, settings: { ...seed.settings, savingsGoalJpy: targetJpy, savingsGoalMonths: months } }
     }
 
+    it('lo ahorrado se mide ciclo a ciclo: cobrar no lo hace subir', () => {
+      const base = emptyData(new Date('2026-10-26T00:00:00'))
+      const conFotos = (extra: AppData['snapshots']): AppData => ({
+        ...base,
+        settings: {
+          ...base.settings,
+          savingsGoalJpy: 250000,
+          savingsGoalMonths: 8,
+          savingsGoalMode: 'save',
+          savingsGoalAnchor: 'fixed',
+          savingsGoalStartJpy: 100000,
+          savingsGoalStartMonthId: '2026-09',
+          paydayOfMonth: 25,
+        },
+        snapshots: [
+          { id: 's1', date: '2026-09-24', accounts: [{ id: 'a', name: 'banco', amount: 100000, currency: 'JPY' }] },
+          { id: 's2', date: '2026-10-24', accounts: [{ id: 'b', name: 'banco', amount: 150000, currency: 'JPY' }] },
+          ...extra,
+        ],
+      })
+      const today = new Date('2026-10-26T00:00:00')
+      const sinCobrar = conFotos([])
+      const serie = (d: AppData) => netWorthMonthly(d, today, 25)
+      expect(savingsGoal(sinCobrar, today, 12, serie(sinCobrar))!.savedJpy).toBe(50000)
+
+      // misma realidad, pero con una foto del dia siguiente a cobrar: lo
+      // ahorrado no se mueve, porque esa foto ya es del ciclo de noviembre
+      const cobrado = conFotos([
+        { id: 's3', date: '2026-10-26', accounts: [{ id: 'c', name: 'banco', amount: 380000, currency: 'JPY' }] },
+      ])
+      const goal = savingsGoal(cobrado, today, 12, serie(cobrado))!
+      expect(goal.savedJpy).toBe(50000)
+      // y "lo que tienes hoy" sigue siendo la foto de verdad, no el ciclo
+      expect(goal.startJpy).toBe(380000)
+    })
+
     it('dice lo que falta, lo que hay que ahorrar al mes y cuando se llega', () => {
       // faltan 500000; al ritmo tipico se ahorran 250000 - 115000 = 135000 al
       // mes, o sea cuatro meses
