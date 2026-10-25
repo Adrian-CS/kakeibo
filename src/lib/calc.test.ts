@@ -1388,6 +1388,67 @@ describe('prevision', () => {
       expect(daysFromCycleEnd('2026-10-25', 0)).toBeNull()
     })
 
+    it('el punto de partida se recalcula: corregir una foto vieja corrige la meta', () => {
+      const base = emptyData(new Date('2026-10-25T00:00:00'))
+      const conDeuda = (deudaJpy: number): AppData => ({
+        ...base,
+        settings: {
+          ...base.settings,
+          savingsGoalJpy: 250000,
+          savingsGoalMonths: 8,
+          savingsGoalMode: 'save',
+          savingsGoalAnchor: 'fixed',
+          // solo el mes: sin cifra congelada
+          savingsGoalStartMonthId: '2026-10',
+          paydayOfMonth: 30,
+        },
+        snapshots: [
+          {
+            id: 's1',
+            date: '2026-09-27',
+            accounts: [
+              { id: 'a', name: 'banco', amount: 120000, currency: 'JPY' },
+              ...(deudaJpy > 0
+                ? [{ id: 'd', name: 'deuda', amount: deudaJpy, currency: 'JPY' as const, isDebt: true }]
+                : []),
+            ],
+          },
+          { id: 's2', date: '2026-10-25', accounts: [{ id: 'b', name: 'banco', amount: 80000, currency: 'JPY' }] },
+        ],
+      })
+      const today = new Date('2026-10-25T00:00:00')
+      const goalOf = (d: AppData) => savingsGoal(d, today, 12, netWorthMonthly(d, today, 30))!
+
+      // sin la deuda apuntada, septiembre parece valer 120.000
+      expect(goalOf(conDeuda(0)).savedJpy).toBe(-40000)
+      // apuntandola, septiembre pasa a valer -10.000 y lo ahorrado sube los
+      // 130.000 que en realidad se debian. La meta se entera sola
+      expect(goalOf(conDeuda(130000)).savedJpy).toBe(90000)
+    })
+
+    it('una cifra escrita a mano manda sobre la que sale de las fotos', () => {
+      const base = emptyData(new Date('2026-10-25T00:00:00'))
+      const data: AppData = {
+        ...base,
+        settings: {
+          ...base.settings,
+          savingsGoalJpy: 250000,
+          savingsGoalMonths: 8,
+          savingsGoalMode: 'save',
+          savingsGoalAnchor: 'fixed',
+          savingsGoalStartMonthId: '2026-10',
+          savingsGoalStartJpy: 50000,
+          paydayOfMonth: 30,
+        },
+        snapshots: [
+          { id: 's1', date: '2026-09-27', accounts: [{ id: 'a', name: 'banco', amount: 120000, currency: 'JPY' }] },
+          { id: 's2', date: '2026-10-25', accounts: [{ id: 'b', name: 'banco', amount: 80000, currency: 'JPY' }] },
+        ],
+      }
+      const today = new Date('2026-10-25T00:00:00')
+      expect(savingsGoal(data, today, 12, netWorthMonthly(data, today, 30))!.savedJpy).toBe(30000)
+    })
+
     it('dice lo que falta, lo que hay que ahorrar al mes y cuando se llega', () => {
       // faltan 500000; al ritmo tipico se ahorran 250000 - 115000 = 135000 al
       // mes, o sea cuatro meses

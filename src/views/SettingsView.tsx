@@ -130,6 +130,12 @@ export function SettingsView() {
   // los meses con medida propia, para poder decir "cuento desde septiembre" en
   // vez de teclear a mano el patrimonio con el que arranco septiembre
   const cycles = netWorthMonthly(data, new Date(), data.settings.paydayOfMonth ?? 0)
+  // el punto de partida en automatico: lo que habia al arrancar el mes de la
+  // meta, sacado de las fotos. Solo si no se ha escrito uno a mano
+  const goalStartLive =
+    data.settings.savingsGoalStartJpy == null && data.settings.savingsGoalStartMonthId
+      ? cycleStart(cycles, data.settings.savingsGoalStartMonthId)
+      : null
   const startableMonths = cycles
     .filter((m) => m.measured && cycleStart(cycles, m.monthId) !== null)
     .map((m) => m.monthId)
@@ -442,11 +448,18 @@ export function SettingsView() {
               <Field
                 label={t('goal.start')}
                 hint={
-                  data.settings.savingsGoalStartMonthId
-                    ? t('goal.startSetIn', {
-                        month: fmtMonth(data.settings.savingsGoalStartMonthId, lang),
+                  // con el punto de partida en automatico se dice de donde
+                  // sale, para que se vea que no es un numero congelado
+                  goalStartLive
+                    ? t('goal.startLive', {
+                        month: fmtMonth(data.settings.savingsGoalStartMonthId ?? monthIdOf(), lang),
+                        date: goalStartLive.date ? fmtDate(goalStartLive.date, lang) : '',
                       })
-                    : t('goal.startNone')
+                    : data.settings.savingsGoalStartMonthId
+                      ? t('goal.startSetIn', {
+                          month: fmtMonth(data.settings.savingsGoalStartMonthId, lang),
+                        })
+                      : t('goal.startNone')
                 }
               >
                 <div className="flex items-center gap-1.5">
@@ -459,7 +472,11 @@ export function SettingsView() {
                         ? ''
                         : Math.round(data.settings.savingsGoalStartJpy)
                     }
-                    placeholder={t('goal.startHint')}
+                    placeholder={
+                      goalStartLive
+                        ? fmtNumber(Math.round(goalStartLive.netJpy), lang)
+                        : t('goal.startHint')
+                    }
                     onChange={(e) => {
                       const n = parseAmount(e.target.value)
                       if (n !== null) {
@@ -505,14 +522,16 @@ export function SettingsView() {
                       ariaLabel={t('goal.startFromMonth')}
                       value=""
                       onChange={(monthId) => {
-                        const start = cycleStart(cycles, monthId)
-                        if (start === null) return
+                        if (cycleStart(cycles, monthId) === null) return
                         dispatch({
                           type: 'patchSettings',
                           patch: {
-                            savingsGoalStartJpy: Math.round(start.netJpy),
+                            // solo el mes: la cifra se saca de las fotos cada
+                            // vez, asi que corregir una foto vieja tambien
+                            // corrige la meta. Guardarla aqui la congelaba
+                            savingsGoalStartJpy: undefined,
                             savingsGoalStartMonthId: monthId,
-                            savingsGoalStartDate: start.date ?? undefined,
+                            savingsGoalStartDate: undefined,
                           },
                         })
                       }}

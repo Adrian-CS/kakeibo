@@ -1302,10 +1302,21 @@ export function savingsGoal(
     ? measuredCycles[measuredCycles.length - 1].netJpy
     : startJpy
 
-  // el punto desde el que se mide. Con 'fixed' es el patrimonio del dia en
-  // que se fijo la meta; si no se llego a guardar, se usa el de hoy (la meta
-  // sigue valiendo, simplemente empieza a contar ahora)
-  const baseJpy = anchor === 'fixed' ? (settings.savingsGoalStartJpy ?? startJpy) : startJpy
+  // El punto desde el que se mide. Con 'fixed' sale del mes en que empieza la
+  // meta: el patrimonio con el que ARRANCA ese mes, recalculado de las fotos
+  // cada vez. Que fuera una cifra congelada era un error: al corregir una foto
+  // vieja (apuntar una deuda que faltaba, arreglar un saldo) todo lo demas se
+  // rehacia menos la meta, que se quedaba midiendo contra un pasado que ya no
+  // existia. `savingsGoalStartJpy` solo manda si se escribio a mano, como
+  // apaño para quien no tiene fotos de entonces.
+  const liveBase =
+    anchor === 'fixed' && settings.savingsGoalStartMonthId
+      ? cycleStart(monthly, settings.savingsGoalStartMonthId)
+      : null
+  const baseJpy =
+    anchor === 'fixed'
+      ? (settings.savingsGoalStartJpy ?? liveBase?.netJpy ?? startJpy)
+      : startJpy
   const targetJpy = mode === 'save' ? baseJpy + goalJpy : goalJpy
 
   // el plazo tampoco se mueve con 'fixed': cuenta desde el mes en que se fijo
@@ -1320,7 +1331,12 @@ export function savingsGoal(
   const nowDate = mode === 'save' && measuredCycles.length
     ? measuredCycles[measuredCycles.length - 1].date
     : last.date
-  const baseDate = anchor === 'fixed' ? (settings.savingsGoalStartDate ?? null) : nowDate
+  const baseDate =
+    anchor === 'fixed'
+      ? (settings.savingsGoalStartJpy != null
+          ? (settings.savingsGoalStartDate ?? null)
+          : (liveBase?.date ?? null))
+      : nowDate
   const payday = settings.paydayOfMonth ?? 0
   // todas las fotos que entran en alguna resta: el punto de partida, el ciclo
   // de ahora y los que promedia el ritmo. Si no estan todas a una distancia
