@@ -1,4 +1,6 @@
-import { defineConfig } from 'vite'
+// de 'vitest/config' y no de 'vite': desde vitest 5 el bloque `test` solo
+// lo tipa este defineConfig
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
