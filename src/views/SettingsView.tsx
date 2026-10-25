@@ -11,7 +11,7 @@ import {
   serialize,
   storageSize,
 } from '../lib/storage'
-import { categoryLabel, cycleStartNetJpy, netWorthMonthly, snapshotSeries } from '../lib/calc'
+import { categoryLabel, cycleStart, netWorthMonthly, snapshotSeries } from '../lib/calc'
 import { fmtDate, fmtMonth, fmtNumber, parseAmount } from '../lib/format'
 import { MAX_SLOTS, seriesVar } from '../lib/palette'
 import type { Bucket, Category, Lang, ThemePref } from '../lib/types'
@@ -125,12 +125,13 @@ export function SettingsView() {
   // anterior a que existieran los modos
   const goalMode = data.settings.savingsGoalMode ?? 'target'
   const goalAnchor = data.settings.savingsGoalAnchor ?? 'rolling'
-  const netWorthTodayJpy = snapshotSeries(data).at(-1)?.netJpy ?? 0
+  const lastSnapshot = snapshotSeries(data).at(-1)
+  const netWorthTodayJpy = lastSnapshot?.netJpy ?? 0
   // los meses con medida propia, para poder decir "cuento desde septiembre" en
   // vez de teclear a mano el patrimonio con el que arranco septiembre
   const cycles = netWorthMonthly(data, new Date(), data.settings.paydayOfMonth ?? 0)
   const startableMonths = cycles
-    .filter((m) => m.measured && cycleStartNetJpy(cycles, m.monthId) !== null)
+    .filter((m) => m.measured && cycleStart(cycles, m.monthId) !== null)
     .map((m) => m.monthId)
     .reverse()
 
@@ -468,6 +469,9 @@ export function SettingsView() {
                             savingsGoalStartJpy: Math.round(n),
                             savingsGoalStartMonthId:
                               data.settings.savingsGoalStartMonthId ?? monthIdOf(),
+                            // escrita a mano no sale de ninguna foto, asi que
+                            // no se puede decir con que se compara
+                            savingsGoalStartDate: undefined,
                           },
                         })
                       }
@@ -483,6 +487,7 @@ export function SettingsView() {
                         patch: {
                           savingsGoalStartJpy: Math.round(netWorthTodayJpy),
                           savingsGoalStartMonthId: monthIdOf(),
+                          savingsGoalStartDate: lastSnapshot?.date,
                         },
                       })
                     }
@@ -500,13 +505,14 @@ export function SettingsView() {
                       ariaLabel={t('goal.startFromMonth')}
                       value=""
                       onChange={(monthId) => {
-                        const start = cycleStartNetJpy(cycles, monthId)
+                        const start = cycleStart(cycles, monthId)
                         if (start === null) return
                         dispatch({
                           type: 'patchSettings',
                           patch: {
-                            savingsGoalStartJpy: Math.round(start),
+                            savingsGoalStartJpy: Math.round(start.netJpy),
                             savingsGoalStartMonthId: monthId,
+                            savingsGoalStartDate: start.date ?? undefined,
                           },
                         })
                       }}

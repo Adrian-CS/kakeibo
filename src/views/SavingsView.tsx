@@ -711,10 +711,17 @@ export function SavingsView() {
                     ahorrado se acumula y se puede enseñar el progreso */}
                 {goal.mode === 'save' && goal.anchor === 'fixed' && (
                   <>
-                    {t('forecast.goalProgress', {
-                      saved: fmtJpy(goal.savedJpy, lang),
-                      goal: fmtJpy(goal.targetJpy - goal.baseJpy, lang),
-                    })}{' '}
+                    {t(
+                      goal.baseDate && goal.nowDate
+                        ? 'forecast.goalProgressDates'
+                        : 'forecast.goalProgress',
+                      {
+                        saved: fmtJpy(goal.savedJpy, lang),
+                        goal: fmtJpy(goal.targetJpy - goal.baseJpy, lang),
+                        from: goal.baseDate ? fmtDate(goal.baseDate, lang) : '',
+                        to: goal.nowDate ? fmtDate(goal.nowDate, lang) : '',
+                      },
+                    )}{' '}
                   </>
                 )}
                 {goal.mode === 'save' && goal.anchor === 'rolling'
@@ -764,6 +771,14 @@ export function SavingsView() {
                           { eta: fmtMonth(verdict.eta, lang), pace: fmtJpy(goal.realPaceJpy ?? 0, lang) },
                         )}
                 </span>
+              </p>
+            )}
+            {goal?.datesNotComparable && (
+              <p className="mt-2 text-[11px]" style={{ color: 'var(--serious)' }}>
+                {t('forecast.goalDatesOff', {
+                  from: goal.baseDate ? fmtDate(goal.baseDate, lang) : '',
+                  to: goal.nowDate ? fmtDate(goal.nowDate, lang) : '',
+                })}
               </p>
             )}
             {paceMismatch && (

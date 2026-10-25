@@ -913,6 +913,12 @@ export interface NetWorthMonth {
    * para promediar: todavia le quedan dias de gasto por delante.
    */
   closed: boolean
+  /**
+   * 'YYYY-MM-DD' de la foto con la que se midio este ciclo, o `null` si el
+   * valor viene arrastrado. Sirve para poder decir con que se esta comparando
+   * en vez de soltar una cifra a secas.
+   */
+  date: string | null
 }
 
 /**
@@ -990,7 +996,14 @@ export function netWorthMonthly(
       if (best) point = best
     }
 
-    out.push({ monthId, netJpy: point.netJpy, assetsJpy: point.assetsJpy, measured, closed })
+    out.push({
+      monthId,
+      netJpy: point.netJpy,
+      assetsJpy: point.assetsJpy,
+      measured,
+      closed,
+      date: measured ? point.date : null,
+    })
   }
   return out
 }
@@ -1028,9 +1041,32 @@ export function realSavingsPaceJpy(series: NetWorthMonth[], cycles = 6): number 
  *
  * `null` si de ese mes para atras no hay nada medido.
  */
-export function cycleStartNetJpy(series: NetWorthMonth[], monthId: string): number | null {
+export function cycleStart(series: NetWorthMonth[], monthId: string): NetWorthMonth | null {
   const before = series.filter((m) => m.monthId < monthId && m.measured)
-  return before.length ? before[before.length - 1].netJpy : null
+  return before.length ? before[before.length - 1] : null
+}
+
+export function cycleStartNetJpy(series: NetWorthMonth[], monthId: string): number | null {
+  return cycleStart(series, monthId)?.netJpy ?? null
+}
+
+/**
+ * A cuantos dias del cierre de su ciclo se hizo una foto. 0 es justo la
+ * vispera de cobrar (el suelo); numeros grandes son fotos recien cobrado, con
+ * la nomina todavia sin gastar.
+ *
+ * Comparar dos fotos solo dice algo si las dos estan a una distancia parecida:
+ * de lo contrario la diferencia no es ahorro, es nomina.
+ */
+export function daysFromCycleEnd(date: string, payday: number): number | null {
+  if (payday <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null
+  const monthId = date.slice(0, 7)
+  // una foto posterior a la vispera de su mes ya es del ciclo siguiente, que
+  // cierra el mes que viene
+  const end = date > cycleEnd(monthId, payday) ? cycleEnd(shiftMonth(monthId, 1), payday) : cycleEnd(monthId, payday)
+  const x = Date.parse(`${date}T00:00:00Z`)
+  const y = Date.parse(`${end}T00:00:00Z`)
+  return Number.isNaN(x) || Number.isNaN(y) ? null : Math.round((y - x) / 86400000)
 }
 
 export interface SavingsBandPoint {
@@ -1101,6 +1137,7 @@ export function mergeNetWorthMonthly(sides: NetWorthMonth[][]): NetWorthMonth[] 
     // `closed` solo depende del mes y de hoy, asi que vale el de cualquier
     // lado que llegue a ese mes
     let closed = false
+    let date: string | null | undefined
     for (const side of withData) {
       let known: NetWorthMonth | undefined
       for (const p of side) {
@@ -1116,9 +1153,15 @@ export function mergeNetWorthMonthly(sides: NetWorthMonth[][]): NetWorthMonth[] 
         if (!known.measured) measured = false
       }
       const own = side.find((p) => p.monthId === monthId)
-      if (own) closed = own.closed
+      if (own) {
+        closed = own.closed
+        // solo se puede decir "medido el dia X" si los dos lados miraron el
+        // mismo dia; si no, la suma no tiene una fecha que valga
+        if (date === undefined) date = own.date
+        else if (date !== own.date) date = null
+      }
     }
-    return { monthId, netJpy, assetsJpy, measured, closed }
+    return { monthId, netJpy, assetsJpy, measured, closed, date: date ?? null }
   })
 }
 
@@ -1197,6 +1240,16 @@ export interface SavingsGoalStatus {
   realEtaMonthId: string | null
   /** si se llega a tiempo al ritmo real; null cuando no hay con que saberlo */
   realOnTrack: boolean | null
+  /** 'YYYY-MM-DD' de la foto de la que sale `baseJpy`, si se sabe */
+  baseDate: string | null
+  /** 'YYYY-MM-DD' de la foto con la que se mide ahora, si se sabe */
+  nowDate: string | null
+  /**
+   * `true` cuando las dos fotos estan en puntos muy distintos de su ciclo (mas
+   * de una semana de diferencia). Entonces la resta no mide ahorro: mide
+   * cuanto de la nomina quedaba sin gastar en cada una.
+   */
+  datesNotComparable: boolean
 }
 
 /**
@@ -1264,6 +1317,18 @@ export function savingsGoal(
   // en 'save' el progreso se mide ciclo a ciclo; en 'target' ("quiero tener
   // 1.500.000") lo que importa es lo que hay hoy de verdad
   const nowJpy = mode === 'save' ? progressJpy : startJpy
+  const nowDate = mode === 'save' && measuredCycles.length
+    ? measuredCycles[measuredCycles.length - 1].date
+    : last.date
+  const baseDate = anchor === 'fixed' ? (settings.savingsGoalStartDate ?? null) : nowDate
+  const payday = settings.paydayOfMonth ?? 0
+  // todas las fotos que entran en alguna resta: el punto de partida, el ciclo
+  // de ahora y los que promedia el ritmo. Si no estan todas a una distancia
+  // parecida del cierre de su ciclo, las restas no miden ahorro
+  const gaps = [baseDate, nowDate, ...measuredCycles.filter((m) => m.closed).map((m) => m.date)]
+    .map((d) => (d === null ? null : daysFromCycleEnd(d, payday)))
+    .filter((n): n is number => n !== null)
+  const datesNotComparable = gaps.length > 1 && Math.max(...gaps) - Math.min(...gaps) > 7
   const savedJpy = nowJpy - baseJpy
   const missingJpy = Math.max(0, targetJpy - nowJpy)
   const p = percentiles(data, lastMonths, today)
@@ -1307,6 +1372,9 @@ export function savingsGoal(
     realPaceJpy,
     realEtaMonthId: real.eta,
     realOnTrack: real.onTrack,
+    baseDate,
+    nowDate,
+    datesNotComparable,
   }
 }
 

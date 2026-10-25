@@ -249,6 +249,9 @@ const es = {
   'goal.startFromMonth': 'O cuenta desde:',
   'goal.startPickMonth': 'Elige un mes',
   'forecast.goalProgress': 'Llevas {saved} de {goal} ahorrados.',
+  'forecast.goalProgressDates': 'Llevas {saved} de {goal} ahorrados, de la foto del {from} a la del {to}.',
+  'forecast.goalDatesOff':
+    'Ojo: las fotos que se están comparando no están en el mismo punto del mes: unas son de recién cobrado y otras de antes de la nómina. Esas restas no miden ahorro, miden cuánto quedaba de la nómina sin gastar. Haz una foto la víspera de cobrar, cada mes, y estos números empezarán a decir algo.',
   'forecast.goalRolling': 'Son {goal} desde donde estás hoy: {monthly} al mes hasta {due}.',
   'forecast.goalOverdue': 'El plazo venció en {due}.',
   'fields.goal': 'Meta de ahorro',
@@ -713,6 +716,9 @@ const ja: Partial<Record<Key, string>> = {
   'goal.startFromMonth': 'または数え始める月：',
   'goal.startPickMonth': '月を選ぶ',
   'forecast.goalProgress': '{goal}のうち{saved}貯まりました。',
+  'forecast.goalProgressDates': '{from}の記録から{to}の記録まで、{goal}のうち{saved}貯まりました。',
+  'forecast.goalDatesOff':
+    '注意：比べている記録が月の中で同じ時点にありません。給料直後のものと給料日前のものが混ざっています。その差額は貯金ではなく、給料の使い残しです。毎月、給料日の前日に記録すると意味のある数字になります。',
   'forecast.goalRolling': '今いる場所から{goal}：{due}まで毎月{monthly}。',
   'forecast.goalOverdue': '期限は{due}に過ぎました。',
   'fields.goal': '貯金の目標',
@@ -1167,6 +1173,9 @@ const en: Partial<Record<Key, string>> = {
   'goal.startFromMonth': 'Or count from:',
   'goal.startPickMonth': 'Pick a month',
   'forecast.goalProgress': '{saved} of {goal} saved so far.',
+  'forecast.goalProgressDates': '{saved} of {goal} saved so far, from the {from} snapshot to the {to} one.',
+  'forecast.goalDatesOff':
+    'Careful: the snapshots being compared are not at the same point of the month — some are just after payday, others just before. Those subtractions do not measure savings, they measure how much of the pay was still unspent. Take a snapshot the day before payday, every month, and these numbers will start meaning something.',
   'forecast.goalRolling': 'That is {goal} from where you are today: {monthly} a month until {due}.',
   'forecast.goalOverdue': 'The deadline passed in {due}.',
   'fields.goal': 'Savings goal',

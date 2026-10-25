@@ -156,6 +156,12 @@ export interface Settings {
   /** 'YYYY-MM' en que se fijo la meta (solo cuenta con 'fixed') */
   savingsGoalStartMonthId?: string
   /**
+   * 'YYYY-MM-DD' de la foto de la que salio `savingsGoalStartJpy`. Sin esto no
+   * hay manera de decir con que se esta comparando, y una foto del dia
+   * siguiente a cobrar contra otra de la vispera no mide ahorro: mide nomina.
+   */
+  savingsGoalStartDate?: string
+  /**
    * Plantilla de facturas fijas (agua, luz...) para un mes que no tiene uno
    * anterior del que copiar. Si ya hay un mes anterior, manda lo que haya en
    * el (ver `autoFillFixed`): esto solo evita arrancar en blanco el primero.

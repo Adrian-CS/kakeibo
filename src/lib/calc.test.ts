@@ -42,6 +42,7 @@ import {
   recurringItems,
   recurringOfMonth,
   cycleStartNetJpy,
+  daysFromCycleEnd,
   realSavingsPaceJpy,
   savingsGoal,
   savingsRate,
@@ -1127,11 +1128,12 @@ describe('prevision', () => {
         ],
       }
       expect(netWorthMonthly(dos, today)).toEqual([
-        { monthId: '2026-06', netJpy: 300000, assetsJpy: 300000, measured: true, closed: true },
-        // julio no tiene foto: el valor viene arrastrado y no cuenta como medido
-        { monthId: '2026-07', netJpy: 300000, assetsJpy: 300000, measured: false, closed: true },
+        { monthId: '2026-06', netJpy: 300000, assetsJpy: 300000, measured: true, closed: true, date: '2026-06-30' },
+        // julio no tiene foto: el valor viene arrastrado, no cuenta como medido
+        // y no tiene fecha con la que decir de cuando sale
+        { monthId: '2026-07', netJpy: 300000, assetsJpy: 300000, measured: false, closed: true, date: null },
         // agosto es el mes de hoy: su ciclo no ha cerrado todavia
-        { monthId: '2026-08', netJpy: 500000, assetsJpy: 500000, measured: true, closed: false },
+        { monthId: '2026-08', netJpy: 500000, assetsJpy: 500000, measured: true, closed: false, date: '2026-08-01' },
       ])
     })
 
@@ -1252,6 +1254,7 @@ describe('prevision', () => {
         assetsJpy: netJpy,
         measured,
         closed: true,
+        date: `${monthId}-24`,
       })
       // de agosto a octubre hay dos meses y 75.000 de diferencia
       expect(realSavingsPaceJpy([m('2026-08', 1000), m('2026-09', 40000), m('2026-10', 76000)])).toBe(
@@ -1269,7 +1272,7 @@ describe('prevision', () => {
     })
 
     it('solo mira los ultimos ciclos que se le piden', () => {
-      const m = (monthId: string, netJpy: number) => ({ monthId, netJpy, assetsJpy: netJpy, measured: true, closed: true })
+      const m = (monthId: string, netJpy: number) => ({ monthId, netJpy, assetsJpy: netJpy, measured: true, closed: true, date: `${monthId}-24` })
       const serie = [m('2026-06', 0), m('2026-07', 500000), m('2026-08', 510000), m('2026-09', 520000)]
       // con dos ciclos, el subidon de julio se queda fuera
       expect(realSavingsPaceJpy(serie, 2)).toBe(10000)
@@ -1327,6 +1330,7 @@ describe('prevision', () => {
         assetsJpy: netJpy,
         measured,
         closed: true,
+        date: `${monthId}-24`,
       })
       const serie = [m('2026-08', 2238297), m('2026-09', 2302385), m('2026-10', 2313186)]
       // "cuento desde septiembre" arranca con lo que habia al cerrar agosto,
@@ -1339,6 +1343,49 @@ describe('prevision', () => {
       // y un mes arrastrado no sirve de arranque: se coge el anterior medido
       const conHueco = [m('2026-08', 2238297), m('2026-09', 2238297, false), m('2026-10', 2313186)]
       expect(cycleStartNetJpy(conHueco, '2026-10')).toBe(2238297)
+    })
+
+    it('avisa cuando las dos fotos no estan en el mismo punto del ciclo', () => {
+      const base = emptyData(new Date('2026-10-25T00:00:00'))
+      const data: AppData = {
+        ...base,
+        settings: {
+          ...base.settings,
+          savingsGoalJpy: 250000,
+          savingsGoalMonths: 8,
+          savingsGoalMode: 'save',
+          savingsGoalAnchor: 'fixed',
+          savingsGoalStartJpy: 2000000,
+          savingsGoalStartMonthId: '2026-09',
+          // recien cobrado: el 2 de septiembre, con el cobro el 30
+          savingsGoalStartDate: '2026-09-02',
+          paydayOfMonth: 30,
+        },
+        snapshots: [
+          { id: 's1', date: '2026-09-02', accounts: [{ id: 'a', name: 'banco', amount: 2000000, currency: 'JPY' }] },
+          // vispera de cobrar: el suelo del ciclo
+          { id: 's2', date: '2026-10-25', accounts: [{ id: 'b', name: 'banco', amount: 2025000, currency: 'JPY' }] },
+        ],
+      }
+      const today = new Date('2026-10-25T00:00:00')
+      const goal = savingsGoal(data, today, 12, netWorthMonthly(data, today, 30))!
+      expect(goal.baseDate).toBe('2026-09-02')
+      expect(goal.nowDate).toBe('2026-10-25')
+      // la del 2 de septiembre esta a 27 dias del cierre de su ciclo y la del
+      // 25 de octubre a 4: restarlas no mide ahorro, mide nomina sin gastar
+      expect(goal.datesNotComparable).toBe(true)
+    })
+
+    it('a cuantos dias del cierre del ciclo cae una foto', () => {
+      // cobrando el 30, el ciclo de octubre cierra el 29
+      expect(daysFromCycleEnd('2026-10-29', 30)).toBe(0)
+      expect(daysFromCycleEnd('2026-10-25', 30)).toBe(4)
+      // una del 2 de octubre es del ciclo de octubre, recien cobrada
+      expect(daysFromCycleEnd('2026-10-02', 30)).toBe(27)
+      // y una del 30, ya cobrada, pertenece al ciclo de noviembre
+      expect(daysFromCycleEnd('2026-10-30', 30)).toBe(30)
+      // sin dia de cobro no hay ciclo del que medir
+      expect(daysFromCycleEnd('2026-10-25', 0)).toBeNull()
     })
 
     it('dice lo que falta, lo que hay que ahorrar al mes y cuando se llega', () => {
@@ -1522,19 +1569,23 @@ describe('prevision', () => {
   describe('juntar dos documentos (vista "Juntos")', () => {
     it('el patrimonio mes a mes suma el ultimo valor conocido de cada lado', () => {
       const mio = [
-        { monthId: '2026-06', netJpy: 100, assetsJpy: 100, measured: true, closed: true },
-        { monthId: '2026-07', netJpy: 150, assetsJpy: 150, measured: true, closed: false },
+        { monthId: '2026-06', netJpy: 100, assetsJpy: 100, measured: true, closed: true, date: '2026-06-24' },
+        { monthId: '2026-07', netJpy: 150, assetsJpy: 150, measured: true, closed: false, date: '2026-07-24' },
       ]
-      const suyo = [{ monthId: '2026-07', netJpy: 40, assetsJpy: 40, measured: true, closed: false }]
+      const suyo = [
+        { monthId: '2026-07', netJpy: 40, assetsJpy: 40, measured: true, closed: false, date: '2026-07-24' },
+      ]
       // en junio la pareja no tenia foto todavia: suma solo lo mio
       expect(mergeNetWorthMonthly([mio, suyo])).toEqual([
-        { monthId: '2026-06', netJpy: 100, assetsJpy: 100, measured: true, closed: true },
-        { monthId: '2026-07', netJpy: 190, assetsJpy: 190, measured: true, closed: false },
+        { monthId: '2026-06', netJpy: 100, assetsJpy: 100, measured: true, closed: true, date: '2026-06-24' },
+        { monthId: '2026-07', netJpy: 190, assetsJpy: 190, measured: true, closed: false, date: '2026-07-24' },
       ])
     })
 
     it('con un solo lado (o ninguno) no cambia nada', () => {
-      const mio = [{ monthId: '2026-07', netJpy: 150, assetsJpy: 150, measured: true, closed: true }]
+      const mio = [
+        { monthId: '2026-07', netJpy: 150, assetsJpy: 150, measured: true, closed: true, date: '2026-07-24' },
+      ]
       expect(mergeNetWorthMonthly([mio, []])).toEqual(mio)
       expect(mergeNetWorthMonthly([[], []])).toEqual([])
     })
