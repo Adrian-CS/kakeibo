@@ -113,6 +113,11 @@ export function getMonth(data: AppData, monthId: string): MonthData | undefined 
   return data.months.find((m) => m.id === monthId)
 }
 
+/** 'YYYY-MM-DD' de una fecha, en hora local (como las fechas de las fotos). */
+function isoDate(date: Date): string {
+  return `${monthIdOfDate(date)}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 /** 'YYYY-MM' de una fecha (el mismo calculo que `monthIdOf` en defaults.ts). */
 function monthIdOfDate(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
@@ -902,6 +907,12 @@ export interface NetWorthMonth {
    * nada": es que no hay foto con la que saberlo.
    */
   measured: boolean
+  /**
+   * `true` cuando el ciclo de este mes ya se ha cerrado (su vispera de cobrar
+   * quedo atras). El ciclo en curso vale para decir por donde vas, pero no
+   * para promediar: todavia le quedan dias de gasto por delante.
+   */
+  closed: boolean
 }
 
 /**
@@ -942,10 +953,14 @@ export function netWorthMonthly(
   const to = monthIdOfDate(today)
   if (to < from) return []
 
+  const todayIso = isoDate(today)
   const out: NetWorthMonth[] = []
   let i = 0
   let last = series[0]
   for (const monthId of monthRange(from, to)) {
+    // un mes sin dia de cobro cierra al acabarse; con dia de cobro, el dia
+    // antes de la nomina
+    const closed = payday > 0 ? cycleEnd(monthId, payday) < todayIso : monthId < to
     while (i < series.length && series[i].date.slice(0, 7) <= monthId) {
       last = series[i]
       i++
@@ -975,7 +990,7 @@ export function netWorthMonthly(
       if (best) point = best
     }
 
-    out.push({ monthId, netJpy: point.netJpy, assetsJpy: point.assetsJpy, measured })
+    out.push({ monthId, netJpy: point.netJpy, assetsJpy: point.assetsJpy, measured, closed })
   }
   return out
 }
@@ -993,7 +1008,9 @@ export function netWorthMonthly(
  * `null` si no hay al menos dos meses medidos.
  */
 export function realSavingsPaceJpy(series: NetWorthMonth[], cycles = 6): number | null {
-  const measured = series.filter((m) => m.measured)
+  // solo ciclos cerrados: al que esta en curso le quedan dias de gasto, y
+  // meterlo en la media la hunde solo por mirarlo pronto
+  const measured = series.filter((m) => m.measured && m.closed)
   if (measured.length < 2) return null
   const window = measured.slice(-(cycles + 1))
   const first = window[0]
@@ -1002,6 +1019,18 @@ export function realSavingsPaceJpy(series: NetWorthMonth[], cycles = 6): number 
   // salir como si se hubiera ahorrado el doble en el siguiente
   const span = monthsBetween(first.monthId, last.monthId)
   return span > 0 ? (last.netJpy - first.netJpy) / span : null
+}
+
+/**
+ * El patrimonio con el que ARRANCA un mes: el cierre del ciclo anterior. Es lo
+ * que hace falta para que una meta que "empieza en septiembre" cuente tambien
+ * lo que se ahorro en septiembre, en vez de partir de como acabo.
+ *
+ * `null` si de ese mes para atras no hay nada medido.
+ */
+export function cycleStartNetJpy(series: NetWorthMonth[], monthId: string): number | null {
+  const before = series.filter((m) => m.monthId < monthId && m.measured)
+  return before.length ? before[before.length - 1].netJpy : null
 }
 
 export interface SavingsBandPoint {
@@ -1069,6 +1098,9 @@ export function mergeNetWorthMonthly(sides: NetWorthMonth[][]): NetWorthMonth[] 
     let netJpy = 0
     let assetsJpy = 0
     let measured = true
+    // `closed` solo depende del mes y de hoy, asi que vale el de cualquier
+    // lado que llegue a ese mes
+    let closed = false
     for (const side of withData) {
       let known: NetWorthMonth | undefined
       for (const p of side) {
@@ -1083,8 +1115,10 @@ export function mergeNetWorthMonthly(sides: NetWorthMonth[][]): NetWorthMonth[] 
         // mezcle un dato de hoy con otro viejo
         if (!known.measured) measured = false
       }
+      const own = side.find((p) => p.monthId === monthId)
+      if (own) closed = own.closed
     }
-    return { monthId, netJpy, assetsJpy, measured }
+    return { monthId, netJpy, assetsJpy, measured, closed }
   })
 }
 

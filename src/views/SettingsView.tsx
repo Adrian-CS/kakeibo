@@ -11,7 +11,7 @@ import {
   serialize,
   storageSize,
 } from '../lib/storage'
-import { categoryLabel, snapshotSeries } from '../lib/calc'
+import { categoryLabel, cycleStartNetJpy, netWorthMonthly, snapshotSeries } from '../lib/calc'
 import { fmtDate, fmtMonth, fmtNumber, parseAmount } from '../lib/format'
 import { MAX_SLOTS, seriesVar } from '../lib/palette'
 import type { Bucket, Category, Lang, ThemePref } from '../lib/types'
@@ -126,6 +126,13 @@ export function SettingsView() {
   const goalMode = data.settings.savingsGoalMode ?? 'target'
   const goalAnchor = data.settings.savingsGoalAnchor ?? 'rolling'
   const netWorthTodayJpy = snapshotSeries(data).at(-1)?.netJpy ?? 0
+  // los meses con medida propia, para poder decir "cuento desde septiembre" en
+  // vez de teclear a mano el patrimonio con el que arranco septiembre
+  const cycles = netWorthMonthly(data, new Date(), data.settings.paydayOfMonth ?? 0)
+  const startableMonths = cycles
+    .filter((m) => m.measured && cycleStartNetJpy(cycles, m.monthId) !== null)
+    .map((m) => m.monthId)
+    .reverse()
 
   // cuantos dias hace de la ultima copia manual a un fichero
   const [sinceExport, setSinceExport] = useState<number | null>(() => daysSince(lastExportAt()))
@@ -483,6 +490,36 @@ export function SettingsView() {
                     {t('goal.startToday')}
                   </Button>
                 </div>
+                {/* el punto de partida de un mes es con lo que ARRANCA, o sea
+                    el cierre del ciclo anterior: si no, un "cuento desde
+                    septiembre" se deja fuera lo que se ahorro en septiembre */}
+                {startableMonths.length > 0 && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <span className="text-[11px] text-muted">{t('goal.startFromMonth')}</span>
+                    <Select
+                      ariaLabel={t('goal.startFromMonth')}
+                      value=""
+                      onChange={(monthId) => {
+                        const start = cycleStartNetJpy(cycles, monthId)
+                        if (start === null) return
+                        dispatch({
+                          type: 'patchSettings',
+                          patch: {
+                            savingsGoalStartJpy: Math.round(start),
+                            savingsGoalStartMonthId: monthId,
+                          },
+                        })
+                      }}
+                      options={[
+                        { value: '', label: t('goal.startPickMonth') },
+                        ...startableMonths.map((monthId) => ({
+                          value: monthId,
+                          label: fmtMonth(monthId, lang),
+                        })),
+                      ]}
+                    />
+                  </div>
+                )}
               </Field>
             )}
           </div>
