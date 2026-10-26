@@ -309,6 +309,10 @@ const es = {
     'A lo que ahorras de verdad ({pace} al mes de media en {months}) llegas en {eta}, dentro del plazo.',
   'forecast.goalRealLate':
     'A lo que ahorras de verdad ({pace} al mes de media en {months}) llegas en {eta}, después del plazo.',
+  'forecast.diffTitle': 'Las dos fotos, cuenta por cuenta',
+  'forecast.diffDelta': 'Diferencia',
+  'forecast.diffHint':
+    'De la foto del {from} a la del {to}. Si algún número no te cuadra, corrígelo en la foto de abajo y todo se recalcula.',
   'forecast.sinceGoal':
     'Y contando solo desde que te lo propusiste ({month}): {pace} al mes en {months}, con lo que llegarías en {eta}.',
   'forecast.sinceGoalNever':
@@ -804,6 +808,10 @@ const ja: Partial<Record<Key, string>> = {
     '実際に貯まっているペース（{months}の平均で毎月 {pace}）なら{eta}に到達、期限内です。',
   'forecast.goalRealLate':
     '実際に貯まっているペース（{months}の平均で毎月 {pace}）なら{eta}に到達、期限の後です。',
+  'forecast.diffTitle': '2枚の記録を口座ごとに',
+  'forecast.diffDelta': '差額',
+  'forecast.diffHint':
+    '{from}の記録から{to}の記録まで。合わない数字があれば下の記録を直せば、すべて計算し直されます。',
   'forecast.sinceGoal':
     '目標を決めてから（{month}）だけで見ると：{months}で毎月{pace}。このペースなら{eta}に到達します。',
   'forecast.sinceGoalNever':
@@ -1293,6 +1301,10 @@ const en: Partial<Record<Key, string>> = {
     'At what you actually save ({pace} a month on average over {months}) you get there in {eta}, within the deadline.',
   'forecast.goalRealLate':
     'At what you actually save ({pace} a month on average over {months}) you get there in {eta}, after the deadline.',
+  'forecast.diffTitle': 'The two snapshots, account by account',
+  'forecast.diffDelta': 'Difference',
+  'forecast.diffHint':
+    'From the {from} snapshot to the {to} one. If a number looks wrong, fix it in the snapshot below and everything recomputes.',
   'forecast.sinceGoal':
     'And counting only since you set out to do it ({month}): {pace} a month over {months}, which gets you there in {eta}.',
   'forecast.sinceGoalNever':

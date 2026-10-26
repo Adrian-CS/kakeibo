@@ -1480,8 +1480,12 @@ export interface SavingsGoalStatus {
   realOnTrack: boolean | null
   /** 'YYYY-MM-DD' de la foto de la que sale `baseJpy`, si se sabe */
   baseDate: string | null
+  /** id de esa foto, para poder comparar las dos cuenta a cuenta */
+  baseSnapshotId: string | null
   /** 'YYYY-MM-DD' de la foto con la que se mide ahora, si se sabe */
   nowDate: string | null
+  /** id de esa foto */
+  nowSnapshotId: string | null
   /**
    * `true` cuando las dos fotos estan en puntos muy distintos de su ciclo (mas
    * de una semana de diferencia). Entonces la resta no mide ahorro: mide
@@ -1567,9 +1571,11 @@ export function savingsGoal(
   // en 'save' el progreso se mide ciclo a ciclo; en 'target' ("quiero tener
   // 1.500.000") lo que importa es lo que hay hoy de verdad
   const nowJpy = mode === 'save' ? progressJpy : startJpy
-  const nowDate = mode === 'save' && measuredCycles.length
-    ? measuredCycles[measuredCycles.length - 1].date
-    : last.date
+  const nowCycle = mode === 'save' && measuredCycles.length
+    ? measuredCycles[measuredCycles.length - 1]
+    : null
+  const nowDate = nowCycle ? nowCycle.date : last.date
+  const nowSnapshotId = nowCycle ? nowCycle.snapshotId : last.id
   const baseDate =
     anchor === 'fixed'
       ? (settings.savingsGoalStartJpy != null
@@ -1638,7 +1644,11 @@ export function savingsGoal(
     sinceGoalEtaMonthId: sinceGoal.eta,
     sinceGoalOnTrack: sinceGoal.onTrack,
     baseDate,
+    // solo cuando el punto de partida sale de una foto: con una cifra escrita
+    // a mano no hay nada que comparar cuenta a cuenta
+    baseSnapshotId: settings.savingsGoalStartJpy == null ? (liveBase?.snapshotId ?? null) : null,
     nowDate,
+    nowSnapshotId,
     datesNotComparable,
   }
 }

@@ -9,6 +9,7 @@ import {
   lastClosedMonthId,
   leakJpy,
   currentCycle,
+  accountChangesBetween,
   cycleAccountGaps,
   daysFromCycleEnd,
   forecastIncomeJpy,
@@ -465,6 +466,26 @@ export function SavingsView() {
       ? t(last ? 'time.lastMonthOne' : 'time.monthOne')
       : t(last ? 'time.lastMonths' : 'time.months', { n: String(n) })
 
+  // las dos fotos que entran en la cuenta, cuenta a cuenta
+  const diff = useMemo(() => {
+    if (!goal?.baseSnapshotId || !goal.nowSnapshotId || !goal.baseDate || !goal.nowDate) return null
+    if (goal.baseSnapshotId === goal.nowSnapshotId) return null
+    const signed = (n: number) => `${n > 0 ? '+' : ''}${fmtJpy(n, lang)}`
+    const rows = accountChangesBetween(source, goal.baseSnapshotId, goal.nowSnapshotId).map((c) => [
+      c.name,
+      c.fromJpy === null ? '—' : fmtJpy(c.fromJpy, lang),
+      c.toJpy === null ? '—' : fmtJpy(c.toJpy, lang),
+      c.deltaJpy === 0 ? '—' : signed(c.deltaJpy),
+    ])
+    rows.push([
+      t('savings.net'),
+      fmtJpy(goal.baseJpy, lang),
+      fmtJpy(goal.baseJpy + goal.savedJpy, lang),
+      signed(goal.savedJpy),
+    ])
+    return { rows, total: signed(goal.savedJpy), fromDate: goal.baseDate, toDate: goal.nowDate }
+  }, [goal, source, lang, t])
+
   // lo que se suele ingresar: con un sueldo que varia, el del mes en curso no
   // vale para proyectar dos años
   const typicalIncome = useMemo(
@@ -864,6 +885,35 @@ export function SavingsView() {
                 })}
               </p>
             )}
+            {/* la resta cuenta por cuenta. Un total no se puede revisar: una
+                lista de "esta bajo 40.000, esta subio 229 €" si */}
+            {diff && (
+              <Collapsible
+                id="savings.goalDiff"
+                title={t('forecast.diffTitle')}
+                summary={diff.total}
+                defaultOpen={false}
+                className="mt-3"
+              >
+                <p className="mb-1 text-[11px] text-muted">
+                  {t('forecast.diffHint', {
+                    from: fmtDate(diff.fromDate, lang),
+                    to: fmtDate(diff.toDate, lang),
+                  })}
+                </p>
+                <DataTable
+                  caption={t('forecast.diffTitle')}
+                  columns={[
+                    t('savings.account'),
+                    fmtDate(diff.fromDate, lang),
+                    fmtDate(diff.toDate, lang),
+                    t('forecast.diffDelta'),
+                  ]}
+                  rows={diff.rows}
+                />
+              </Collapsible>
+            )}
+
             {/* el ritmo desde que se puso la meta, aparte de la media larga:
                 medio año arrastra meses de antes de proponerse nada */}
             {goal?.sinceGoalPace && (
