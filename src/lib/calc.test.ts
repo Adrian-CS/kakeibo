@@ -41,6 +41,7 @@ import {
   recurringCreditJpy,
   recurringItems,
   recurringOfMonth,
+  cycleAccountGaps,
   cycleStartNetJpy,
   daysFromCycleEnd,
   realSavingsPaceJpy,
@@ -1129,12 +1130,12 @@ describe('prevision', () => {
         ],
       }
       expect(netWorthMonthly(dos, today)).toEqual([
-        { monthId: '2026-06', netJpy: 300000, assetsJpy: 300000, measured: true, closed: true, date: '2026-06-30' },
+        { monthId: '2026-06', netJpy: 300000, assetsJpy: 300000, measured: true, closed: true, date: '2026-06-30', snapshotId: 's0' },
         // julio no tiene foto: el valor viene arrastrado, no cuenta como medido
-        // y no tiene fecha con la que decir de cuando sale
-        { monthId: '2026-07', netJpy: 300000, assetsJpy: 300000, measured: false, closed: true, date: null },
+        // y no tiene ni fecha ni foto con la que decir de donde sale
+        { monthId: '2026-07', netJpy: 300000, assetsJpy: 300000, measured: false, closed: true, date: null, snapshotId: null },
         // agosto es el mes de hoy: su ciclo no ha cerrado todavia
-        { monthId: '2026-08', netJpy: 500000, assetsJpy: 500000, measured: true, closed: false, date: '2026-08-01' },
+        { monthId: '2026-08', netJpy: 500000, assetsJpy: 500000, measured: true, closed: false, date: '2026-08-01', snapshotId: 's1' },
       ])
     })
 
@@ -1256,6 +1257,7 @@ describe('prevision', () => {
         measured,
         closed: true,
         date: `${monthId}-24`,
+        snapshotId: `s-${monthId}`,
       })
       // de agosto a octubre hay dos meses y 75.000 de diferencia
       expect(realSavingsPaceJpy([m('2026-08', 1000), m('2026-09', 40000), m('2026-10', 76000)])).toBe(
@@ -1273,7 +1275,7 @@ describe('prevision', () => {
     })
 
     it('solo mira los ultimos ciclos que se le piden', () => {
-      const m = (monthId: string, netJpy: number) => ({ monthId, netJpy, assetsJpy: netJpy, measured: true, closed: true, date: `${monthId}-24` })
+      const m = (monthId: string, netJpy: number) => ({ monthId, netJpy, assetsJpy: netJpy, measured: true, closed: true, date: `${monthId}-24`, snapshotId: `s-${monthId}` })
       const serie = [m('2026-06', 0), m('2026-07', 500000), m('2026-08', 510000), m('2026-09', 520000)]
       // con dos ciclos, el subidon de julio se queda fuera
       expect(realSavingsPaceJpy(serie, 2)).toBe(10000)
@@ -1323,6 +1325,71 @@ describe('prevision', () => {
     it('sin dia de cobro no hay ciclo que cerrar', () => {
       const data = conFotos([], '2026-10-29')
       expect(snapshotDue(data, new Date('2026-10-29T00:00:00'), 0)).toBeNull()
+    })
+  })
+
+  describe('cuentas que aparecen de la nada', () => {
+    it('una deuda apuntada tarde mete un escalon que no es ni ahorro ni gasto', () => {
+      const today = new Date('2026-10-31T00:00:00')
+      const base = emptyData(today)
+      const data: AppData = {
+        ...base,
+        snapshots: [
+          // julio: sin la deuda, que ya se debia pero no estaba apuntada
+          { id: 's0', date: '2026-07-29', accounts: [{ id: 'a', name: 'banco', amount: 200000, currency: 'JPY' }] },
+          {
+            id: 's1',
+            date: '2026-08-29',
+            accounts: [
+              { id: 'a', name: 'banco', amount: 210000, currency: 'JPY' },
+              { id: 'd', name: 'Deuda', amount: 130000, currency: 'JPY', isDebt: true },
+            ],
+          },
+        ],
+      }
+      const gaps = cycleAccountGaps(data, netWorthMonthly(data, today, 30))
+      expect(gaps).toEqual([{ monthId: '2026-08', name: 'Deuda', jpy: -130000 }])
+    })
+
+    it('una cuenta que desaparece no cuenta: eso si es un cambio de verdad', () => {
+      const today = new Date('2026-10-31T00:00:00')
+      const base = emptyData(today)
+      const data: AppData = {
+        ...base,
+        snapshots: [
+          {
+            id: 's0',
+            date: '2026-07-29',
+            accounts: [
+              { id: 'a', name: 'banco', amount: 200000, currency: 'JPY' },
+              { id: 'd', name: 'Deuda', amount: 130000, currency: 'JPY', isDebt: true },
+            ],
+          },
+          // pagada y borrada: el banco baja y la deuda se va, se cancelan
+          { id: 's1', date: '2026-08-29', accounts: [{ id: 'a', name: 'banco', amount: 70000, currency: 'JPY' }] },
+        ],
+      }
+      expect(cycleAccountGaps(data, netWorthMonthly(data, today, 30))).toEqual([])
+    })
+
+    it('las calderillas no molestan', () => {
+      const today = new Date('2026-10-31T00:00:00')
+      const base = emptyData(today)
+      const data: AppData = {
+        ...base,
+        snapshots: [
+          { id: 's0', date: '2026-07-29', accounts: [{ id: 'a', name: 'banco', amount: 200000, currency: 'JPY' }] },
+          {
+            id: 's1',
+            date: '2026-08-29',
+            accounts: [
+              { id: 'a', name: 'banco', amount: 200000, currency: 'JPY' },
+              { id: 'b', name: 'hucha', amount: 300, currency: 'JPY' },
+            ],
+          },
+        ],
+      }
+      expect(cycleAccountGaps(data, netWorthMonthly(data, today, 30))).toEqual([])
     })
   })
 
@@ -1376,6 +1443,7 @@ describe('prevision', () => {
         measured,
         closed: true,
         date: `${monthId}-24`,
+        snapshotId: `s-${monthId}`,
       })
       const serie = [m('2026-08', 2238297), m('2026-09', 2302385), m('2026-10', 2313186)]
       // "cuento desde septiembre" arranca con lo que habia al cerrar agosto,
@@ -1675,22 +1743,22 @@ describe('prevision', () => {
   describe('juntar dos documentos (vista "Juntos")', () => {
     it('el patrimonio mes a mes suma el ultimo valor conocido de cada lado', () => {
       const mio = [
-        { monthId: '2026-06', netJpy: 100, assetsJpy: 100, measured: true, closed: true, date: '2026-06-24' },
-        { monthId: '2026-07', netJpy: 150, assetsJpy: 150, measured: true, closed: false, date: '2026-07-24' },
+        { monthId: '2026-06', netJpy: 100, assetsJpy: 100, measured: true, closed: true, date: '2026-06-24', snapshotId: null },
+        { monthId: '2026-07', netJpy: 150, assetsJpy: 150, measured: true, closed: false, date: '2026-07-24', snapshotId: null },
       ]
       const suyo = [
-        { monthId: '2026-07', netJpy: 40, assetsJpy: 40, measured: true, closed: false, date: '2026-07-24' },
+        { monthId: '2026-07', netJpy: 40, assetsJpy: 40, measured: true, closed: false, date: '2026-07-24', snapshotId: null },
       ]
       // en junio la pareja no tenia foto todavia: suma solo lo mio
       expect(mergeNetWorthMonthly([mio, suyo])).toEqual([
-        { monthId: '2026-06', netJpy: 100, assetsJpy: 100, measured: true, closed: true, date: '2026-06-24' },
-        { monthId: '2026-07', netJpy: 190, assetsJpy: 190, measured: true, closed: false, date: '2026-07-24' },
+        { monthId: '2026-06', netJpy: 100, assetsJpy: 100, measured: true, closed: true, date: '2026-06-24', snapshotId: null },
+        { monthId: '2026-07', netJpy: 190, assetsJpy: 190, measured: true, closed: false, date: '2026-07-24', snapshotId: null },
       ])
     })
 
     it('con un solo lado (o ninguno) no cambia nada', () => {
       const mio = [
-        { monthId: '2026-07', netJpy: 150, assetsJpy: 150, measured: true, closed: true, date: '2026-07-24' },
+        { monthId: '2026-07', netJpy: 150, assetsJpy: 150, measured: true, closed: true, date: '2026-07-24', snapshotId: null },
       ]
       expect(mergeNetWorthMonthly([mio, []])).toEqual(mio)
       expect(mergeNetWorthMonthly([[], []])).toEqual([])

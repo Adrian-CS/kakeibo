@@ -919,6 +919,8 @@ export interface NetWorthMonth {
    * en vez de soltar una cifra a secas.
    */
   date: string | null
+  /** id de esa foto, para poder comparar cuenta a cuenta con la del ciclo anterior */
+  snapshotId: string | null
 }
 
 /**
@@ -1003,6 +1005,7 @@ export function netWorthMonthly(
       measured,
       closed,
       date: measured ? point.date : null,
+      snapshotId: measured ? point.id : null,
     })
   }
   return out
@@ -1067,6 +1070,44 @@ export function daysFromCycleEnd(date: string, payday: number): number | null {
   const x = Date.parse(`${date}T00:00:00Z`)
   const y = Date.parse(`${end}T00:00:00Z`)
   return Number.isNaN(x) || Number.isNaN(y) ? null : Math.round((y - x) / 86400000)
+}
+
+export interface CycleAccountGap {
+  /** 'YYYY-MM' del ciclo en el que la cuenta aparece de la nada */
+  monthId: string
+  /** como se llama */
+  name: string
+  /** cuanto suma (negativo si es deuda): el salto que mete en el patrimonio */
+  jpy: number
+}
+
+/**
+ * Cuentas que APARECEN de un ciclo al siguiente, con el salto que meten en el
+ * patrimonio. Que una cuenta no estuviera en la foto anterior no quiere decir
+ * que ese dinero (o esa deuda) naciera entonces: casi siempre es que no se
+ * estaba apuntando. Mientras tanto, el patrimonio pega un escalon que no es ni
+ * ahorro ni gasto, y que se cuela en cualquier resta que cruce ese ciclo.
+ *
+ * Solo las que aparecen: una que desaparece si es un cambio de verdad (se fue
+ * a cero), que es lo que pasa al pagar una deuda y borrarla.
+ */
+export function cycleAccountGaps(
+  data: AppData,
+  monthly: NetWorthMonth[],
+  minJpy = 1000,
+): CycleAccountGap[] {
+  const measured = monthly.filter((m) => m.measured && m.snapshotId !== null)
+  const out: CycleAccountGap[] = []
+  for (let i = 1; i < measured.length; i++) {
+    const prev = measured[i - 1]
+    const cur = measured[i]
+    for (const c of accountChangesBetween(data, prev.snapshotId!, cur.snapshotId!)) {
+      if (c.fromJpy === null && Math.abs(c.deltaJpy) >= minJpy) {
+        out.push({ monthId: cur.monthId, name: c.name, jpy: c.deltaJpy })
+      }
+    }
+  }
+  return out
 }
 
 export interface SnapshotDue {
@@ -1186,6 +1227,7 @@ export function mergeNetWorthMonthly(sides: NetWorthMonth[][]): NetWorthMonth[] 
     // lado que llegue a ese mes
     let closed = false
     let date: string | null | undefined
+    let snapshotId: string | null | undefined
     for (const side of withData) {
       let known: NetWorthMonth | undefined
       for (const p of side) {
@@ -1207,9 +1249,19 @@ export function mergeNetWorthMonthly(sides: NetWorthMonth[][]): NetWorthMonth[] 
         // mismo dia; si no, la suma no tiene una fecha que valga
         if (date === undefined) date = own.date
         else if (date !== own.date) date = null
+        // en "Juntos" no hay una foto unica que comparar cuenta a cuenta
+        snapshotId = snapshotId === undefined ? own.snapshotId : null
       }
     }
-    return { monthId, netJpy, assetsJpy, measured, closed, date: date ?? null }
+    return {
+      monthId,
+      netJpy,
+      assetsJpy,
+      measured,
+      closed,
+      date: date ?? null,
+      snapshotId: snapshotId ?? null,
+    }
   })
 }
 

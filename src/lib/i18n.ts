@@ -185,6 +185,8 @@ const es = {
   'savings.title': 'Ahorros y patrimonio',
   'savings.add': 'Nueva foto',
   'savings.dueToday': 'Hoy toca la foto: mañana cobras.',
+  'savings.accountAppeared':
+    '«{name}» ({amount}) aparece aquí por primera vez. Si ya la tenías antes, apúntala también en las fotos anteriores: mientras no esté, el patrimonio da un salto en este mes que no es ni ahorro ni gasto.',
   'savings.cycleUnmeasured':
     'Este ciclo no está medido: no hay ninguna foto cerca del {date}, que es cuando cerraba. Lo que se ve arriba viene arrastrado del ciclo anterior, no es lo que tenías.',
   'savings.cycleFar':
@@ -260,6 +262,8 @@ const es = {
   'forecast.goalProgress': 'Llevas {saved} de {goal} ahorrados.',
   'forecast.goalProgressDates':
     'Llevas {saved} de {goal} ahorrados: de {fromJpy} en la foto del {from} a {toJpy} en la del {to}.',
+  'forecast.accountGap':
+    'Ojo: hay cuentas que aparecen de la nada entre una foto y la siguiente: {list}. Ese escalón no es ahorro ni gasto, es que antes no se estaban apuntando, y se cuela en todas las cuentas que crucen ese mes. Apúntalas también en las fotos anteriores, desde que de verdad las tenías.',
   'forecast.goalDatesOff':
     'Ojo: las fotos que se están comparando no están en el mismo punto del mes: unas son de recién cobrado y otras de antes de la nómina. Esas restas no miden ahorro, miden cuánto quedaba de la nómina sin gastar. Haz una foto la víspera de cobrar, cada mes, y estos números empezarán a decir algo.',
   'forecast.goalRolling': 'Son {goal} desde donde estás hoy: {monthly} al mes hasta {due}.',
@@ -663,6 +667,8 @@ const ja: Partial<Record<Key, string>> = {
   'savings.title': '貯金と資産',
   'savings.add': '記録を追加',
   'savings.dueToday': '今日が記録の日です：明日が給料日。',
+  'savings.accountAppeared':
+    '「{name}」（{amount}）がここで初めて出てきます。それ以前から持っていたなら、前の記録にも書き足してください。書いていないあいだは、この月に貯金でも支出でもない段差が出ます。',
   'savings.cycleUnmeasured':
     'この周期は測れていません：締めの{date}の前後に記録がありません。上に出ている額は前の周期から引き継いだもので、実際の額ではありません。',
   'savings.cycleFar':
@@ -737,6 +743,8 @@ const ja: Partial<Record<Key, string>> = {
   'forecast.goalProgress': '{goal}のうち{saved}貯まりました。',
   'forecast.goalProgressDates':
     '{goal}のうち{saved}貯まりました：{from}の記録の{fromJpy}から、{to}の記録の{toJpy}まで。',
+  'forecast.accountGap':
+    '注意：ある記録から次の記録のあいだに、いきなり現れた口座があります：{list}。この段差は貯金でも支出でもなく、それまで記録していなかっただけです。その月をまたぐ計算すべてに入り込みます。実際に持っていた時点まで、前の記録にも書き足してください。',
   'forecast.goalDatesOff':
     '注意：比べている記録が月の中で同じ時点にありません。給料直後のものと給料日前のものが混ざっています。その差額は貯金ではなく、給料の使い残しです。毎月、給料日の前日に記録すると意味のある数字になります。',
   'forecast.goalRolling': '今いる場所から{goal}：{due}まで毎月{monthly}。',
@@ -1129,6 +1137,8 @@ const en: Partial<Record<Key, string>> = {
   'savings.title': 'Savings & net worth',
   'savings.add': 'New snapshot',
   'savings.dueToday': 'Snapshot day: you get paid tomorrow.',
+  'savings.accountAppeared':
+    '"{name}" ({amount}) shows up here for the first time. If you already had it before, add it to the earlier snapshots too: while it is missing, net worth takes a step in this month that is neither saving nor spending.',
   'savings.cycleUnmeasured':
     'This cycle is not measured: there is no snapshot near {date}, when it closed. The figure above is carried over from the previous cycle, not what you had.',
   'savings.cycleFar':
@@ -1204,6 +1214,8 @@ const en: Partial<Record<Key, string>> = {
   'forecast.goalProgress': '{saved} of {goal} saved so far.',
   'forecast.goalProgressDates':
     '{saved} of {goal} saved so far: from {fromJpy} in the {from} snapshot to {toJpy} in the {to} one.',
+  'forecast.accountGap':
+    'Careful: some accounts appear out of nowhere from one snapshot to the next: {list}. That step is neither saving nor spending, it is bookkeeping catching up, and it leaks into every figure that spans that month. Add them to the earlier snapshots too, back to when you really had them.',
   'forecast.goalDatesOff':
     'Careful: the snapshots being compared are not at the same point of the month — some are just after payday, others just before. Those subtractions do not measure savings, they measure how much of the pay was still unspent. Take a snapshot the day before payday, every month, and these numbers will start meaning something.',
   'forecast.goalRolling': 'That is {goal} from where you are today: {monthly} a month until {due}.',

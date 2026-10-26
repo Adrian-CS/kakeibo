@@ -8,6 +8,7 @@ import {
   debtTotalJpy,
   lastClosedMonthId,
   leakJpy,
+  cycleAccountGaps,
   daysFromCycleEnd,
   mergeNetWorthMonthly,
   recurringCreditJpy,
@@ -446,6 +447,15 @@ export function SavingsView() {
         : goal.realPaceJpy <= 0 && goal.medianMonthlyJpy > 0
           ? ('forecast.goalPaceModelHigh' as const)
           : null
+  // cuentas que aparecen de la nada de un ciclo a otro. El patrimonio pega un
+  // escalon que no es ahorro ni gasto, y se cuela en cualquier resta que cruce
+  // ese ciclo: es lo que hace que "llevas X ahorrado" y "ahorras Y al mes" no
+  // se parezcan entre si
+  const gaps = useMemo(
+    () => (isTogether ? [] : cycleAccountGaps(source, sourceMonthly)),
+    [isTogether, source, sourceMonthly],
+  )
+
   const backtest = useMemo(() => backtestForecast(source), [source])
   // los apuntes futuros de los dos: `upcomingExpenses` solo mira `expenses`,
   // asi que juntarlos aqui basta para la vista combinada
@@ -829,6 +839,19 @@ export function SavingsView() {
                 })}
               </p>
             )}
+            {gaps.length > 0 && (
+              <p className="mt-2 text-[11px]" style={{ color: 'var(--serious)' }}>
+                {t('forecast.accountGap', {
+                  list: gaps
+                    .slice(0, 3)
+                    .map(
+                      (g) =>
+                        `«${g.name}» (${fmtJpy(g.jpy, lang)}, ${fmtMonth(g.monthId, lang)})`,
+                    )
+                    .join(', '),
+                })}
+              </p>
+            )}
             {paceMismatch && (
               <p className="mt-2 text-[11px]" style={{ color: 'var(--serious)' }}>
                 {t(paceMismatch)}
@@ -1108,6 +1131,20 @@ export function SavingsView() {
               {/* un ciclo sin foto de cierre no es un mes sin ahorrar: es un
                   mes del que no se sabe. Decirlo es mejor que arrastrar el
                   valor del anterior como si nada */}
+              {gaps
+                .filter((g) => g.monthId === monthId)
+                .map((g) => (
+                  <p
+                    key={g.name}
+                    className="mb-2 text-[11px]"
+                    style={{ color: 'var(--serious)' }}
+                  >
+                    {t('savings.accountAppeared', {
+                      name: g.name,
+                      amount: fmtJpy(g.jpy, lang),
+                    })}
+                  </p>
+                ))}
               {cycleGap(monthId) !== null && (
                 <p className="mb-2 text-[11px]" style={{ color: 'var(--serious)' }}>
                   {t(
