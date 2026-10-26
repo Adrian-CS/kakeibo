@@ -305,8 +305,14 @@ const es = {
   'forecast.goalOnTrack': 'A tu ritmo típico llegas en {eta}, dentro del plazo.',
   'forecast.goalLate': 'A tu ritmo típico llegas en {eta}, después del plazo.',
   'forecast.goalNever': 'A tu ritmo típico no llegas: harían falta {monthly} al mes.',
-  'forecast.goalRealOnTrack': 'A lo que ahorras de verdad ({pace} al mes) llegas en {eta}, dentro del plazo.',
-  'forecast.goalRealLate': 'A lo que ahorras de verdad ({pace} al mes) llegas en {eta}, después del plazo.',
+  'forecast.goalRealOnTrack':
+    'A lo que ahorras de verdad ({pace} al mes de media en los últimos {months} meses) llegas en {eta}, dentro del plazo.',
+  'forecast.goalRealLate':
+    'A lo que ahorras de verdad ({pace} al mes de media en los últimos {months} meses) llegas en {eta}, después del plazo.',
+  'forecast.thisCycle':
+    'Este ciclo llevas {amount}, y todavía le quedan {days} días: no entra en la media hasta que cierre el {date}.',
+  'forecast.thisCycleLast':
+    'Este ciclo llevas {amount}, y cierra hoy: en cuanto hagas la foto entra en la media.',
   'forecast.goalRealNever': 'A lo que ahorras de verdad no llegas: harían falta {monthly} al mes.',
   'forecast.goalPaceModelLow':
     'Ojo: tu patrimonio sube de verdad, pero la cuenta de «ingresos menos gasto típico» sale negativa, y por eso la línea azul baja. Casi siempre es el ingreso del mes, puesto por debajo de lo que cobras de verdad: revísalo en la pestaña Mes.',
@@ -784,8 +790,14 @@ const ja: Partial<Record<Key, string>> = {
   'forecast.goalOnTrack': '普段のペースなら{eta}に到達、期限内です。',
   'forecast.goalLate': '普段のペースなら{eta}に到達、期限の後です。',
   'forecast.goalNever': '普段のペースでは届きません：毎月 {monthly} 必要です。',
-  'forecast.goalRealOnTrack': '実際に貯まっているペース（毎月 {pace}）なら{eta}に到達、期限内です。',
-  'forecast.goalRealLate': '実際に貯まっているペース（毎月 {pace}）なら{eta}に到達、期限の後です。',
+  'forecast.goalRealOnTrack':
+    '実際に貯まっているペース（直近{months}ヶ月の平均で毎月 {pace}）なら{eta}に到達、期限内です。',
+  'forecast.goalRealLate':
+    '実際に貯まっているペース（直近{months}ヶ月の平均で毎月 {pace}）なら{eta}に到達、期限の後です。',
+  'forecast.thisCycle':
+    '今の周期は{amount}。あと{days}日あるので、{date}に締まるまで平均には入りません。',
+  'forecast.thisCycleLast':
+    '今の周期は{amount}。今日が締めです：記録すればそのまま平均に入ります。',
   'forecast.goalRealNever': '実際に貯まっているペースでは届きません：毎月 {monthly} 必要です。',
   'forecast.goalPaceModelLow':
     '注意：純資産は実際に増えていますが、「収入 − 普段の支出」の計算はマイナスで、だから青い線は下がります。たいていは月の収入が実際より低く入力されています。「月」タブで確認してください。',
@@ -1257,8 +1269,14 @@ const en: Partial<Record<Key, string>> = {
   'forecast.goalOnTrack': 'At your typical pace you get there in {eta}, within the deadline.',
   'forecast.goalLate': 'At your typical pace you get there in {eta}, after the deadline.',
   'forecast.goalNever': 'At your typical pace you never get there: it would take {monthly} a month.',
-  'forecast.goalRealOnTrack': 'At what you actually save ({pace} a month) you get there in {eta}, within the deadline.',
-  'forecast.goalRealLate': 'At what you actually save ({pace} a month) you get there in {eta}, after the deadline.',
+  'forecast.goalRealOnTrack':
+    'At what you actually save ({pace} a month on average over the last {months} months) you get there in {eta}, within the deadline.',
+  'forecast.goalRealLate':
+    'At what you actually save ({pace} a month on average over the last {months} months) you get there in {eta}, after the deadline.',
+  'forecast.thisCycle':
+    'This cycle you are at {amount}, with {days} days still to go: it does not count towards the average until it closes on {date}.',
+  'forecast.thisCycleLast':
+    'This cycle you are at {amount}, and it closes today: take the snapshot and it joins the average.',
   'forecast.goalRealNever': 'At what you actually save you never get there: it would take {monthly} a month.',
   'forecast.goalPaceModelLow':
     'Careful: your net worth really is going up, but "income minus typical spending" comes out negative, which is why the blue line falls. It is almost always the month\u2019s income, set below what you actually earn: check it in the Month tab.',

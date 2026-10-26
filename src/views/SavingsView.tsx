@@ -8,6 +8,7 @@ import {
   debtTotalJpy,
   lastClosedMonthId,
   leakJpy,
+  currentCycle,
   cycleAccountGaps,
   daysFromCycleEnd,
   mergeNetWorthMonthly,
@@ -456,6 +457,11 @@ export function SavingsView() {
     [isTogether, source, sourceMonthly],
   )
 
+  // como va el ciclo que aun no ha cerrado
+  const cycle = useMemo(
+    () => (isTogether ? null : currentCycle(source, sourceMonthly, new Date(), payday)),
+    [isTogether, source, sourceMonthly, payday],
+  )
   const backtest = useMemo(() => backtestForecast(source), [source])
   // los apuntes futuros de los dos: `upcomingExpenses` solo mira `expenses`,
   // asi que juntarlos aqui basta para la vista combinada
@@ -826,7 +832,11 @@ export function SavingsView() {
                             : verdict.onTrack
                               ? 'forecast.goalOnTrack'
                               : 'forecast.goalLate',
-                          { eta: fmtMonth(verdict.eta, lang), pace: fmtJpy(goal.realPaceJpy ?? 0, lang) },
+                          {
+                            eta: fmtMonth(verdict.eta, lang),
+                            pace: fmtJpy(goal.realPaceJpy ?? 0, lang),
+                            months: String(goal.realPaceMonths ?? 0),
+                          },
                         )}
                 </span>
               </p>
@@ -836,6 +846,18 @@ export function SavingsView() {
                 {t('forecast.goalDatesOff', {
                   from: goal.baseDate ? fmtDate(goal.baseDate, lang) : '',
                   to: goal.nowDate ? fmtDate(goal.nowDate, lang) : '',
+                })}
+              </p>
+            )}
+            {/* el ciclo en curso, aparte: es el numero que uno tiene en la
+                cabeza al mirar la cuenta, y sin el la media de medio año
+                parece mentira */}
+            {cycle && (
+              <p className="mt-2 text-[11px] text-muted">
+                {t(cycle.daysLeft === 0 ? 'forecast.thisCycleLast' : 'forecast.thisCycle', {
+                  amount: `${cycle.jpy >= 0 ? '+' : ''}${fmtJpy(cycle.jpy, lang)}`,
+                  days: String(cycle.daysLeft),
+                  date: fmtDate(cycle.endDate, lang),
                 })}
               </p>
             )}

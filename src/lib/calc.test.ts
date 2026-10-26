@@ -41,9 +41,11 @@ import {
   recurringCreditJpy,
   recurringItems,
   recurringOfMonth,
+  currentCycle,
   cycleAccountGaps,
   cycleStartNetJpy,
   daysFromCycleEnd,
+  realSavingsPace,
   realSavingsPaceJpy,
   savingsGoal,
   savingsRate,
@@ -1390,6 +1392,52 @@ describe('prevision', () => {
         ],
       }
       expect(cycleAccountGaps(data, netWorthMonthly(data, today, 30))).toEqual([])
+    })
+  })
+
+  describe('el ciclo en curso', () => {
+    const data = (today: string): AppData => ({
+      ...emptyData(new Date(`${today}T00:00:00`)),
+      settings: { ...emptyData(new Date(`${today}T00:00:00`)).settings, paydayOfMonth: 30 },
+      snapshots: [
+        { id: 's0', date: '2026-08-29', accounts: [{ id: 'a', name: 'banco', amount: 100000, currency: 'JPY' }] },
+        { id: 's1', date: '2026-09-29', accounts: [{ id: 'a', name: 'banco', amount: 120000, currency: 'JPY' }] },
+        { id: 's2', date: '2026-10-25', accounts: [{ id: 'a', name: 'banco', amount: 200000, currency: 'JPY' }] },
+      ],
+    })
+
+    it('cuenta desde el ultimo cierre y dice lo que le queda', () => {
+      const today = new Date('2026-10-26T00:00:00')
+      const d = data('2026-10-26')
+      const cur = currentCycle(d, netWorthMonthly(d, today, 30), today, 30)!
+      // 200.000 hoy contra los 120.000 del cierre de septiembre
+      expect(cur.jpy).toBe(80000)
+      expect(cur.fromDate).toBe('2026-09-29')
+      expect(cur.toDate).toBe('2026-10-25')
+      // el ciclo cierra el 29: quedan tres dias
+      expect(cur.daysLeft).toBe(3)
+      expect(cur.endDate).toBe('2026-10-29')
+    })
+
+    it('ese ciclo todavia no entra en la media', () => {
+      const today = new Date('2026-10-26T00:00:00')
+      const d = data('2026-10-26')
+      // solo agosto y septiembre estan cerrados: 20.000 en un mes
+      expect(realSavingsPace(netWorthMonthly(d, today, 30), 6)).toEqual({ jpy: 20000, months: 1 })
+    })
+
+    it('sin nada nuevo desde el ultimo cierre no hay ciclo que contar', () => {
+      const today = new Date('2026-09-30T00:00:00')
+      const base = emptyData(today)
+      const d: AppData = {
+        ...base,
+        settings: { ...base.settings, paydayOfMonth: 30 },
+        snapshots: [
+          { id: 's0', date: '2026-08-29', accounts: [{ id: 'a', name: 'banco', amount: 100000, currency: 'JPY' }] },
+          { id: 's1', date: '2026-09-29', accounts: [{ id: 'a', name: 'banco', amount: 120000, currency: 'JPY' }] },
+        ],
+      }
+      expect(currentCycle(d, netWorthMonthly(d, today, 30), today, 30)).toBeNull()
     })
   })
 

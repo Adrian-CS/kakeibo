@@ -1023,7 +1023,14 @@ export function netWorthMonthly(
  *
  * `null` si no hay al menos dos meses medidos.
  */
-export function realSavingsPaceJpy(series: NetWorthMonth[], cycles = 6): number | null {
+export interface SavingsPace {
+  /** lo que ha subido el patrimonio al mes, de media */
+  jpy: number
+  /** cuantos meses entran en esa media */
+  months: number
+}
+
+export function realSavingsPace(series: NetWorthMonth[], cycles = 6): SavingsPace | null {
   // solo ciclos cerrados: al que esta en curso le quedan dias de gasto, y
   // meterlo en la media la hunde solo por mirarlo pronto
   const measured = series.filter((m) => m.measured && m.closed)
@@ -1033,8 +1040,64 @@ export function realSavingsPaceJpy(series: NetWorthMonth[], cycles = 6): number 
   const last = window[window.length - 1]
   // por meses de calendario y no por numero de fotos: saltarse un mes no puede
   // salir como si se hubiera ahorrado el doble en el siguiente
-  const span = monthsBetween(first.monthId, last.monthId)
-  return span > 0 ? (last.netJpy - first.netJpy) / span : null
+  const months = monthsBetween(first.monthId, last.monthId)
+  return months > 0 ? { jpy: (last.netJpy - first.netJpy) / months, months } : null
+}
+
+export function realSavingsPaceJpy(series: NetWorthMonth[], cycles = 6): number | null {
+  return realSavingsPace(series, cycles)?.jpy ?? null
+}
+
+export interface CurrentCycle {
+  /** lo que llevas ganado o perdido en el ciclo en curso */
+  jpy: number
+  /** dias que le quedan al ciclo */
+  daysLeft: number
+  /** 'YYYY-MM-DD' en que cierra */
+  endDate: string
+  /** 'YYYY-MM-DD' de la foto desde la que se cuenta */
+  fromDate: string
+  /** 'YYYY-MM-DD' de la foto mas reciente */
+  toDate: string
+}
+
+/**
+ * Como va el ciclo que todavia no ha cerrado: de la ultima foto del ciclo
+ * anterior a la de hoy.
+ *
+ * No entra en la media del ritmo -le faltan dias de gasto- pero es el numero
+ * que uno tiene en la cabeza cuando mira la cuenta, y callarselo hace que la
+ * media de seis meses parezca mentira.
+ */
+export function currentCycle(
+  data: AppData,
+  monthly: NetWorthMonth[],
+  today = new Date(),
+  payday = 0,
+): CurrentCycle | null {
+  if (payday <= 0) return null
+  const series = snapshotSeries(data)
+  const last = series.at(-1)
+  const closed = monthly.filter((m) => m.measured && m.closed).at(-1)
+  if (!last || !closed || closed.date === null) return null
+
+  const todayIso = isoDate(today)
+  let monthId = monthIdOfDate(today)
+  let endDate = cycleEnd(monthId, payday)
+  if (todayIso > endDate) {
+    monthId = shiftMonth(monthId, 1)
+    endDate = cycleEnd(monthId, payday)
+  }
+  // la ultima foto tiene que ser posterior al cierre del que sirve de base:
+  // si no, no hay nada nuevo que contar en este ciclo
+  if (last.date <= closed.date) return null
+  return {
+    jpy: last.netJpy - closed.netJpy,
+    daysLeft: daysBetween(todayIso, endDate),
+    endDate,
+    fromDate: closed.date,
+    toDate: last.date,
+  }
 }
 
 /**
@@ -1336,6 +1399,8 @@ export interface SavingsGoalStatus {
   onTrack: boolean | null
   /** lo que ha subido el patrimonio al mes de verdad; null sin meses medidos */
   realPaceJpy: number | null
+  /** cuantos meses entran en esa media: sin decirlo, parece el mes pasado */
+  realPaceMonths: number | null
   /** 'YYYY-MM' en que se llegaria a ese ritmo real; null si no se sabe o no se llega */
   realEtaMonthId: string | null
   /** si se llega a tiempo al ritmo real; null cuando no hay con que saberlo */
@@ -1396,7 +1461,8 @@ export function savingsGoal(
   // foto a secas, el numero pegaria un salto el dia de cobro y se desinflaria
   // durante el mes. `startJpy` se queda como lo que tienes HOY, que es otra
   // cosa y es la que vale para "quiero tener X"
-  const realPaceJpy = realSavingsPaceJpy(monthly)
+  const realPace = realSavingsPace(monthly)
+  const realPaceJpy = realPace?.jpy ?? null
   const measuredCycles = monthly.filter((m) => m.measured)
   const progressJpy = measuredCycles.length
     ? measuredCycles[measuredCycles.length - 1].netJpy
@@ -1486,6 +1552,7 @@ export function savingsGoal(
     etaMonthId: model.eta,
     onTrack: model.onTrack,
     realPaceJpy,
+    realPaceMonths: realPace?.months ?? null,
     realEtaMonthId: real.eta,
     realOnTrack: real.onTrack,
     baseDate,
