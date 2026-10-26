@@ -763,6 +763,11 @@ export function SavingsView() {
                         goal: fmtJpy(goal.targetJpy - goal.baseJpy, lang),
                         from: goal.baseDate ? fmtDate(goal.baseDate, lang) : '',
                         to: goal.nowDate ? fmtDate(goal.nowDate, lang) : '',
+                        // la resta entera a la vista: con los dos extremos
+                        // puestos se ve de un golpe cual de los dos es el
+                        // que esta mal, que es lo que no se podia hacer
+                        fromJpy: fmtJpy(goal.baseJpy, lang),
+                        toJpy: fmtJpy(goal.baseJpy + goal.savedJpy, lang),
                       },
                     )}{' '}
                   </>
