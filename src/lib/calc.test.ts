@@ -45,7 +45,9 @@ import {
   cycleAccountGaps,
   cycleStartNetJpy,
   daysFromCycleEnd,
+  forecastIncomeJpy,
   realSavingsPace,
+  savingsPaceSince,
   realSavingsPaceJpy,
   savingsGoal,
   savingsRate,
@@ -54,6 +56,7 @@ import {
   shiftMonth,
   snapshotDue,
   snapshotTotals,
+  typicalIncomeJpy,
   topExpenses,
   topLabels,
   accountChangesBetween,
@@ -1438,6 +1441,88 @@ describe('prevision', () => {
         ],
       }
       expect(currentCycle(d, netWorthMonthly(d, today, 30), today, 30)).toBeNull()
+    })
+  })
+
+  describe('ingreso que no es igual todos los meses', () => {
+    const seed = (actuals: Record<string, number | undefined>): AppData => {
+      const base = emptyData(new Date('2026-10-26T00:00:00'))
+      const ids = ['2026-07', '2026-08', '2026-09', '2026-10']
+      return {
+        ...base,
+        settings: { ...base.settings, defaultIncomeJpy: 190000 },
+        months: ids.map((id) => ({
+          id,
+          rentJpy: 50000,
+          extras: [],
+          fxRate: 0.0056,
+          limitJpy: 180000,
+          incomeJpy: 190000,
+          actualIncomeJpy: actuals[id],
+        })),
+        expenses: ids.map((id, i) => ({
+          id: `e${i}`,
+          monthId: id,
+          day: 5,
+          amount: 40000,
+          categoryId: 'eating_out',
+          label: 'varios',
+          kind: 'normal' as const,
+        })),
+      }
+    }
+    const today = new Date('2026-10-26T00:00:00')
+
+    it('coge la mediana de los meses cerrados con ingreso real', () => {
+      const data = seed({ '2026-07': 240000, '2026-08': 200000, '2026-09': 260000 })
+      expect(typicalIncomeJpy(data, 12, today)).toEqual({
+        jpy: 240000,
+        monthCount: 3,
+        minJpy: 200000,
+        maxJpy: 260000,
+      })
+      // y es la que se usa para proyectar, no los 190.000 de Ajustes
+      expect(forecastIncomeJpy(data, today)).toBe(240000)
+    })
+
+    it('el mes en curso no cuenta: todavia no se sabe lo que entrara', () => {
+      const data = seed({ '2026-09': 260000, '2026-10': 10000 })
+      expect(typicalIncomeJpy(data, 12, today)?.monthCount).toBe(1)
+      expect(forecastIncomeJpy(data, today)).toBe(260000)
+    })
+
+    it('sin ingresos reales apuntados se sigue usando el previsto', () => {
+      const data = seed({})
+      expect(typicalIncomeJpy(data, 12, today)).toBeNull()
+      expect(forecastIncomeJpy(data, today)).toBe(190000)
+    })
+  })
+
+  describe('el ritmo desde que empezo la meta', () => {
+    const m = (monthId: string, netJpy: number, measured = true) => ({
+      monthId,
+      netJpy,
+      assetsJpy: netJpy,
+      measured,
+      closed: true,
+      date: `${monthId}-29`,
+      snapshotId: `s-${monthId}`,
+    })
+
+    it('arranca en el cierre del mes anterior al de la meta', () => {
+      const serie = [m('2026-07', 100000), m('2026-08', 110000), m('2026-09', 150000), m('2026-10', 190000)]
+      // desde septiembre: de los 110.000 de agosto a los 190.000 de octubre,
+      // 80.000 en dos meses
+      expect(savingsPaceSince(serie, '2026-09')).toEqual({ jpy: 40000, months: 2 })
+      // la media larga arrastra julio, que fue flojo: 30.000 al mes
+      expect(realSavingsPace(serie, 6)).toEqual({ jpy: 30000, months: 3 })
+    })
+
+    it('sin nada cerrado despues de ese mes no hay ritmo', () => {
+      const serie = [m('2026-07', 100000), m('2026-08', 110000)]
+      expect(savingsPaceSince(serie, '2026-09')).toBeNull()
+      // y sin nada antes tampoco: no hay punto de partida
+      expect(savingsPaceSince(serie, '2026-07')).toBeNull()
     })
   })
 

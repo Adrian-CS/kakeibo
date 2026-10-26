@@ -865,6 +865,54 @@ function closedActiveMonths(data: AppData, today: Date, lastMonths = 0): MonthPo
   )
 }
 
+export interface TypicalIncome {
+  /** el mes tipico de ingresos (mediana de los cerrados con dato real) */
+  jpy: number
+  /** cuantos meses han entrado */
+  monthCount: number
+  /** el mas bajo y el mas alto, para saber si varia mucho */
+  minJpy: number
+  maxJpy: number
+}
+
+/**
+ * Lo que se suele ingresar al mes, de los meses ya cerrados con ingreso real
+ * apuntado. Un sueldo no tiene por que ser igual todos los meses -horas,
+ * extras, un mes flojo- y coger el del mes en curso para proyectar dos años
+ * convierte una casualidad en una tendencia.
+ *
+ * Solo meses con `actualIncomeJpy`: el previsto es lo que uno espera, no lo
+ * que entro. `null` si todavia no hay ninguno.
+ */
+export function typicalIncomeJpy(
+  data: AppData,
+  lastMonths = 12,
+  today = new Date(),
+): TypicalIncome | null {
+  const currentId = monthIdOfDate(today)
+  const vals = computeStats(data, { lastMonths, today })
+    .months.filter((m) => m.monthId !== currentId)
+    .map((m) => monthActualIncomeJpy(data, m.monthId))
+    .filter((n): n is number => n !== null)
+  if (!vals.length) return null
+  const sorted = [...vals].sort((a, b) => a - b)
+  return {
+    jpy: quantile(sorted, 0.5),
+    monthCount: sorted.length,
+    minJpy: sorted[0],
+    maxJpy: sorted[sorted.length - 1],
+  }
+}
+
+/**
+ * El ingreso con el que proyectar: el tipico de los meses cerrados si hay
+ * ingresos reales apuntados, y si no el del mes en curso, que es lo que se
+ * hacia antes.
+ */
+export function forecastIncomeJpy(data: AppData, today = new Date(), lastMonths = 12): number {
+  return typicalIncomeJpy(data, lastMonths, today)?.jpy ?? monthIncomeJpy(data, monthIdOfDate(today))
+}
+
 export interface BurnPercentiles {
   /** un mes barato de los tuyos */
   p25: number
@@ -1046,6 +1094,25 @@ export function realSavingsPace(series: NetWorthMonth[], cycles = 6): SavingsPac
 
 export function realSavingsPaceJpy(series: NetWorthMonth[], cycles = 6): number | null {
   return realSavingsPace(series, cycles)?.jpy ?? null
+}
+
+/**
+ * Lo mismo pero desde un mes concreto: lo que se ahorra al mes desde que
+ * empezo la meta. Una media de medio año arrastra meses de antes de proponerse
+ * nada, asi que para saber si la intencion esta funcionando hace falta mirar
+ * solo lo de despues.
+ */
+export function savingsPaceSince(
+  series: NetWorthMonth[],
+  fromMonthId: string,
+): SavingsPace | null {
+  const start = cycleStart(series, fromMonthId)
+  if (!start) return null
+  const after = series.filter((m) => m.monthId >= fromMonthId && m.measured && m.closed)
+  const last = after.at(-1)
+  if (!last) return null
+  const months = monthsBetween(start.monthId, last.monthId)
+  return months > 0 ? { jpy: (last.netJpy - start.netJpy) / months, months } : null
 }
 
 export interface CurrentCycle {
@@ -1253,7 +1320,7 @@ export function projectSavingsBands(
 ): SavingsBandPoint[] {
   const p = percentiles(data, lastMonths, today)
   const last = snapshotSeries(data).at(-1)
-  const income = monthIncomeJpy(data, monthIdOfDate(today))
+  const income = forecastIncomeJpy(data, today, lastMonths)
   if (!p || !last || income <= 0 || horizonMonths <= 0) return []
 
   const from = monthIdOfDate(today)
@@ -1401,6 +1468,12 @@ export interface SavingsGoalStatus {
   realPaceJpy: number | null
   /** cuantos meses entran en esa media: sin decirlo, parece el mes pasado */
   realPaceMonths: number | null
+  /** el ritmo desde que empezo la meta, y de cuantos meses sale */
+  sinceGoalPace: SavingsPace | null
+  /** 'YYYY-MM' en que se llegaria a ese ritmo; null si no se sabe o no se llega */
+  sinceGoalEtaMonthId: string | null
+  /** si a ese ritmo se llega a tiempo */
+  sinceGoalOnTrack: boolean | null
   /** 'YYYY-MM' en que se llegaria a ese ritmo real; null si no se sabe o no se llega */
   realEtaMonthId: string | null
   /** si se llega a tiempo al ritmo real; null cuando no hay con que saberlo */
@@ -1514,7 +1587,7 @@ export function savingsGoal(
   const savedJpy = nowJpy - baseJpy
   const missingJpy = Math.max(0, targetJpy - nowJpy)
   const p = percentiles(data, lastMonths, today)
-  const income = monthIncomeJpy(data, currentId)
+  const income = forecastIncomeJpy(data, today, lastMonths)
   const medianMonthlyJpy = p && income > 0 ? income - p.p50 : null
 
   // la misma cuenta para los dos ritmos: el del modelo (ingresos - gasto
@@ -1533,6 +1606,12 @@ export function savingsGoal(
   }
   const model = etaAt(medianMonthlyJpy)
   const real = etaAt(realPaceJpy)
+  // y el de la meta: solo los ciclos de despues de proponerselo
+  const sinceGoalPace =
+    anchor === 'fixed' && settings.savingsGoalStartMonthId
+      ? savingsPaceSince(monthly, settings.savingsGoalStartMonthId)
+      : null
+  const sinceGoal = etaAt(sinceGoalPace?.jpy ?? null)
 
   return {
     mode,
@@ -1555,6 +1634,9 @@ export function savingsGoal(
     realPaceMonths: realPace?.months ?? null,
     realEtaMonthId: real.eta,
     realOnTrack: real.onTrack,
+    sinceGoalPace,
+    sinceGoalEtaMonthId: sinceGoal.eta,
+    sinceGoalOnTrack: sinceGoal.onTrack,
     baseDate,
     nowDate,
     datesNotComparable,

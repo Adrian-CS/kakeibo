@@ -11,6 +11,7 @@ import {
   currentCycle,
   cycleAccountGaps,
   daysFromCycleEnd,
+  forecastIncomeJpy,
   mergeNetWorthMonthly,
   recurringCreditJpy,
   recurringOfMonth,
@@ -28,13 +29,14 @@ import {
   savingsRate,
   snapshotDue,
   snapshotSeries,
+  typicalIncomeJpy,
   snapshotTotals,
   sum,
   sumPercentiles,
   upcomingExpenses,
 } from '../lib/calc'
 import { combinedProjectSavings, combinedSnapshotSeries, combinedStats } from '../lib/householdCalc'
-import { emptyData, monthIdOf } from '../lib/defaults'
+import { emptyData } from '../lib/defaults'
 import { useHousehold, type HouseholdViewScope } from '../state/household'
 import {
   fmtCompact,
@@ -413,7 +415,7 @@ export function SavingsView() {
   const paceDeltaJpy = useMemo(() => {
     const deltas = sides.map((d) => {
       const average = recentActiveAverageJpy(d, 6)
-      const income = monthIncomeJpy(d, monthIdOf())
+      const income = forecastIncomeJpy(d)
       return average === null || income <= 0 ? null : income - average
     })
     return deltas.some((x) => x === null) ? null : sum(deltas as number[])
@@ -455,6 +457,19 @@ export function SavingsView() {
   const gaps = useMemo(
     () => (isTogether ? [] : cycleAccountGaps(source, sourceMonthly)),
     [isTogether, source, sourceMonthly],
+  )
+
+  // "1 meses" no lo dice nadie
+  const nMonths = (n: number, last = false) =>
+    n === 1
+      ? t(last ? 'time.lastMonthOne' : 'time.monthOne')
+      : t(last ? 'time.lastMonths' : 'time.months', { n: String(n) })
+
+  // lo que se suele ingresar: con un sueldo que varia, el del mes en curso no
+  // vale para proyectar dos años
+  const typicalIncome = useMemo(
+    () => (isTogether ? null : typicalIncomeJpy(source)),
+    [isTogether, source],
   )
 
   // como va el ciclo que aun no ha cerrado
@@ -835,7 +850,7 @@ export function SavingsView() {
                           {
                             eta: fmtMonth(verdict.eta, lang),
                             pace: fmtJpy(goal.realPaceJpy ?? 0, lang),
-                            months: String(goal.realPaceMonths ?? 0),
+                            months: nMonths(goal.realPaceMonths ?? 0, true),
                           },
                         )}
                 </span>
@@ -846,6 +861,35 @@ export function SavingsView() {
                 {t('forecast.goalDatesOff', {
                   from: goal.baseDate ? fmtDate(goal.baseDate, lang) : '',
                   to: goal.nowDate ? fmtDate(goal.nowDate, lang) : '',
+                })}
+              </p>
+            )}
+            {/* el ritmo desde que se puso la meta, aparte de la media larga:
+                medio año arrastra meses de antes de proponerse nada */}
+            {goal?.sinceGoalPace && (
+              <p className="mt-2 text-[11px] text-muted">
+                {t(
+                  goal.sinceGoalEtaMonthId === null
+                    ? 'forecast.sinceGoalNever'
+                    : 'forecast.sinceGoal',
+                  {
+                    month: fmtMonth(data.settings.savingsGoalStartMonthId ?? '', lang),
+                    pace: fmtJpy(goal.sinceGoalPace.jpy, lang),
+                    months: nMonths(goal.sinceGoalPace.months),
+                    eta: goal.sinceGoalEtaMonthId
+                      ? fmtMonth(goal.sinceGoalEtaMonthId, lang)
+                      : '',
+                  },
+                )}
+              </p>
+            )}
+            {typicalIncome && typicalIncome.minJpy !== typicalIncome.maxJpy && (
+              <p className="mt-2 text-[11px] text-muted">
+                {t('forecast.incomeVaries', {
+                  income: fmtJpy(typicalIncome.jpy, lang),
+                  months: String(typicalIncome.monthCount),
+                  min: fmtJpy(typicalIncome.minJpy, lang),
+                  max: fmtJpy(typicalIncome.maxJpy, lang),
                 })}
               </p>
             )}

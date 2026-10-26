@@ -306,9 +306,19 @@ const es = {
   'forecast.goalLate': 'A tu ritmo típico llegas en {eta}, después del plazo.',
   'forecast.goalNever': 'A tu ritmo típico no llegas: harían falta {monthly} al mes.',
   'forecast.goalRealOnTrack':
-    'A lo que ahorras de verdad ({pace} al mes de media en los últimos {months} meses) llegas en {eta}, dentro del plazo.',
+    'A lo que ahorras de verdad ({pace} al mes de media en {months}) llegas en {eta}, dentro del plazo.',
   'forecast.goalRealLate':
-    'A lo que ahorras de verdad ({pace} al mes de media en los últimos {months} meses) llegas en {eta}, después del plazo.',
+    'A lo que ahorras de verdad ({pace} al mes de media en {months}) llegas en {eta}, después del plazo.',
+  'forecast.sinceGoal':
+    'Y contando solo desde que te lo propusiste ({month}): {pace} al mes en {months}, con lo que llegarías en {eta}.',
+  'forecast.sinceGoalNever':
+    'Y contando solo desde que te lo propusiste ({month}): {pace} al mes en {months}, con lo que no llegarías.',
+  'time.months': '{n} meses',
+  'time.monthOne': '1 mes',
+  'time.lastMonths': 'los últimos {n} meses',
+  'time.lastMonthOne': 'el último mes',
+  'forecast.incomeVaries':
+    'Para proyectar se usa tu ingreso típico ({income}), la mediana de los {months} meses cerrados con ingreso real apuntado (de {min} a {max}). Apunta el ingreso real de cada mes en la pestaña Mes y esto se afina solo.',
   'forecast.thisCycle':
     'Este ciclo llevas {amount}, y todavía le quedan {days} días: no entra en la media hasta que cierre el {date}.',
   'forecast.thisCycleLast':
@@ -791,9 +801,19 @@ const ja: Partial<Record<Key, string>> = {
   'forecast.goalLate': '普段のペースなら{eta}に到達、期限の後です。',
   'forecast.goalNever': '普段のペースでは届きません：毎月 {monthly} 必要です。',
   'forecast.goalRealOnTrack':
-    '実際に貯まっているペース（直近{months}ヶ月の平均で毎月 {pace}）なら{eta}に到達、期限内です。',
+    '実際に貯まっているペース（{months}の平均で毎月 {pace}）なら{eta}に到達、期限内です。',
   'forecast.goalRealLate':
-    '実際に貯まっているペース（直近{months}ヶ月の平均で毎月 {pace}）なら{eta}に到達、期限の後です。',
+    '実際に貯まっているペース（{months}の平均で毎月 {pace}）なら{eta}に到達、期限の後です。',
+  'forecast.sinceGoal':
+    '目標を決めてから（{month}）だけで見ると：{months}で毎月{pace}。このペースなら{eta}に到達します。',
+  'forecast.sinceGoalNever':
+    '目標を決めてから（{month}）だけで見ると：{months}で毎月{pace}。このペースでは届きません。',
+  'time.months': '{n}ヶ月',
+  'time.monthOne': '1ヶ月',
+  'time.lastMonths': '直近{n}ヶ月',
+  'time.lastMonthOne': '直近1ヶ月',
+  'forecast.incomeVaries':
+    '予測には普段の収入（{income}）を使います。実際の収入を記録した締め済み{months}ヶ月の中央値です（{min}〜{max}）。「月」タブで毎月の実収入を記録すると自動で精度が上がります。',
   'forecast.thisCycle':
     '今の周期は{amount}。あと{days}日あるので、{date}に締まるまで平均には入りません。',
   'forecast.thisCycleLast':
@@ -1270,9 +1290,19 @@ const en: Partial<Record<Key, string>> = {
   'forecast.goalLate': 'At your typical pace you get there in {eta}, after the deadline.',
   'forecast.goalNever': 'At your typical pace you never get there: it would take {monthly} a month.',
   'forecast.goalRealOnTrack':
-    'At what you actually save ({pace} a month on average over the last {months} months) you get there in {eta}, within the deadline.',
+    'At what you actually save ({pace} a month on average over {months}) you get there in {eta}, within the deadline.',
   'forecast.goalRealLate':
-    'At what you actually save ({pace} a month on average over the last {months} months) you get there in {eta}, after the deadline.',
+    'At what you actually save ({pace} a month on average over {months}) you get there in {eta}, after the deadline.',
+  'forecast.sinceGoal':
+    'And counting only since you set out to do it ({month}): {pace} a month over {months}, which gets you there in {eta}.',
+  'forecast.sinceGoalNever':
+    'And counting only since you set out to do it ({month}): {pace} a month over {months}, which does not get you there.',
+  'time.months': '{n} months',
+  'time.monthOne': '1 month',
+  'time.lastMonths': 'the last {n} months',
+  'time.lastMonthOne': 'the last month',
+  'forecast.incomeVaries':
+    'Projections use your typical income ({income}), the median of the {months} closed months with real income logged (from {min} to {max}). Log each month\u2019s real income in the Month tab and this sharpens on its own.',
   'forecast.thisCycle':
     'This cycle you are at {amount}, with {days} days still to go: it does not count towards the average until it closes on {date}.',
   'forecast.thisCycleLast':
