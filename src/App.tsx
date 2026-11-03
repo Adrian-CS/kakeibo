@@ -124,7 +124,17 @@ function Shell() {
 
       <main>
         {tab === 'month' && <MonthView monthId={monthId} setMonthId={setMonthId} />}
-        {tab === 'stats' && <StatsView monthId={monthId} setMonthId={setMonthId} />}
+        {tab === 'stats' && (
+          <StatsView
+            monthId={monthId}
+            setMonthId={setMonthId}
+            // desde Estadisticas se puede saltar al mes de un apunte concreto
+            goToMonth={(id) => {
+              setMonthId(id)
+              setTab('month')
+            }}
+          />
+        )}
         {tab === 'savings' && <SavingsView />}
         {tab === 'settings' && <SettingsView />}
       </main>

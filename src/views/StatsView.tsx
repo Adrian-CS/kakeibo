@@ -48,7 +48,17 @@ import {
 } from '../lib/format'
 import { seriesVar } from '../lib/palette'
 import type { AppData } from '../lib/types'
-import { Card, Collapsible, Icon, IconButton, Segmented, Select, StatTile, Toggle } from '../components/ui'
+import {
+  Button,
+  Card,
+  Collapsible,
+  Icon,
+  IconButton,
+  Segmented,
+  Select,
+  StatTile,
+  Toggle,
+} from '../components/ui'
 import {
   Columns,
   DataTable,
@@ -66,9 +76,12 @@ type BiggestScope = 'period' | 'month'
 export function StatsView({
   monthId,
   setMonthId,
+  goToMonth,
 }: {
   monthId: string
   setMonthId: (id: string) => void
+  /** abre la pestana Mes en ese mes */
+  goToMonth?: (id: string) => void
 }) {
   const { data, t } = useStore()
   const household = useHousehold()
@@ -763,7 +776,7 @@ export function StatsView({
                     </span>
                     <span className="mt-0.5 block text-[11px] text-muted">
                       {r.everyMonths === null
-                        ? t('stats.onceOnly')
+                        ? t('stats.onceOnlyCheck')
                         : r.everyMonths <= 1
                           ? t('stats.everyMonth')
                           : t('stats.everyNMonths', {
@@ -773,6 +786,19 @@ export function StatsView({
                       {' · '}
                       {compact(r.yearlyJpy)} ¥ {t('stats.perYear')}
                     </span>
+                    {/* una sola aparicion casi nunca es un fijo: suele ser un
+                        apunte marcado como recurrente sin querer. Con un toque
+                        se va al mes a verlo */}
+                    {r.everyMonths === null && goToMonth && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-1"
+                        onClick={() => goToMonth(r.lastMonthId)}
+                      >
+                        {t('stats.onceOnlyGo', { month: fmtMonth(r.lastMonthId, lang) })}
+                      </Button>
+                    )}
                   </span>
                   <span className="shrink-0 text-right">
                     <span className="block text-sm tabular-nums text-ink">{jpy(r.amountJpy)}</span>
