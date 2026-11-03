@@ -186,7 +186,7 @@ const es = {
   'savings.add': 'Nueva foto',
   'savings.dueToday': 'Hoy toca la foto: mañana cobras.',
   'savings.accountAppeared':
-    '«{name}» ({amount}) aparece aquí por primera vez. Si ya la tenías antes, apúntala también en las fotos anteriores: mientras no esté, el patrimonio da un salto en este mes que no es ni ahorro ni gasto.',
+    '«{name}» ({amount}) aparece aquí por primera vez. Si ese dinero solo cambió de sitio, no hay nada que arreglar. Si ya lo tenías y no lo apuntabas, ponlo también en las fotos anteriores.',
   'savings.cycleUnmeasured':
     'Este ciclo no está medido: no hay ninguna foto cerca del {date}, que es cuando cerraba. Lo que se ve arriba viene arrastrado del ciclo anterior, no es lo que tenías.',
   'savings.cycleFar':
@@ -263,7 +263,8 @@ const es = {
   'forecast.goalProgressDates':
     'Llevas {saved} de {goal} ahorrados: de {fromJpy} en la foto del {from} a {toJpy} en la del {to}.',
   'forecast.accountGap':
-    'Ojo: hay cuentas que aparecen de la nada entre una foto y la siguiente: {list}. Ese escalón no es ahorro ni gasto, es que antes no se estaban apuntando, y se cuela en todas las cuentas que crucen ese mes. Apúntalas también en las fotos anteriores, desde que de verdad las tenías.',
+    '«{name}» ({amount}) aparece por primera vez en {month}. Si ese dinero solo cambió de sitio —lo sacaste en efectivo, abriste otra cuenta—, está bien y no hay nada que arreglar: dilo aquí y dejo de preguntar. Si en cambio ya lo tenías y no lo apuntabas, ponlo también en las fotos anteriores; mientras no esté, el patrimonio da un salto en ese mes que no es ni ahorro ni gasto.',
+  'forecast.accountGapMoved': 'Solo cambió de sitio',
   'forecast.goalDatesOff':
     'Ojo: las fotos que se están comparando no están en el mismo punto del mes: unas son de recién cobrado y otras de antes de la nómina. Esas restas no miden ahorro, miden cuánto quedaba de la nómina sin gastar. Haz una foto la víspera de cobrar, cada mes, y estos números empezarán a decir algo.',
   'forecast.goalRolling': 'Son {goal} desde donde estás hoy: {monthly} al mes hasta {due}.',
@@ -688,7 +689,7 @@ const ja: Partial<Record<Key, string>> = {
   'savings.add': '記録を追加',
   'savings.dueToday': '今日が記録の日です：明日が給料日。',
   'savings.accountAppeared':
-    '「{name}」（{amount}）がここで初めて出てきます。それ以前から持っていたなら、前の記録にも書き足してください。書いていないあいだは、この月に貯金でも支出でもない段差が出ます。',
+    '「{name}」（{amount}）がここで初めて出てきます。置き場所が変わっただけなら直すものはありません。以前から持っていて記録していなかっただけなら、前の記録にも書き足してください。',
   'savings.cycleUnmeasured':
     'この周期は測れていません：締めの{date}の前後に記録がありません。上に出ている額は前の周期から引き継いだもので、実際の額ではありません。',
   'savings.cycleFar':
@@ -764,7 +765,8 @@ const ja: Partial<Record<Key, string>> = {
   'forecast.goalProgressDates':
     '{goal}のうち{saved}貯まりました：{from}の記録の{fromJpy}から、{to}の記録の{toJpy}まで。',
   'forecast.accountGap':
-    '注意：ある記録から次の記録のあいだに、いきなり現れた口座があります：{list}。この段差は貯金でも支出でもなく、それまで記録していなかっただけです。その月をまたぐ計算すべてに入り込みます。実際に持っていた時点まで、前の記録にも書き足してください。',
+    '「{name}」（{amount}）が{month}に初めて出てきます。お金の置き場所が変わっただけなら（現金を下ろした、口座を開いた）問題ありません。ここで教えてくれれば、もう聞きません。以前から持っていて記録していなかっただけなら、前の記録にも書き足してください。書いていないあいだは、その月に貯金でも支出でもない段差が出ます。',
+  'forecast.accountGapMoved': '置き場所が変わっただけ',
   'forecast.goalDatesOff':
     '注意：比べている記録が月の中で同じ時点にありません。給料直後のものと給料日前のものが混ざっています。その差額は貯金ではなく、給料の使い残しです。毎月、給料日の前日に記録すると意味のある数字になります。',
   'forecast.goalRolling': '今いる場所から{goal}：{due}まで毎月{monthly}。',
@@ -1178,7 +1180,7 @@ const en: Partial<Record<Key, string>> = {
   'savings.add': 'New snapshot',
   'savings.dueToday': 'Snapshot day: you get paid tomorrow.',
   'savings.accountAppeared':
-    '"{name}" ({amount}) shows up here for the first time. If you already had it before, add it to the earlier snapshots too: while it is missing, net worth takes a step in this month that is neither saving nor spending.',
+    '"{name}" ({amount}) shows up here for the first time. If that money just moved somewhere else, there is nothing to fix. If you already had it and were not logging it, add it to the earlier snapshots too.',
   'savings.cycleUnmeasured':
     'This cycle is not measured: there is no snapshot near {date}, when it closed. The figure above is carried over from the previous cycle, not what you had.',
   'savings.cycleFar':
@@ -1255,7 +1257,8 @@ const en: Partial<Record<Key, string>> = {
   'forecast.goalProgressDates':
     '{saved} of {goal} saved so far: from {fromJpy} in the {from} snapshot to {toJpy} in the {to} one.',
   'forecast.accountGap':
-    'Careful: some accounts appear out of nowhere from one snapshot to the next: {list}. That step is neither saving nor spending, it is bookkeeping catching up, and it leaks into every figure that spans that month. Add them to the earlier snapshots too, back to when you really had them.',
+    '"{name}" ({amount}) shows up for the first time in {month}. If that money just moved somewhere else — you took cash out, you opened another account — it is fine and there is nothing to fix: say so here and I will stop asking. If instead you already had it and were not logging it, add it to the earlier snapshots too; while it is missing, net worth takes a step in that month that is neither saving nor spending.',
+  'forecast.accountGapMoved': 'It just moved',
   'forecast.goalDatesOff':
     'Careful: the snapshots being compared are not at the same point of the month — some are just after payday, others just before. Those subtractions do not measure savings, they measure how much of the pay was still unspent. Take a snapshot the day before payday, every month, and these numbers will start meaning something.',
   'forecast.goalRolling': 'That is {goal} from where you are today: {monthly} a month until {due}.',

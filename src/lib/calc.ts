@@ -1207,6 +1207,8 @@ export interface CycleAccountGap {
   monthId: string
   /** como se llama */
   name: string
+  /** su nombre normalizado, el que se guarda al decir que solo cambio de sitio */
+  key: string
   /** cuanto suma (negativo si es deuda): el salto que mete en el patrimonio */
   jpy: number
 }
@@ -1227,13 +1229,16 @@ export function cycleAccountGaps(
   minJpy = 1000,
 ): CycleAccountGap[] {
   const measured = monthly.filter((m) => m.measured && m.snapshotId !== null)
+  // las que ya se dijo que solo cambiaron de sitio no vuelven a preguntar
+  const moved = new Set(data.settings.movedAccounts ?? [])
   const out: CycleAccountGap[] = []
   for (let i = 1; i < measured.length; i++) {
     const prev = measured[i - 1]
     const cur = measured[i]
     for (const c of accountChangesBetween(data, prev.snapshotId!, cur.snapshotId!)) {
-      if (c.fromJpy === null && Math.abs(c.deltaJpy) >= minJpy) {
-        out.push({ monthId: cur.monthId, name: c.name, jpy: c.deltaJpy })
+      const key = normalizeLabel(c.name) || '—'
+      if (c.fromJpy === null && Math.abs(c.deltaJpy) >= minJpy && !moved.has(key)) {
+        out.push({ monthId: cur.monthId, name: c.name, key, jpy: c.deltaJpy })
       }
     }
   }

@@ -588,6 +588,15 @@ export function SavingsView() {
   // si toca la foto del cierre del ciclo (solo en "lo mio": la foto es de uno)
   const due = useMemo(() => snapshotDue(data, new Date(), payday), [data, payday])
 
+  // "esta cuenta solo cambio de sitio": la app no puede saberlo mirando las
+  // fotos -un traspaso y una cuenta que llevaba sin apuntarse salen igual- asi
+  // que se pregunta una vez y se recuerda
+  const markMoved = (key: string) => {
+    const cur = data.settings.movedAccounts ?? []
+    if (cur.includes(key)) return
+    dispatch({ type: 'patchSettings', patch: { movedAccounts: [...cur, key] } })
+  }
+
   const addSnapshot = () => {
     const template = series.length ? data.snapshots.find((s) => s.id === last?.id) : undefined
     dispatch({
@@ -955,19 +964,18 @@ export function SavingsView() {
                 })}
               </p>
             )}
-            {gaps.length > 0 && (
-              <p className="mt-2 text-[11px]" style={{ color: 'var(--serious)' }}>
+            {gaps.map((g) => (
+              <p key={`${g.monthId}-${g.key}`} className="mt-2 text-[11px]" style={{ color: 'var(--serious)' }}>
                 {t('forecast.accountGap', {
-                  list: gaps
-                    .slice(0, 3)
-                    .map(
-                      (g) =>
-                        `«${g.name}» (${fmtJpy(g.jpy, lang)}, ${fmtMonth(g.monthId, lang)})`,
-                    )
-                    .join(', '),
-                })}
+                  name: g.name,
+                  amount: fmtJpy(g.jpy, lang),
+                  month: fmtMonth(g.monthId, lang),
+                })}{' '}
+                <Button size="sm" variant="outline" onClick={() => markMoved(g.key)}>
+                  {t('forecast.accountGapMoved')}
+                </Button>
               </p>
-            )}
+            ))}
             {paceMismatch && (
               <p className="mt-2 text-[11px]" style={{ color: 'var(--serious)' }}>
                 {t(paceMismatch)}

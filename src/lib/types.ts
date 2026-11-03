@@ -162,6 +162,18 @@ export interface Settings {
    */
   savingsGoalStartDate?: string
   /**
+   * Cuentas que aparecieron en una foto sin estar en la anterior y de las que
+   * ya se ha dicho que solo era dinero cambiando de sitio (sacar efectivo,
+   * abrir otra cuenta). Se guardan normalizadas, como las casa
+   * `accountChangesBetween`.
+   *
+   * La app no puede distinguir sola un traspaso de una cuenta que llevaba
+   * tiempo sin apuntarse: las dos salen igual en las fotos. Quien lo sabe es
+   * quien movio el dinero, asi que lo dice una vez y no se le vuelve a
+   * preguntar.
+   */
+  movedAccounts?: string[]
+  /**
    * Plantilla de facturas fijas (agua, luz...) para un mes que no tiene uno
    * anterior del que copiar. Si ya hay un mes anterior, manda lo que haya en
    * el (ver `autoFillFixed`): esto solo evita arrancar en blanco el primero.

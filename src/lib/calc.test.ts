@@ -1353,7 +1353,11 @@ describe('prevision', () => {
         ],
       }
       const gaps = cycleAccountGaps(data, netWorthMonthly(data, today, 30))
-      expect(gaps).toEqual([{ monthId: '2026-08', name: 'Deuda', jpy: -130000 }])
+      expect(gaps).toEqual([{ monthId: '2026-08', name: 'Deuda', key: 'deuda', jpy: -130000 }])
+
+      // y en cuanto se dice que esa cuenta solo cambio de sitio, se calla
+      const dicho: AppData = { ...data, settings: { ...data.settings, movedAccounts: ['deuda'] } }
+      expect(cycleAccountGaps(dicho, netWorthMonthly(dicho, today, 30))).toEqual([])
     })
 
     it('una cuenta que desaparece no cuenta: eso si es un cambio de verdad', () => {
