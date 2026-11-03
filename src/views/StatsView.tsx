@@ -204,8 +204,12 @@ export function StatsView({
   // total, y los abonos recurrentes (el 通勤手当 y compañía) se dicen aparte.
   // Mezclados, un ingreso se colaba entre las suscripciones y encima restaba
   // del "todo junto, al año", que promete lo que te cuesta
-  const recurringOut = recurring.filter((r) => r.yearlyJpy > 0)
-  const recurringCredits = recurring.filter((r) => r.yearlyJpy < 0)
+  // las dadas de baja salen aparte: siguen estando (lo pagado es pagado) pero
+  // no cuentan en el "al año", que promete lo que te CUESTA, no lo que te
+  // costaba
+  const recurringOut = recurring.filter((r) => r.yearlyJpy > 0 && !r.stopped)
+  const recurringStopped = recurring.filter((r) => r.yearlyJpy > 0 && r.stopped)
+  const recurringCredits = recurring.filter((r) => r.yearlyJpy < 0 && !r.stopped)
   const recurringYearlyJpy = sum(recurringOut.map((r) => r.yearlyJpy))
   const recurringCreditYearlyJpy = -sum(recurringCredits.map((r) => r.yearlyJpy))
   // el comercio del ticket medio: el elegido si sigue en la lista, y si no
@@ -791,6 +795,35 @@ export function StatsView({
                 <span className="tabular-nums">{jpy(recurringYearlyJpy)}</span>
               </li>
             </ul>
+            {recurringStopped.length > 0 && (
+              <>
+                <h4 className="mt-4 mb-1 text-[11px] font-semibold tracking-wide text-ink-2 uppercase">
+                  {t('stats.recurringStopped')}
+                </h4>
+                <p className="mb-1 text-[11px] text-muted">{t('stats.recurringStoppedHint')}</p>
+                <ul>
+                  {recurringStopped.map((r) => (
+                    <li
+                      key={r.label}
+                      className="flex items-baseline justify-between gap-3 border-t border-hairline py-2 first:border-0"
+                    >
+                      <span className="min-w-0">
+                        <span className="truncate text-sm text-muted">{r.label || '—'}</span>
+                        <span className="mt-0.5 block text-[11px] text-muted">
+                          {t('stats.recurringLastSeen', {
+                            month: fmtMonth(r.lastMonthId, lang),
+                            saved: compact(r.yearlyJpy),
+                          })}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-right text-sm tabular-nums text-muted">
+                        {jpy(r.amountJpy)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
             {tables && (
               <DataTable
                 caption={t('stats.recurring')}

@@ -150,6 +150,10 @@ const es = {
     'El mes en curso va rayado y con su proyección a cierre de puntos: está a medias, así que no se compara con los meses cerrados.',
   'stats.recurring': 'Fijos y suscripciones',
   'stats.recurringHint': 'Lo marcado como recurrente: cada cuánto vuelve y qué cuesta al año',
+  'stats.recurringStopped': 'Ya no las pagas',
+  'stats.recurringStoppedHint':
+    'Llevan sin aparecer bastante más de lo que tardaban en volver, así que no cuentan en el total de arriba: eso es lo que te cuesta hoy, no lo que te costaba. Si alguna sigue viva y es que se te olvidó apuntarla, apúntala y vuelve a la lista.',
+  'stats.recurringLastSeen': 'La última, en {month} · te ahorras {saved} ¥ al año',
   'stats.recurringEmpty': 'No hay ningún apunte marcado como recurrente en este periodo.',
   'stats.everyMonth': 'cada mes',
   'stats.everyNMonths': 'cada {n} meses',
@@ -655,6 +659,10 @@ const ja: Partial<Record<Key, string>> = {
     '進行中の月は斜線と点線（締めたときの見込み）で表示します。途中なので、締めた月とは比べません。',
   'stats.recurring': '固定費とサブスク',
   'stats.recurringHint': '「毎月」印の記入：どのくらいの間隔で戻ってくるか、年にいくらか',
+  'stats.recurringStopped': 'もう払っていないもの',
+  'stats.recurringStoppedHint':
+    '戻ってくる間隔よりかなり長いあいだ出てきていないので、上の合計には入れていません。あれは今かかっている額で、昔かかっていた額ではありません。まだ続いているのに記録し忘れただけなら、記録すればリストに戻ります。',
+  'stats.recurringLastSeen': '最後は{month} · 年に {saved} ¥ の節約',
   'stats.recurringEmpty': 'この期間に「毎月」印の記入はありません。',
   'stats.everyMonth': '毎月',
   'stats.everyNMonths': '{n}ヶ月ごと',
@@ -1145,6 +1153,10 @@ const en: Partial<Record<Key, string>> = {
     'The current month is hatched, with a dotted outline for where it would end up: it is only half done, so it is not compared with closed months.',
   'stats.recurring': 'Fixed costs and subscriptions',
   'stats.recurringHint': 'Everything marked as recurring: how often it comes back and what it costs a year',
+  'stats.recurringStopped': 'You no longer pay these',
+  'stats.recurringStoppedHint':
+    'They have gone missing for much longer than they used to take to come back, so they do not count in the total above: that is what you pay now, not what you used to. If one is still alive and you just forgot to log it, log it and it comes back to the list.',
+  'stats.recurringLastSeen': 'Last seen in {month} · saves you {saved} ¥ a year',
   'stats.recurringEmpty': 'Nothing marked as recurring in this period.',
   'stats.everyMonth': 'every month',
   'stats.everyNMonths': 'every {n} months',

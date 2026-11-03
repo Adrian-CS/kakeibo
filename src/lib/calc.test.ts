@@ -2071,6 +2071,36 @@ describe('fijos y suscripciones', () => {
     expect(seguro.changeRatio).toBeNull()
   })
 
+  it('una que se dio de baja deja de contar en el "al año"', () => {
+    const data = seed()
+    const meses = ['2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10']
+    const items = recurringItems(data, { monthIds: meses })
+    const netflix = items.find((i) => i.label.toLowerCase() === 'netflix')!
+    // la ultima fue en julio y el periodo llega a octubre: tres meses sin
+    // aparecer una que volvia cada mes
+    expect(netflix.monthsSinceLast).toBe(3)
+    expect(netflix.stopped).toBe(true)
+
+    // al seguro, que viene cada tres meses, tres meses no le pasa nada
+    const seguro = items.find((i) => i.label === 'seguro')!
+    expect(seguro.monthsSinceLast).toBe(3)
+    expect(seguro.stopped).toBe(false)
+
+    // y un mes suelto sin apuntar no da de baja a nadie
+    const corto = recurringItems(data, { monthIds: ['2026-05', '2026-06', '2026-07', '2026-08'] })
+    expect(corto.find((i) => i.label.toLowerCase() === 'netflix')!.stopped).toBe(false)
+  })
+
+  it('a las que solo se han visto una vez no se las da de baja', () => {
+    const items = recurringItems(seed(), {
+      monthIds: ['2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12'],
+    })
+    const gym = items.find((i) => i.label === 'gimnasio')!
+    expect(gym.everyMonths).toBeNull()
+    // ya cuenta como una al año: no hay con que decir que se dio de baja
+    expect(gym.stopped).toBe(false)
+  })
+
   it('con una sola aparicion no se inventa una periodicidad', () => {
     const gym = recurringItems(seed()).find((i) => i.label === 'gimnasio')!
     expect(gym.everyMonths).toBeNull()

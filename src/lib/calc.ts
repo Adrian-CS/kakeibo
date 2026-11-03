@@ -1883,6 +1883,14 @@ export interface RecurringItem {
   yearlyJpy: number
   /** lo que llevas pagado en el periodo mirado */
   totalJpy: number
+  /** cuantos meses hace que no aparece, contando desde el final del periodo */
+  monthsSinceLast: number
+  /**
+   * `true` cuando lleva sin aparecer bastante mas de lo que tarda en volver:
+   * una suscripcion que se dio de baja. Sigue en la lista -lo pagado es
+   * pagado- pero no cuenta en el "al año", que promete lo que te CUESTA.
+   */
+  stopped: boolean
 }
 
 /**
@@ -1895,6 +1903,15 @@ export interface RecurringItem {
  */
 export function recurringItems(data: AppData, opts: { monthIds?: string[] } = {}): RecurringItem[] {
   const allow = opts.monthIds ? new Set(opts.monthIds) : null
+  // el final del periodo, para saber cuanto hace que no se ve cada cosa
+  const periodEnd =
+    opts.monthIds && opts.monthIds.length
+      ? [...opts.monthIds].sort().at(-1)!
+      : data.expenses
+          .map((e) => e.monthId)
+          .filter(isValidMonthId)
+          .sort()
+          .at(-1)
   const groups = new Map<string, { label: string; categoryId: string; byMonth: Map<string, number> }>()
 
   for (const e of data.expenses) {
@@ -1931,6 +1948,14 @@ export function recurringItems(data: AppData, opts: { monthIds?: string[] } = {}
     const everyMonths =
       months.length > 1 ? monthsBetween(firstMonthId, lastMonthId) / (months.length - 1) : null
 
+    // dada de baja: lleva sin aparecer mas del doble de lo que tarda en
+    // volver, con dos meses de margen para no cantar por un mes sin apuntar.
+    // Las que solo se han visto una vez se dejan en paz: ya cuentan como una
+    // al año, y no hay con que saber cada cuanto vuelven
+    const monthsSinceLast = periodEnd ? monthsBetween(lastMonthId, periodEnd) : 0
+    const stopped =
+      everyMonths !== null && monthsSinceLast > Math.max(2, Math.ceil(everyMonths * 2))
+
     out.push({
       label: g.label,
       categoryId: g.categoryId,
@@ -1945,6 +1970,8 @@ export function recurringItems(data: AppData, opts: { monthIds?: string[] } = {}
       // sin dos apariciones no se sabe cada cuanto vuelve: se cuenta una al ano
       yearlyJpy: everyMonths && everyMonths > 0 ? (amountJpy * 12) / everyMonths : amountJpy,
       totalJpy: sum(amounts),
+      monthsSinceLast,
+      stopped,
     })
   }
 
