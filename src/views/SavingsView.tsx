@@ -18,6 +18,7 @@ import {
   recurringOfMonth,
   referenceDayOfMonth,
   mergeSavingsBands,
+  monthActualIncomeJpy,
   monthIncomeJpy,
   monthTotals,
   monthsOfRunway,
@@ -298,7 +299,9 @@ export function SavingsView() {
   const rate = useMemo(() => {
     if (!refMonthId) return null
     if (!isTogether) return savingsRate(source, refMonthId)
-    const income = sum(sides.map((d) => monthIncomeJpy(d, refMonthId)))
+    const income = sum(
+      sides.map((d) => monthActualIncomeJpy(d, refMonthId) ?? monthIncomeJpy(d, refMonthId)),
+    )
     if (income <= 0) return null
     return (income - sum(sides.map((d) => monthTotals(d, refMonthId).totalJpy))) / income
   }, [isTogether, refMonthId, sides, source])

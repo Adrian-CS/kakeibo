@@ -1522,7 +1522,7 @@ const en: Partial<Record<Key, string>> = {
   'stats.yoyNoData': "Once there's twelve months of history, you'll see the comparison here.",
 }
 
-const DICTS: Record<Lang, Partial<Record<Key, string>>> = { es, ja, en }
+export const DICTS: Record<Lang, Partial<Record<Key, string>>> = { es, ja, en }
 
 export type TFunc = (key: Key, vars?: Record<string, string | number>) => string
 

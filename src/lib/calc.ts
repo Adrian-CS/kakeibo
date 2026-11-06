@@ -240,7 +240,11 @@ export function overspendDebt(data: AppData, monthId: string): OverspendDebt | n
  * justamente el mes en que se gasto mas de lo que entro.
  */
 export function savingsRate(data: AppData, monthId: string): number | null {
-  const income = monthIncomeJpy(data, monthId)
+  // el real de ese mes si esta apuntado, y si no el previsto. Con un sueldo
+  // que varia -y mas cobrando a mes vencido- medir un mes cerrado contra lo
+  // que se esperaba cobrar, en vez de contra lo que entro, da una tasa que no
+  // es de nadie
+  const income = monthActualIncomeJpy(data, monthId) ?? monthIncomeJpy(data, monthId)
   if (income <= 0) return null
   return (income - monthTotals(data, monthId).totalJpy) / income
 }
@@ -816,10 +820,10 @@ export function projectSavings(
   lastMonths = 6,
   today = new Date(),
 ): SavingsHorizon[] {
-  // los ingresos del mes en curso si los tiene puestos, y si no los de
-  // Ajustes (ver `monthIncomeJpy`): antes solo miraba los de Ajustes, asi que
-  // cambiar el ingreso de un mes no movia la prevision ni un yen
-  const income = monthIncomeJpy(data, monthIdOfDate(today))
+  // el mismo ingreso con el que proyecta la banda del grafico: el tipico de
+  // los meses con ingreso real apuntado. Tabla y grafico tienen que contar lo
+  // mismo, y con uno solo de los dos mirando al mes en curso no lo hacian
+  const income = forecastIncomeJpy(data, today, lastMonths)
   const last = snapshotSeries(data).at(-1)
   if (!last || income <= 0) return []
 
