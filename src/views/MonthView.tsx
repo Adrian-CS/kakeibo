@@ -5,6 +5,7 @@ import {
   categoryLabel,
   categoryLimitsJpy,
   daysInMonth,
+  defaultExpenseDay,
   MIN_DAYS_TO_PROJECT,
   getMonth,
   monthTotals,
@@ -297,7 +298,14 @@ function QuickAdd({ monthId }: { monthId: string }) {
   const [label, setLabel] = useState('')
   const [amount, setAmount] = useState('')
   const [kind, setKind] = useState<ExpenseKind>('normal')
-  const [day, setDay] = useState('')
+  // el dia viene puesto con hoy (solo si se esta apuntando en el mes en
+  // curso): lo normal es apuntar lo que acabas de gastar, y escribir la fecha
+  // cada vez era lo que hacia que casi ningun apunte acabara teniendola
+  const defaultDay = () => {
+    const d = defaultExpenseDay(monthId)
+    return d === null ? '' : String(d)
+  }
+  const [day, setDay] = useState(defaultDay)
 
   const submit = (keepOpen: boolean) => {
     const n = parseAmount(amount)
@@ -323,7 +331,12 @@ function QuickAdd({ monthId }: { monthId: string }) {
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          // al abrirlo, no al montarlo: entre medias se puede haber cambiado
+          // de mes, y el dia de hoy solo vale para el mes de hoy
+          setDay(defaultDay())
+          setOpen(true)
+        }}
         aria-label={t('action.quickAdd')}
         className="no-print fixed right-4 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--series-1)] text-white shadow-lg sm:hidden"
       >

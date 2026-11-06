@@ -142,6 +142,15 @@ export function monthIncomeJpy(data: AppData, monthId: string): number {
  *   A8 -> dailyLifeJpy A11 -> fixedJpy
  *   A17 -> otherJpy    A21 -> balanceJpy
  */
+/**
+ * El dia que se pone por defecto al dar de alta un gasto: hoy, pero solo si lo
+ * estas apuntando en el mes en curso. En un mes pasado "hoy" no significa
+ * nada, asi que se deja vacio antes que poner una fecha inventada.
+ */
+export function defaultExpenseDay(monthId: string, today = new Date()): number | null {
+  return monthId === monthIdOfDate(today) ? today.getDate() : null
+}
+
 export function monthTotals(data: AppData, monthId: string): MonthTotals {
   const month = getMonth(data, monthId)
   const rentJpy = month?.rentJpy ?? 0

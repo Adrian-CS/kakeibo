@@ -45,6 +45,7 @@ import {
   cycleAccountGaps,
   cycleStartNetJpy,
   daysFromCycleEnd,
+  defaultExpenseDay,
   forecastIncomeJpy,
   realSavingsPace,
   savingsPaceSince,
@@ -810,6 +811,21 @@ describe('monthIncomeJpy', () => {
 
   it('sin nada configurado da 0', () => {
     expect(monthIncomeJpy(withIncomes(0, 0), '2026-07')).toBe(0)
+  })
+})
+
+describe('el dia que se pone por defecto al apuntar', () => {
+  const today = new Date('2026-11-06T10:00:00')
+
+  it('en el mes en curso, hoy', () => {
+    expect(defaultExpenseDay('2026-11', today)).toBe(6)
+  })
+
+  it('en un mes pasado, ninguno', () => {
+    // "hoy" no significa nada apuntando en septiembre estando en noviembre:
+    // mejor sin dia que con uno inventado
+    expect(defaultExpenseDay('2026-09', today)).toBeNull()
+    expect(defaultExpenseDay('2026-12', today)).toBeNull()
   })
 })
 
