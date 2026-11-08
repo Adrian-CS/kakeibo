@@ -510,6 +510,36 @@ export function normalizeLabel(label: string): string {
     .replace(/[.,;:!?]+$/, '')
 }
 
+/**
+ * Los conceptos que ya se han usado en una categoria, para ofrecerlos al
+ * escribir uno nuevo. Ordenados por cuantas veces se han usado y, a igualdad,
+ * por lo recientes que son.
+ *
+ * De cada concepto se devuelve la grafia MAS USADA, no la ultima: si "Seiyu"
+ * se escribio cinco veces y "seiyu" una, la que se ofrece es la primera. Asi
+ * elegir de la lista en vez de teclear mantiene los nombres unidos solos, que
+ * es de lo que se trata.
+ */
+export function labelSuggestions(data: AppData, categoryId: string, limit = 12): string[] {
+  const groups = new Map<string, { bySpelling: Map<string, number>; count: number; last: string }>()
+  for (const e of data.expenses) {
+    if (e.categoryId !== categoryId) continue
+    const label = e.label.trim()
+    const key = normalizeLabel(label)
+    if (!key) continue
+    const g = groups.get(key) ?? { bySpelling: new Map<string, number>(), count: 0, last: '' }
+    g.bySpelling.set(label, (g.bySpelling.get(label) ?? 0) + 1)
+    g.count += 1
+    if (e.monthId > g.last) g.last = e.monthId
+    groups.set(key, g)
+  }
+
+  return [...groups.values()]
+    .sort((a, b) => b.count - a.count || b.last.localeCompare(a.last))
+    .slice(0, limit)
+    .map((g) => [...g.bySpelling.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0])
+}
+
 export interface LabelStat {
   label: string
   totalJpy: number

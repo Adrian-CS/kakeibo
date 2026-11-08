@@ -259,6 +259,42 @@ describe('la aplicacion', () => {
     expect(screen.getByText(/85[.,\s]?200/)).toBeInTheDocument()
   })
 
+  it('el concepto ofrece los que ya se han usado en esa categoria', async () => {
+    const user = userEvent.setup()
+    const base = seed()
+    const data = {
+      ...base,
+      expenses: [
+        ...base.expenses,
+        { id: 'g1', monthId: '2026-08', categoryId: 'groceries', label: 'Seiyu', amount: 2000, kind: 'normal' as const },
+        { id: 'g2', monthId: '2026-08', categoryId: 'groceries', label: 'Life', amount: 1500, kind: 'normal' as const },
+      ],
+    }
+    render(<App initial={data} />)
+    await user.click(screen.getByRole('button', { name: 'Añadir gasto' }))
+    const dialog = await screen.findByRole('dialog')
+
+    const input = within(dialog).getByLabelText('Concepto')
+    const list = document.getElementById(input.getAttribute('list')!)!
+    const opciones = [...list.querySelectorAll('option')].map((o) => o.value)
+    // la categoria que sale por defecto es la primera, "Comer fuera": ahi solo
+    // se ha usado uber, no los supermercados
+    expect(opciones).toContain('uber')
+    expect(opciones).not.toContain('Seiyu')
+
+    // al cambiar de categoria, las sugerencias cambian con ella
+    await user.selectOptions(within(dialog).getByLabelText('Categoría'), 'groceries')
+    const tras = [...document.getElementById(input.getAttribute('list')!)!.querySelectorAll('option')].map(
+      (o) => o.value,
+    )
+    // "seiyu" y "Seiyu" son el mismo sitio: se ofrece una sola vez, que es
+    // justo lo que evita que la lista reproduzca el problema que arregla
+    expect(tras).toHaveLength(2)
+    expect(tras[0]).toMatch(/^seiyu$/i)
+    expect(tras).toContain('Life')
+    expect(tras).not.toContain('uber')
+  })
+
   it('escribir en un dialogo no roba el foco ni lo cierra', async () => {
     // regresion: el efecto del dialogo dependia de onClose (funcion nueva en
     // cada render), asi que se reejecutaba en cada tecla y devolvia el foco

@@ -11,6 +11,7 @@ import {
   debtTotalJpy,
   hasRealSpend,
   isValidMonthId,
+  labelSuggestions,
   lastClosedMonthId,
   leakJpy,
   median,
@@ -826,6 +827,53 @@ describe('el dia que se pone por defecto al apuntar', () => {
     // mejor sin dia que con uno inventado
     expect(defaultExpenseDay('2026-09', today)).toBeNull()
     expect(defaultExpenseDay('2026-12', today)).toBeNull()
+  })
+})
+
+describe('sugerencias de concepto', () => {
+  const data = (): AppData => {
+    const base = emptyData(new Date('2026-11-08T00:00:00'))
+    const e = (id: string, monthId: string, categoryId: string, label: string) => ({
+      id,
+      monthId,
+      categoryId,
+      label,
+      amount: 1000,
+      kind: 'normal' as const,
+    })
+    return {
+      ...base,
+      expenses: [
+        e('1', '2026-09', 'groceries', 'Seiyu'),
+        e('2', '2026-10', 'groceries', 'seiyu '),
+        e('3', '2026-10', 'groceries', 'Seiyu'),
+        e('4', '2026-11', 'groceries', 'Life'),
+        e('5', '2026-08', 'groceries', 'Aeon'),
+        // de otra categoria: no pinta nada aqui
+        e('6', '2026-11', 'eating_out', 'Starbucks'),
+        e('7', '2026-11', 'groceries', '   '),
+      ],
+    }
+  }
+
+  it('ofrece los de la categoria, por uso y luego por lo reciente', () => {
+    // Seiyu tres veces; Life y Aeon una, y Life es mas reciente
+    expect(labelSuggestions(data(), 'groceries')).toEqual(['Seiyu', 'Life', 'Aeon'])
+  })
+
+  it('devuelve la grafia mas usada, no la ultima', () => {
+    // "seiyu " se escribio despues, pero "Seiyu" va dos a una
+    expect(labelSuggestions(data(), 'groceries')[0]).toBe('Seiyu')
+  })
+
+  it('no mezcla categorias ni ofrece conceptos en blanco', () => {
+    expect(labelSuggestions(data(), 'eating_out')).toEqual(['Starbucks'])
+    expect(labelSuggestions(data(), 'groceries')).not.toContain('')
+    expect(labelSuggestions(data(), 'leisure')).toEqual([])
+  })
+
+  it('corta la lista donde se le diga', () => {
+    expect(labelSuggestions(data(), 'groceries', 2)).toEqual(['Seiyu', 'Life'])
   })
 })
 

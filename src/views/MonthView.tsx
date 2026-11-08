@@ -6,6 +6,7 @@ import {
   categoryLimitsJpy,
   daysInMonth,
   defaultExpenseDay,
+  labelSuggestions,
   MIN_DAYS_TO_PROJECT,
   getMonth,
   monthTotals,
@@ -235,15 +236,35 @@ function ExpenseRow({ expense }: { expense: Expense }) {
   )
 }
 
+/**
+ * Las sugerencias del concepto, con el desplegable que trae el navegador de
+ * serie: sale solo al escribir, se maneja con el teclado y en movil lo pinta
+ * el sistema. Nada que estilar ni ninguna libreria.
+ */
+function LabelSuggestions({ id, labels }: { id: string; labels: string[] }) {
+  if (!labels.length) return null
+  return (
+    <datalist id={id}>
+      {labels.map((l) => (
+        <option key={l} value={l} />
+      ))}
+    </datalist>
+  )
+}
+
 /* ------------------------------------------------------------------ *
  * Fila para anadir
  * ------------------------------------------------------------------ */
 
 function AddRow({ monthId, categoryId }: { monthId: string; categoryId: string }) {
-  const { dispatch, t } = useStore()
+  const { data, dispatch, t } = useStore()
   const [label, setLabel] = useState('')
   const [amount, setAmount] = useState('')
   const labelRef = useRef<HTMLInputElement>(null)
+  // los conceptos que ya se han usado en esta categoria: elegir de la lista en
+  // vez de teclear es lo que mantiene "Seiyu" y "seiyu" siendo lo mismo
+  const listId = `sug-${categoryId}`
+  const suggestions = useMemo(() => labelSuggestions(data, categoryId), [data, categoryId])
 
   const submit = () => {
     const n = parseAmount(amount)
@@ -266,8 +287,10 @@ function AddRow({ monthId, categoryId }: { monthId: string; categoryId: string }
         onKeyDown={(e) => e.key === 'Enter' && submit()}
         placeholder={t('fields.label')}
         aria-label={t('fields.label')}
+        list={listId}
         className="min-w-0 flex-1 rounded-md bg-transparent px-1.5 py-1.5 text-sm text-ink placeholder:text-muted focus:bg-surface-2"
       />
+      <LabelSuggestions id={listId} labels={suggestions} />
       <SignToggleButton onClick={() => setAmount((a) => toggleSign(a))} />
       <input
         value={amount}
@@ -298,6 +321,7 @@ function QuickAdd({ monthId }: { monthId: string }) {
   const [label, setLabel] = useState('')
   const [amount, setAmount] = useState('')
   const [kind, setKind] = useState<ExpenseKind>('normal')
+  const suggestions = useMemo(() => labelSuggestions(data, categoryId), [data, categoryId])
   // el dia viene puesto con hoy (solo si se esta apuntando en el mes en
   // curso): lo normal es apuntar lo que acabas de gastar, y escribir la fecha
   // cada vez era lo que hacia que casi ningun apunte acabara teniendola
@@ -367,8 +391,16 @@ function QuickAdd({ monthId }: { monthId: string }) {
             />
           </Field>
           <Field label={t('fields.label')} className="col-span-2">
-            <TextInput value={label} onChange={(e) => setLabel(e.target.value)} autoFocus />
+            <TextInput
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              list="sug-quick"
+              autoFocus
+            />
           </Field>
+          {/* fuera del Field: este solo le pone el id al input cuando es su
+              unico hijo, y con dos dejaba la etiqueta sin asociar */}
+          <LabelSuggestions id="sug-quick" labels={suggestions} />
           <Field label={t('fields.amount')}>
             <div className="flex gap-1.5">
               <NumberInput
