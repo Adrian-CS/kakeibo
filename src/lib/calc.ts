@@ -327,6 +327,47 @@ export interface MonthPoint {
   count: number
 }
 
+export interface PeriodSplit {
+  /** lo gastado en cada categoria, sumando todos los meses del periodo */
+  byCategory: Record<string, number>
+  /**
+   * Alquiler y extras fijos: lo que el total tiene de mas sobre las
+   * categorias. Se saca restando en vez de sumando sus campos para que, pase
+   * lo que pase, las porciones sumen justo el total y el grafico no mienta.
+   */
+  fixedJpy: number
+  totalJpy: number
+  /** cambio medio del periodo, ponderado por lo gastado en cada mes */
+  fxRate: number
+}
+
+/**
+ * El reparto por categoria de un periodo entero, no de un mes. Un mes suelto
+ * se desvia por nada -una compra gorda, un mes de vacaciones- y para ver en
+ * que se va el dinero de verdad hace falta mirar varios juntos.
+ */
+export function periodSplit(months: MonthPoint[]): PeriodSplit {
+  const byCategory: Record<string, number> = {}
+  let totalJpy = 0
+  let categorized = 0
+  let weighted = 0
+  for (const m of months) {
+    for (const [id, jpy] of Object.entries(m.byCategory)) {
+      byCategory[id] = (byCategory[id] ?? 0) + jpy
+      categorized += jpy
+    }
+    totalJpy += m.totalJpy
+    weighted += m.totalJpy * m.fxRate
+  }
+  return {
+    byCategory,
+    fixedJpy: Math.max(0, totalJpy - categorized),
+    totalJpy,
+    // sin gasto no hay con que ponderar: vale el del ultimo mes
+    fxRate: totalJpy > 0 ? weighted / totalJpy : (months.at(-1)?.fxRate ?? 0),
+  }
+}
+
 export interface Stats {
   months: MonthPoint[]
   /** total del ultimo mes del rango */

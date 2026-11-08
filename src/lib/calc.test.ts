@@ -36,6 +36,7 @@ import {
   netWorthMonthly,
   referenceDayOfMonth,
   percentiles,
+  periodSplit,
   projectSavingsBands,
   quarterOf,
   quarterlyTicket,
@@ -830,6 +831,60 @@ describe('el dia que se pone por defecto al apuntar', () => {
     // mejor sin dia que con uno inventado
     expect(defaultExpenseDay('2026-09', today)).toBeNull()
     expect(defaultExpenseDay('2026-12', today)).toBeNull()
+  })
+})
+
+describe('reparto del periodo', () => {
+  const m = (monthId: string, byCategory: Record<string, number>, totalJpy: number, fxRate: number) => ({
+    monthId,
+    totalJpy,
+    byCategory,
+    dailyLifeJpy: 0,
+    fixedJpy: 0,
+    otherJpy: 0,
+    limitJpy: 0,
+    perDayJpy: 0,
+    fxRate,
+    count: 0,
+  })
+
+  it('suma las categorias de todos los meses', () => {
+    const r = periodSplit([
+      m('2026-09', { eating_out: 30000, groceries: 50000 }, 160000, 0.006),
+      m('2026-10', { eating_out: 20000, groceries: 40000 }, 140000, 0.005),
+    ])
+    expect(r.byCategory).toEqual({ eating_out: 50000, groceries: 90000 })
+    expect(r.totalJpy).toBe(300000)
+  })
+
+  it('el alquiler sale de restar, para que las porciones sumen el total', () => {
+    const r = periodSplit([m('2026-10', { groceries: 40000 }, 120000, 0.005)])
+    // 120.000 de total y 40.000 en categorias: los otros 80.000 son fijos
+    expect(r.fixedJpy).toBe(80000)
+    expect(r.fixedJpy + r.byCategory.groceries).toBe(r.totalJpy)
+  })
+
+  it('nunca saca un alquiler negativo', () => {
+    // si las categorias pasaran del total (datos raros), cero antes que una
+    // porcion negativa que rompa el grafico
+    const r = periodSplit([m('2026-10', { groceries: 200000 }, 120000, 0.005)])
+    expect(r.fixedJpy).toBe(0)
+  })
+
+  it('el cambio es la media ponderada por lo gastado en cada mes', () => {
+    const r = periodSplit([
+      m('2026-09', {}, 100000, 0.006),
+      m('2026-10', {}, 300000, 0.005),
+    ])
+    // pesa mas el mes de 300.000: (100000*0.006 + 300000*0.005) / 400000
+    expect(r.fxRate).toBeCloseTo(0.00525, 10)
+  })
+
+  it('sin meses, nada', () => {
+    const r = periodSplit([])
+    expect(r.totalJpy).toBe(0)
+    expect(r.byCategory).toEqual({})
+    expect(r.fxRate).toBe(0)
   })
 })
 

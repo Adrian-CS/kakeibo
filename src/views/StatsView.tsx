@@ -16,6 +16,7 @@ import {
   quarterlyTicket,
   allLabels,
   labelOccurrences,
+  periodSplit,
   normalizeLabel,
   recurringItems,
   savingsRateSeries,
@@ -166,6 +167,8 @@ export function StatsView({
 
   const [range, setRange] = useState<Range>('12')
   const [excludeExtra, setExcludeExtra] = useState(false)
+  // el reparto se ve del mes en foco o del periodo entero
+  const [splitScope, setSplitScope] = useState<'month' | 'period'>('month')
   const [tables, setTables] = useState(false)
   const [biggestScope, setBiggestScope] = useState<BiggestScope>('period')
   const [ticketLabel, setTicketLabel] = useState('')
@@ -370,6 +373,32 @@ export function StatsView({
       color: 'var(--axis)',
     })
   }
+
+  // el mismo reparto pero del periodo entero: un mes suelto se desvia por
+  // nada -una compra gorda, un mes de vacaciones- y para ver en que se va el
+  // dinero de verdad hace falta mirar varios juntos
+  const split = periodSplit(stats.months)
+  const periodDonut = cats
+    .map((c) => ({
+      key: c.id,
+      label: categoryLabel(c, lang),
+      value: split.byCategory[c.id] ?? 0,
+      color: seriesVar(c.colorSlot),
+    }))
+    .filter((d) => d.value > 0)
+    .sort((a, b) => b.value - a.value)
+  if (split.fixedJpy > 0) {
+    periodDonut.push({
+      key: '__fixed',
+      label: `${t('fields.rent')} + ${t('fields.extras')}`,
+      value: split.fixedJpy,
+      color: 'var(--axis)',
+    })
+  }
+  const wide = splitScope === 'period'
+  const pie = wide ? periodDonut : donutData
+  const pieTotal = wide ? split.totalJpy : focus.totalJpy
+  const pieFx = wide ? split.fxRate : focus.fxRate
 
   const perDayPoints = stats.months.map((m, i) => ({
     x: i,
@@ -709,25 +738,49 @@ export function StatsView({
         {/* reparto del mes en foco */}
         <Collapsible
           id="stats.distribution"
-          title={`${t('stats.distribution')} · ${fmtMonth(focusId, lang, true)}`}
-          summary={`${compact(focus.totalJpy)} ¥`}
+          title={
+            wide
+              ? `${t('stats.distributionWide')} · ${
+                  monthIds.length > 1
+                    ? `${fmtMonth(monthIds[0], lang)} – ${fmtMonth(monthIds[monthIds.length - 1], lang)}`
+                    : fmtMonth(focusId, lang, true)
+                }`
+              : `${t('stats.distribution')} · ${fmtMonth(focusId, lang, true)}`
+          }
+          summary={`${compact(pieTotal)} ¥`}
         >
+          <div className="mb-2">
+            <Segmented<'month' | 'period'>
+              label={t('stats.distributionScope')}
+              value={splitScope}
+              onChange={setSplitScope}
+              options={[
+                { id: 'month', label: t('stats.distributionMonth') },
+                { id: 'period', label: t('stats.distributionPeriod') },
+              ]}
+            />
+          </div>
           <Donut
-            data={donutData}
-            centerLabel={t('totals.total')}
-            centerValue={`${compact(focus.totalJpy)} ¥`}
+            data={pie}
+            centerLabel={wide ? t('stats.total') : t('totals.total')}
+            centerValue={`${compact(pieTotal)} ¥`}
             fmtValue={(n) => `${compact(n)} ¥`}
-            title={t('stats.distribution')}
+            title={wide ? t('stats.distributionWide') : t('stats.distribution')}
           />
+          {wide && monthIds.length > 1 && (
+            <p className="mt-2 text-[11px] text-muted">
+              {t('stats.distributionPeriodHint', { n: String(monthIds.length) })}
+            </p>
+          )}
           {tables && (
             <DataTable
               caption={t('stats.distribution')}
               columns={[t('common.category'), t('common.jpy'), cur, t('stats.share')]}
-              rows={donutData.map((d) => [
+              rows={pie.map((d) => [
                 d.label,
                 fmtNumber(d.value, lang),
-                fmtMoney(d.value * focus.fxRate, cur, lang),
-                focus.totalJpy ? `${Math.round((d.value / focus.totalJpy) * 100)}%` : '—',
+                fmtMoney(d.value * pieFx, cur, lang),
+                pieTotal ? `${Math.round((d.value / pieTotal) * 100)}%` : '—',
               ])}
             />
           )}
