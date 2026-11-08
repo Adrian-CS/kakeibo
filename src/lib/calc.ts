@@ -310,6 +310,8 @@ export interface StatsOptions {
   excludeExtraordinary?: boolean
   /** mes de referencia (por defecto el ultimo con datos) */
   upTo?: string
+  /** primer mes del periodo; con `upTo` da un rango exacto elegido a mano */
+  from?: string
   /** "hoy", para no contar meses futuros (ver computeStats). Solo hace falta pasarlo en pruebas. */
   today?: Date
 }
@@ -413,6 +415,7 @@ export function computeStats(data: AppData, opts: StatsOptions = {}): Stats {
   // aunque haya historial real reciente.
   let ids = monthsWithData(src).filter((id) => id <= currentId)
   if (opts.upTo) ids = ids.filter((id) => id <= opts.upTo!)
+  if (opts.from) ids = ids.filter((id) => id >= opts.from!)
   if (opts.lastMonths && opts.lastMonths > 0) ids = ids.slice(-opts.lastMonths)
 
   const months: MonthPoint[] = ids.map((id) => {

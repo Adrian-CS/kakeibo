@@ -308,6 +308,34 @@ describe('estadisticas', () => {
     expect(s.months.map((m) => m.monthId)).toEqual(['2026-08'])
   })
 
+  it('un periodo a mano coge el rango exacto de mes a mes', () => {
+    const wide: AppData = {
+      ...data,
+      months: [
+        ...data.months,
+        { id: '2026-06', rentJpy: 0, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 },
+        { id: '2026-09', rentJpy: 80000, extras: [], fxRate: 0.0056, limitJpy: 150000, incomeJpy: 0 },
+      ],
+    }
+    const today = new Date('2026-10-01T00:00:00')
+    expect(computeStats(wide, { today }).months.map((m) => m.monthId)).toEqual([
+      '2026-06',
+      '2026-07',
+      '2026-08',
+      '2026-09',
+    ])
+    expect(computeStats(wide, { from: '2026-07', today }).months.map((m) => m.monthId)).toEqual([
+      '2026-07',
+      '2026-08',
+      '2026-09',
+    ])
+    expect(
+      computeStats(wide, { from: '2026-07', upTo: '2026-08', today }).months.map((m) => m.monthId),
+    ).toEqual(['2026-07', '2026-08'])
+    // un rango del reves no inventa nada: sale vacio
+    expect(computeStats(wide, { from: '2026-09', upTo: '2026-07', today }).months).toEqual([])
+  })
+
   it('hasRealSpend: cuenta normal/extraordinario, no recurrente ni sin coste', () => {
     expect(hasRealSpend(data, '2026-07')).toBe(true) // tiene normales y un extraordinario
     const soloFijos: AppData = {

@@ -11,6 +11,7 @@ import {
   mergeUnloggedSpend,
   monthBurn,
   monthTotals,
+  monthsWithData,
   noCostItems,
   projectMonth,
   quarterlyTicket,
@@ -57,6 +58,7 @@ import {
   Button,
   Card,
   Collapsible,
+  Field,
   Icon,
   IconButton,
   Segmented,
@@ -76,7 +78,7 @@ import {
   type StackDatum,
 } from '../components/charts'
 
-type Range = '6' | '12' | '24' | 'all'
+type Range = '6' | '12' | '24' | 'all' | 'custom'
 type BiggestScope = 'period' | 'month'
 
 /**
@@ -277,6 +279,9 @@ export function StatsView({
   const cur = data.settings.secondaryCurrency
 
   const [range, setRange] = useState<Range>('12')
+  // extremos del periodo a mano: vacios = todo el historial
+  const [fromMonth, setFromMonth] = useState('')
+  const [toMonth, setToMonth] = useState('')
   const [excludeExtra, setExcludeExtra] = useState(false)
   // el reparto se ve del mes en foco o del periodo entero
   const [splitScope, setSplitScope] = useState<'month' | 'period'>('month')
@@ -285,7 +290,7 @@ export function StatsView({
   const [ticketLabel, setTicketLabel] = useState('')
   const [scope, setScope] = useState<HouseholdViewScope>('mine')
 
-  const lastMonths = range === 'all' ? 0 : Number(range)
+  const lastMonths = range === 'all' || range === 'custom' ? 0 : Number(range)
   const links = data.settings.householdCategoryLinks
   const isTogether = scope === 'together'
   const isPartner = scope === 'partner'
@@ -295,6 +300,31 @@ export function StatsView({
   // la pareja (de solo lectura, nunca se edita ni se guarda aqui).
   const source = isPartner ? (household.partnerData ?? emptyData()) : data
   const partnerMissing = isPartner && !household.partnerData
+
+  // los meses que de verdad existen, para elegir el periodo a mano. El
+  // rango va de mes a mes y no de dia a dia a proposito: el dia de un gasto
+  // es opcional y la mayoria del historial no lo tiene, asi que un filtro
+  // por dias se dejaria fuera apuntes de verdad sin decirlo.
+  const availableMonths = useMemo(() => {
+    const currentId = monthIdOf(new Date())
+    const ids = new Set(monthsWithData(source))
+    if (isTogether && household.partnerData)
+      for (const id of monthsWithData(household.partnerData)) ids.add(id)
+    return [...ids].filter((id) => id <= currentId).sort()
+  }, [source, isTogether, household.partnerData])
+
+  // sin elegir nada, el periodo a mano abarca todo el historial
+  const firstMonth = availableMonths[0] ?? monthId
+  const lastMonth = availableMonths[availableMonths.length - 1] ?? monthId
+  const pickedFrom = availableMonths.includes(fromMonth) ? fromMonth : firstMonth
+  const pickedTo = availableMonths.includes(toMonth) ? toMonth : lastMonth
+  // elegir el 'desde' despues del 'hasta' no vacia la pantalla: se ordenan
+  const customFrom = pickedFrom <= pickedTo ? pickedFrom : pickedTo
+  const customTo = pickedFrom <= pickedTo ? pickedTo : pickedFrom
+  const monthOptions = (availableMonths.length ? availableMonths : [firstMonth]).map((id) => ({
+    value: id,
+    label: fmtMonth(id, lang),
+  }))
 
   const cats = isTogether
     ? combinedCategories(data.categories, household.partnerData?.categories ?? [], links)
@@ -321,12 +351,20 @@ export function StatsView({
     focusPrev.totalJpy > 0
   const focusMomRatio = hasFocusPrev ? focus.totalJpy / focusPrev.totalJpy - 1 : 0
 
+  const statsOpts = useMemo(
+    () =>
+      range === 'custom'
+        ? { from: customFrom, upTo: customTo, excludeExtraordinary: excludeExtra }
+        : { lastMonths, excludeExtraordinary: excludeExtra },
+    [range, customFrom, customTo, lastMonths, excludeExtra],
+  )
+
   const stats = useMemo(
     () =>
       isTogether
-        ? combinedStats(data, household.partnerData, links, { lastMonths, excludeExtraordinary: excludeExtra })
-        : computeStats(source, { lastMonths, excludeExtraordinary: excludeExtra }),
-    [isTogether, data, household.partnerData, links, source, lastMonths, excludeExtra],
+        ? combinedStats(data, household.partnerData, links, statsOpts)
+        : computeStats(source, statsOpts),
+    [isTogether, data, household.partnerData, links, source, statsOpts],
   )
 
   const monthIds = stats.months.map((m) => m.monthId)
@@ -568,8 +606,19 @@ export function StatsView({
             { id: '12', label: `12 ${t('stats.months')}` },
             { id: '24', label: `24 ${t('stats.months')}` },
             { id: 'all', label: t('stats.range.all') },
+            { id: 'custom', label: t('stats.range.custom') },
           ]}
         />
+        {range === 'custom' && (
+          <div className="flex items-end gap-2">
+            <Field label={t('stats.range.from')}>
+              <Select value={customFrom} onChange={setFromMonth} options={monthOptions} />
+            </Field>
+            <Field label={t('stats.range.to')}>
+              <Select value={customTo} onChange={setToMonth} options={monthOptions} />
+            </Field>
+          </div>
+        )}
         <Toggle
           checked={excludeExtra}
           onChange={setExcludeExtra}
