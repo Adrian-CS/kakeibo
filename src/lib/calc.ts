@@ -540,6 +540,34 @@ export function labelSuggestions(data: AppData, categoryId: string, limit = 12):
     .map((g) => [...g.bySpelling.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0])
 }
 
+/**
+ * Cuantos apuntes llevan ese concepto, en TODO el historico y sin mirar el
+ * periodo que se este viendo: renombrar los toca todos, asi que el numero que
+ * se enseñe antes de hacerlo tiene que ser ese.
+ */
+export function labelOccurrences(data: AppData, label: string): number {
+  const key = normalizeLabel(label)
+  if (!key) return 0
+  return data.expenses.filter((e) => normalizeLabel(e.label) === key).length
+}
+
+/**
+ * Cambia el nombre de un concepto en todos sus apuntes. Casa por
+ * `normalizeLabel`, asi que "seyu", "Seyu " y "SEYU" se renombran de una vez.
+ *
+ * Devuelve la lista entera, con los apuntes que no cambian tal cual estaban
+ * (misma referencia), para que quien compare por identidad no vea cambios
+ * donde no los hay.
+ */
+export function renameLabelIn(expenses: Expense[], from: string, to: string): Expense[] {
+  const key = normalizeLabel(from)
+  const clean = to.trim()
+  if (!key || !clean) return expenses
+  return expenses.map((e) =>
+    normalizeLabel(e.label) === key && e.label !== clean ? { ...e, label: clean } : e,
+  )
+}
+
 export interface LabelStat {
   label: string
   totalJpy: number

@@ -14,6 +14,8 @@ import {
   noCostItems,
   projectMonth,
   quarterlyTicket,
+  labelOccurrences,
+  normalizeLabel,
   recurringItems,
   savingsRateSeries,
   shiftMonth,
@@ -57,6 +59,7 @@ import {
   Segmented,
   Select,
   StatTile,
+  TextInput,
   Toggle,
 } from '../components/ui'
 import {
@@ -72,6 +75,85 @@ import {
 
 type Range = '6' | '12' | '24' | 'all'
 type BiggestScope = 'period' | 'month'
+
+/**
+ * Unificar nombres: el mismo sitio escrito de varias formas sale como varios
+ * comercios. Esto los junta renombrandolos de verdad, en todos sus apuntes,
+ * en vez de montar una capa de alias que luego haya que mantener.
+ */
+function RenameLabel({ labels }: { labels: string[] }) {
+  const { data, dispatch, t } = useStore()
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  // todos los conceptos del historico, no solo los del periodo que se ve: la
+  // grafia buena puede estar en un mes que ahora mismo no se esta mirando
+  const all = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const e of data.expenses) {
+      const label = e.label.trim()
+      const key = normalizeLabel(label)
+      if (key && !seen.has(key)) seen.set(key, label)
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b))
+  }, [data.expenses])
+
+  const count = from ? labelOccurrences(data, from) : 0
+  const clean = to.trim()
+  const canRename = from !== '' && clean !== '' && normalizeLabel(clean) !== normalizeLabel(from)
+
+  return (
+    <div className="mt-3 border-t border-hairline pt-3">
+      <h4 className="mb-1 text-[11px] font-semibold tracking-wide text-ink-2 uppercase">
+        {t('stats.rename')}
+      </h4>
+      <p className="mb-2 text-[11px] text-muted">{t('stats.renameHint')}</p>
+      <div className="flex flex-wrap items-end gap-1.5">
+        <Select
+          ariaLabel={t('stats.renameFrom')}
+          value={from}
+          onChange={setFrom}
+          options={[
+            { value: '', label: t('stats.renamePick') },
+            ...labels.map((l) => ({ value: l, label: l || '—' })),
+          ]}
+        />
+        <TextInput
+          aria-label={t('stats.renameTo')}
+          value={to}
+          placeholder={t('stats.renameTo')}
+          list="rename-to"
+          onChange={(e) => setTo(e.target.value)}
+          className="w-[8.5rem]"
+        />
+        <datalist id="rename-to">
+          {all.map((l) => (
+            <option key={l} value={l} />
+          ))}
+        </datalist>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={!canRename}
+          onClick={() => {
+            dispatch({ type: 'renameLabel', from, to: clean })
+            setFrom('')
+            setTo('')
+          }}
+        >
+          {t('stats.renameDo')}
+        </Button>
+      </div>
+      {from !== '' && (
+        <p className="mt-1.5 text-[11px] text-muted">
+          {t(count === 1 ? 'stats.renameCountOne' : 'stats.renameCount', {
+            n: String(count),
+            label: from || '—',
+          })}
+        </p>
+      )}
+    </div>
+  )
+}
 
 export function StatsView({
   monthId,
@@ -685,6 +767,7 @@ export function StatsView({
               ])}
             />
           )}
+          {labels.length > 0 && <RenameLabel labels={labels.map((l) => l.label)} />}
         </Collapsible>
       </div>
 

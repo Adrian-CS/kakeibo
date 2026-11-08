@@ -22,7 +22,7 @@ import type {
 import { loadData, saveData } from '../lib/storage'
 import { idbBackupStore, runDailyBackup } from '../lib/backup'
 import { emptyData, monthIdOf, newMonth } from '../lib/defaults'
-import { getMonth, overspendDebt, shiftMonth } from '../lib/calc'
+import { getMonth, overspendDebt, renameLabelIn, shiftMonth } from '../lib/calc'
 import { translator, type TFunc } from '../lib/i18n'
 import { uid } from '../lib/id'
 import { nowIso, stampAsNew } from '../lib/sync'
@@ -36,6 +36,8 @@ type Action =
   | { type: 'patchMonth'; monthId: string; patch: Partial<MonthData> }
   | { type: 'addExpense'; expense: Omit<Expense, 'id'> }
   | { type: 'patchExpense'; id: string; patch: Partial<Expense> }
+  /** cambia el nombre de un concepto en todos sus apuntes, casando por normalizeLabel */
+  | { type: 'renameLabel'; from: string; to: string }
   | { type: 'deleteExpense'; id: string }
   | { type: 'addExtra'; monthId: string; extra: Omit<FixedItem, 'id'> }
   | { type: 'patchExtra'; monthId: string; id: string; patch: Partial<FixedItem> }
@@ -255,6 +257,19 @@ function reducer(state: State, action: Action): State {
           e.id === action.id ? { ...e, ...action.patch, updatedAt: nowIso() } : e,
         ),
       })
+
+    case 'renameLabel': {
+      const next = renameLabelIn(data.expenses, action.from, action.to)
+      // sin cambios, sin entrada en el historial de deshacer
+      if (next.every((e, i) => e === data.expenses[i])) return state
+      return withHistory(state, {
+        ...data,
+        // solo los que de verdad cambian se marcan: `updatedAt` es lo que
+        // decide quien gana al sincronizar, y tocarlo de mas haria que este
+        // documento pisara apuntes que no ha modificado
+        expenses: next.map((e, i) => (e === data.expenses[i] ? e : { ...e, updatedAt: nowIso() })),
+      })
+    }
 
     case 'deleteExpense':
       return withHistory(state, {

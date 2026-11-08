@@ -476,6 +476,43 @@ describe('la aplicacion', () => {
     expect(within(fijos).queryByText(/solo hay un apunte/)).not.toBeInTheDocument()
   })
 
+  it('renombrar un comercio lo unifica en todos los meses', async () => {
+    const user = userEvent.setup()
+    window.location.hash = `#/month/${monthIdOf()}`
+    // "uber" en un mes y "Uber" en otro ya se juntan solos; "ubre" no
+    const base = statsSeed()
+    const data = {
+      ...base,
+      expenses: [
+        ...base.expenses,
+        {
+          id: 'x9',
+          monthId: shiftMonth(monthIdOf(), -1),
+          categoryId: 'eating_out',
+          label: 'ubre',
+          amount: 2000,
+          kind: 'normal' as const,
+        },
+      ],
+    }
+    render(<App initial={data} />)
+    await user.click(screen.getAllByRole('button', { name: /Estadísticas/ })[0])
+
+    const card = screen.getByRole('button', { name: /Dónde se va el dinero/ }).closest('section')!
+    await user.selectOptions(within(card).getByLabelText('Concepto a renombrar'), 'ubre')
+    expect(within(card).getByText(/«ubre» está en un solo apunte/)).toBeInTheDocument()
+
+    await user.type(within(card).getByLabelText('Nombre bueno'), 'Uber')
+    await user.click(within(card).getByRole('button', { name: 'Renombrar' }))
+
+    // ya no hay ningun apunte con el nombre viejo, y el bueno se los ha
+    // quedado todos. El guardado va con retardo, como en el resto de pruebas
+    await new Promise((r) => setTimeout(r, 400))
+    const guardado = JSON.parse(localStorage.getItem(STORAGE_KEY)!) as AppData
+    expect(guardado.expenses.filter((e) => e.label === 'ubre')).toHaveLength(0)
+    expect(guardado.expenses.filter((e) => e.label === 'Uber')).toHaveLength(2)
+  })
+
   it('Estadisticas ensena tasa de ahorro, fijos con su subida y ticket por trimestre', async () => {
     const user = userEvent.setup()
     window.location.hash = `#/month/${monthIdOf()}`

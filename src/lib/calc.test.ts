@@ -11,6 +11,7 @@ import {
   debtTotalJpy,
   hasRealSpend,
   isValidMonthId,
+  labelOccurrences,
   labelSuggestions,
   lastClosedMonthId,
   leakJpy,
@@ -41,6 +42,7 @@ import {
   recentActiveAverageJpy,
   recurringCreditJpy,
   recurringItems,
+  renameLabelIn,
   recurringOfMonth,
   currentCycle,
   cycleAccountGaps,
@@ -827,6 +829,50 @@ describe('el dia que se pone por defecto al apuntar', () => {
     // mejor sin dia que con uno inventado
     expect(defaultExpenseDay('2026-09', today)).toBeNull()
     expect(defaultExpenseDay('2026-12', today)).toBeNull()
+  })
+})
+
+describe('unificar nombres', () => {
+  const e = (id: string, label: string) => ({
+    id,
+    monthId: '2026-10',
+    categoryId: 'groceries',
+    label,
+    amount: 1000,
+    kind: 'normal' as const,
+  })
+
+  it('renombra todas las grafias del mismo concepto de una vez', () => {
+    const antes = [e('1', 'seyu'), e('2', 'SEYU '), e('3', 'Life')]
+    const despues = renameLabelIn(antes, 'seyu', 'Seiyu')
+    expect(despues.map((x) => x.label)).toEqual(['Seiyu', 'Seiyu', 'Life'])
+  })
+
+  it('deja intactos los que no cambian, hasta la referencia', () => {
+    const antes = [e('1', 'seyu'), e('2', 'Life')]
+    const despues = renameLabelIn(antes, 'seyu', 'Seiyu')
+    // el de Life es el mismo objeto: nadie tiene por que creerse que cambio
+    expect(despues[1]).toBe(antes[1])
+    expect(despues[0]).not.toBe(antes[0])
+  })
+
+  it('no hace nada con un nombre vacio ni con el mismo de siempre', () => {
+    const antes = [e('1', 'Seiyu')]
+    expect(renameLabelIn(antes, 'Seiyu', '   ')).toBe(antes)
+    expect(renameLabelIn(antes, '', 'Life')).toBe(antes)
+    // mismo texto exacto: ni se toca
+    expect(renameLabelIn(antes, 'seiyu', 'Seiyu')[0]).toBe(antes[0])
+  })
+
+  it('cuenta los apuntes de un concepto en todo el historico', () => {
+    const base = emptyData(new Date('2026-11-08T00:00:00'))
+    const data: AppData = {
+      ...base,
+      expenses: [e('1', 'seyu'), { ...e('2', 'SEYU'), monthId: '2026-08' }, e('3', 'Life')],
+    }
+    expect(labelOccurrences(data, 'seyu')).toBe(2)
+    expect(labelOccurrences(data, 'Life')).toBe(1)
+    expect(labelOccurrences(data, '')).toBe(0)
   })
 })
 
