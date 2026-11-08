@@ -121,6 +121,10 @@ const es = {
   'stats.rename': 'Unificar nombres',
   'stats.renameHint':
     'El mismo sitio escrito de dos formas sale como dos comercios. Elige uno y dale el nombre bueno: se cambia en todos sus apuntes, de todos los meses.',
+  'stats.renameOutside':
+    'Salen los conceptos del periodo elegido. Hay {n} más en meses de fuera: pon el periodo en «Todo» para verlos.',
+  'stats.renameOutsideOne':
+    'Salen los conceptos del periodo elegido. Hay uno más en un mes de fuera: pon el periodo en «Todo» para verlo.',
   'stats.renameFrom': 'Concepto a renombrar',
   'stats.renamePick': 'Elige uno',
   'stats.renameTo': 'Nombre bueno',
@@ -652,6 +656,10 @@ const ja: Partial<Record<Key, string>> = {
   'stats.rename': '名前をそろえる',
   'stats.renameHint':
     '同じ店を2通りに書くと2つの店として出ます。1つ選んで正しい名前を入れてください。すべての月の記入が書き換わります。',
+  'stats.renameOutside':
+    '選んだ期間の項目だけが出ます。期間外にあと{n}件あります。期間を「すべて」にすると出ます。',
+  'stats.renameOutsideOne':
+    '選んだ期間の項目だけが出ます。期間外にあと1件あります。期間を「すべて」にすると出ます。',
   'stats.renameFrom': '変える名前',
   'stats.renamePick': '選んでください',
   'stats.renameTo': '正しい名前',
@@ -1165,6 +1173,10 @@ const en: Partial<Record<Key, string>> = {
   'stats.rename': 'Unify names',
   'stats.renameHint':
     'The same shop written two ways shows up as two merchants. Pick one and give it the right name: it changes in all its entries, across every month.',
+  'stats.renameOutside':
+    'These are the concepts of the selected period. There are {n} more in months outside it: set the period to "All" to see them.',
+  'stats.renameOutsideOne':
+    'These are the concepts of the selected period. There is one more in a month outside it: set the period to "All" to see it.',
   'stats.renameFrom': 'Name to change',
   'stats.renamePick': 'Pick one',
   'stats.renameTo': 'Right name',

@@ -83,13 +83,20 @@ type BiggestScope = 'period' | 'month'
  * comercios. Esto los junta renombrandolos de verdad, en todos sus apuntes,
  * en vez de montar una capa de alias que luego haya que mantener.
  */
-function RenameLabel() {
+function RenameLabel({ monthIds }: { monthIds: string[] }) {
   const { data, dispatch, t } = useStore()
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
-  // el historico ENTERO, no el ranking del periodo: el mal escrito suele ser
-  // justo el que no sale ahi, uno viejo con dos apuntes de nada
-  const all = useMemo(() => allLabels(data), [data])
+  // los del periodo elegido, como todo lo demas de esta pantalla. No el
+  // ranking: ese son los diez mas gordos, y el mal escrito nunca lo es
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const all = useMemo(() => allLabels(data, monthIds), [data, monthIds.join(',')])
+  // y los que quedan fuera se dicen, que si no vuelve a pasar lo de buscar un
+  // nombre viejo y no encontrarlo sin saber por que
+  const outside = useMemo(
+    () => allLabels(data).length - all.length,
+    [data, all.length],
+  )
 
   const count = from ? labelOccurrences(data, from) : 0
   const clean = to.trim()
@@ -138,6 +145,13 @@ function RenameLabel() {
           {t('stats.renameDo')}
         </Button>
       </div>
+      {outside > 0 && (
+        <p className="mt-1.5 text-[11px] text-muted">
+          {t(outside === 1 ? 'stats.renameOutsideOne' : 'stats.renameOutside', {
+            n: String(outside),
+          })}
+        </p>
+      )}
       {from !== '' && (
         <p className="mt-1.5 text-[11px] text-muted">
           {t(count === 1 ? 'stats.renameCountOne' : 'stats.renameCount', {
@@ -814,7 +828,7 @@ export function StatsView({
               ])}
             />
           )}
-          <RenameLabel />
+          <RenameLabel monthIds={monthIds} />
         </Collapsible>
       </div>
 

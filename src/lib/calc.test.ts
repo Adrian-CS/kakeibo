@@ -943,6 +943,24 @@ describe('unificar nombres', () => {
     ])
   })
 
+  it('se puede acotar la lista a unos meses', () => {
+    const base = emptyData(new Date('2026-11-08T00:00:00'))
+    const data: AppData = {
+      ...base,
+      expenses: [
+        { ...e('1', 'Seiyu'), monthId: '2026-11' },
+        { ...e('2', 'Life'), monthId: '2026-11' },
+        { ...e('3', 'seyu'), monthId: '2024-02' },
+      ],
+    }
+    // solo los de noviembre: el viejo se queda fuera
+    expect(allLabels(data, ['2026-11']).map((l) => l.label)).toEqual(['Life', 'Seiyu'])
+    // y sin acotar, los tres
+    expect(allLabels(data)).toHaveLength(3)
+    // un periodo sin nada no revienta
+    expect(allLabels(data, ['2030-01'])).toEqual([])
+  })
+
   it('cuenta los apuntes de un concepto en todo el historico', () => {
     const base = emptyData(new Date('2026-11-08T00:00:00'))
     const data: AppData = {

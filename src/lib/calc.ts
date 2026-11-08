@@ -603,15 +603,18 @@ export interface LabelCount {
 }
 
 /**
- * TODOS los conceptos del historico, agrupados por `normalizeLabel` y en orden
- * alfabetico. Para unificar nombres hace falta la lista entera, no el ranking:
- * el que esta mal escrito suele ser justo el que no sale ahi -uno viejo, de un
- * mes que ahora no se mira, con dos apuntes de nada-. Y el orden alfabetico
- * deja "seiyu" y "seyu" pegados, que es lo que ayuda a encontrarlos.
+ * Los conceptos agrupados por `normalizeLabel` y en orden alfabetico, que deja
+ * "seiyu" y "seyu" pegados: para unificar nombres hay que poder verlos juntos.
+ *
+ * Con `monthIds` solo los de esos meses; sin el, el historico entero. No vale
+ * el ranking de los diez mas gordos: el mal escrito suele ser justo uno de dos
+ * apuntes que ahi no sale nunca.
  */
-export function allLabels(data: AppData): LabelCount[] {
+export function allLabels(data: AppData, monthIds?: string[]): LabelCount[] {
+  const allow = monthIds ? new Set(monthIds) : null
   const groups = new Map<string, { bySpelling: Map<string, number>; count: number }>()
   for (const e of data.expenses) {
+    if (allow && !allow.has(e.monthId)) continue
     const label = e.label.trim()
     const key = normalizeLabel(label)
     if (!key) continue
