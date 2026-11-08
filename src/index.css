@@ -136,6 +136,19 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
+/*
+ * Las celdas de una rejilla no se estrechan por debajo de su contenido
+ * (min-width: auto). Los SVG se dibujan a un ancho fijo en pixeles -a
+ * proposito, escalarlos deforma el texto-, asi que en cuanto crecen al girar
+ * el movil a horizontal ese ancho se convierte en el minimo de la celda: al
+ * volver a vertical la ventana se estrecha pero la pagina se queda ancha y ya
+ * no se recoloca. Con esto la celda puede encoger, el contenedor del grafico
+ * se mide mas estrecho y el SVG se vuelve a dibujar al ancho bueno.
+ */
+.grid > * {
+  min-width: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
