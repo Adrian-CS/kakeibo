@@ -17,6 +17,7 @@ import {
   allLabels,
   labelOccurrences,
   periodSplit,
+  searchExpenses,
   normalizeLabel,
   recurringItems,
   savingsRateSeries,
@@ -77,6 +78,102 @@ import {
 
 type Range = '6' | '12' | '24' | 'all'
 type BiggestScope = 'period' | 'month'
+
+/**
+ * Buscar un concepto dentro del periodo: "ikea" y salen los meses en que se
+ * compro ahi, con lo gastado en cada uno y un atajo para ir a verlos.
+ */
+function SearchLabel({
+  monthIds,
+  goToMonth,
+}: {
+  monthIds: string[]
+  goToMonth?: (id: string) => void
+}) {
+  const { data, t } = useStore()
+  const lang = data.settings.lang
+  const [q, setQ] = useState('')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const all = useMemo(() => allLabels(data, monthIds), [data, monthIds.join(',')])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const res = useMemo(() => searchExpenses(data, q, monthIds), [data, q, monthIds.join(',')])
+  const cats = activeCategories(data.categories)
+  // "1 apuntes" y "1 meses" no los dice nadie
+  const entries = (n: number) =>
+    n === 1 ? t('stats.entryOne') : t('stats.entries', { n: String(n) })
+  const months = (n: number) =>
+    n === 1 ? t('time.monthOne') : t('time.months', { n: String(n) })
+
+  return (
+    <Collapsible
+      id="stats.search"
+      title={t('stats.search')}
+      hint={t('stats.searchHint')}
+      summary={q.trim() ? `${res.count}` : ''}
+      defaultOpen={false}
+    >
+      <TextInput
+        aria-label={t('stats.search')}
+        value={q}
+        placeholder={t('stats.searchPlaceholder')}
+        list="search-labels"
+        onChange={(e) => setQ(e.target.value)}
+        className="w-full"
+      />
+      <datalist id="search-labels">
+        {all.map((l) => (
+          <option key={l.label} value={l.label} />
+        ))}
+      </datalist>
+
+      {q.trim() === '' ? null : res.count === 0 ? (
+        <p className="mt-2 text-sm text-muted">{t('stats.searchNone', { q: q.trim() })}</p>
+      ) : (
+        <>
+          <p className="mt-2 text-sm text-ink">
+            {t('stats.searchFound', {
+              n: entries(res.count),
+              total: fmtJpy(res.totalJpy, lang),
+              months: months(res.byMonth.length),
+            })}
+          </p>
+          <ul className="mt-2">
+            {res.byMonth.map((m) => (
+              <li
+                key={m.monthId}
+                className="flex items-center justify-between gap-3 border-t border-hairline py-2 first:border-0"
+              >
+                <span className="min-w-0">
+                  {goToMonth ? (
+                    <Button size="sm" variant="outline" onClick={() => goToMonth(m.monthId)}>
+                      {fmtMonth(m.monthId, lang)}
+                    </Button>
+                  ) : (
+                    <span className="text-sm text-ink">{fmtMonth(m.monthId, lang)}</span>
+                  )}
+                  <span className="mt-0.5 block text-[11px] text-muted">
+                    {entries(m.count)}
+                  </span>
+                </span>
+                <span className="shrink-0 text-sm tabular-nums text-ink">{fmtJpy(m.totalJpy, lang)}</span>
+              </li>
+            ))}
+          </ul>
+          <DataTable
+            caption={t('stats.search')}
+            columns={[t('fields.label'), t('common.month'), t('common.category'), t('common.jpy')]}
+            rows={res.expenses.map((e) => [
+              e.label || '—',
+              fmtMonth(e.monthId, lang),
+              categoryLabel(cats.find((c) => c.id === e.categoryId) ?? cats[0], lang),
+              fmtNumber(e.amount, lang),
+            ])}
+          />
+        </>
+      )}
+    </Collapsible>
+  )
+}
 
 /**
  * Unificar nombres: el mismo sitio escrito de varias formas sale como varios
@@ -829,6 +926,9 @@ export function StatsView({
             />
           )}
           <RenameLabel monthIds={monthIds} />
+          <div className="mt-3">
+            <SearchLabel monthIds={monthIds} goToMonth={goToMonth} />
+          </div>
         </Collapsible>
       </div>
 

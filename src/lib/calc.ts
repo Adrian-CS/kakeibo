@@ -595,6 +595,57 @@ function bestSpelling(bySpelling: Map<string, number>): string {
   )[0][0]
 }
 
+export interface SearchMonth {
+  monthId: string
+  count: number
+  totalJpy: number
+}
+
+export interface SearchResult {
+  /** los apuntes encontrados, del mas nuevo al mas viejo */
+  expenses: Expense[]
+  /** repartidos por mes, del mas nuevo al mas viejo */
+  byMonth: SearchMonth[]
+  count: number
+  totalJpy: number
+}
+
+/**
+ * Busca un concepto entre los apuntes: "ikea" y sale en que meses se compro
+ * ahi y cuanto. Mira el concepto y la nota, por trozos -"ike" encuentra
+ * "IKEA"- y sin distinguir mayusculas, con el mismo criterio con el que se
+ * agrupan los nombres en las estadisticas.
+ *
+ * Con `monthIds`, solo esos meses.
+ */
+export function searchExpenses(data: AppData, query: string, monthIds?: string[]): SearchResult {
+  const q = normalizeLabel(query)
+  const allow = monthIds ? new Set(monthIds) : null
+  if (!q) return { expenses: [], byMonth: [], count: 0, totalJpy: 0 }
+
+  const found = data.expenses.filter((e) => {
+    if (allow && !allow.has(e.monthId)) return false
+    return normalizeLabel(e.label).includes(q) || normalizeLabel(e.note ?? '').includes(q)
+  })
+
+  const byMonth = new Map<string, SearchMonth>()
+  for (const e of found) {
+    const m = byMonth.get(e.monthId) ?? { monthId: e.monthId, count: 0, totalJpy: 0 }
+    m.count += 1
+    m.totalJpy += e.amount
+    byMonth.set(e.monthId, m)
+  }
+
+  return {
+    expenses: [...found].sort(
+      (a, b) => b.monthId.localeCompare(a.monthId) || (b.day ?? 0) - (a.day ?? 0),
+    ),
+    byMonth: [...byMonth.values()].sort((a, b) => b.monthId.localeCompare(a.monthId)),
+    count: found.length,
+    totalJpy: sum(found.map((e) => e.amount)),
+  }
+}
+
 export interface LabelCount {
   /** la grafia mas usada */
   label: string

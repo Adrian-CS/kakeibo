@@ -56,6 +56,7 @@ import {
   realSavingsPaceJpy,
   savingsGoal,
   savingsRate,
+  searchExpenses,
   savingsRateSeries,
   sumPercentiles,
   shiftMonth,
@@ -885,6 +886,58 @@ describe('reparto del periodo', () => {
     expect(r.totalJpy).toBe(0)
     expect(r.byCategory).toEqual({})
     expect(r.fxRate).toBe(0)
+  })
+})
+
+describe('buscar un concepto', () => {
+  const e = (id: string, monthId: string, label: string, amount: number, note?: string) => ({
+    id,
+    monthId,
+    categoryId: 'groceries',
+    label,
+    amount,
+    kind: 'normal' as const,
+    note,
+  })
+  const data = (): AppData => ({
+    ...emptyData(new Date('2026-11-08T00:00:00')),
+    expenses: [
+      e('1', '2026-09', 'IKEA', 12000),
+      e('2', '2026-09', 'Seiyu', 4000),
+      e('3', '2026-11', 'ikea online', 8000),
+      e('4', '2026-05', 'Ikea', 30000),
+      e('5', '2026-11', 'varios', 2000, 'devolucion de IKEA'),
+    ],
+  })
+
+  it('encuentra por trozos y sin distinguir mayusculas, tambien en la nota', () => {
+    const r = searchExpenses(data(), 'ike')
+    expect(r.count).toBe(4)
+    expect(r.totalJpy).toBe(12000 + 8000 + 30000 + 2000)
+    // la nota tambien cuenta: "devolucion de IKEA"
+    expect(r.expenses.map((x) => x.id)).toContain('5')
+    expect(r.expenses.map((x) => x.id)).not.toContain('2')
+  })
+
+  it('dice en que meses, del mas nuevo al mas viejo', () => {
+    const r = searchExpenses(data(), 'ikea')
+    expect(r.byMonth).toEqual([
+      { monthId: '2026-11', count: 2, totalJpy: 10000 },
+      { monthId: '2026-09', count: 1, totalJpy: 12000 },
+      { monthId: '2026-05', count: 1, totalJpy: 30000 },
+    ])
+  })
+
+  it('se puede acotar al periodo', () => {
+    const r = searchExpenses(data(), 'ikea', ['2026-09', '2026-11'])
+    // el de mayo se queda fuera
+    expect(r.count).toBe(3)
+    expect(r.byMonth.map((m) => m.monthId)).toEqual(['2026-11', '2026-09'])
+  })
+
+  it('sin texto no devuelve nada, en vez de devolverlo todo', () => {
+    expect(searchExpenses(data(), '').count).toBe(0)
+    expect(searchExpenses(data(), '   ').count).toBe(0)
   })
 })
 
