@@ -479,7 +479,9 @@ describe('la aplicacion', () => {
   it('renombrar un comercio lo unifica en todos los meses', async () => {
     const user = userEvent.setup()
     window.location.hash = `#/month/${monthIdOf()}`
-    // "uber" en un mes y "Uber" en otro ya se juntan solos; "ubre" no
+    // "uber" en un mes y "Uber" en otro ya se juntan solos; "ubre" no.
+    // Y encima esta en un mes muy viejo, fuera del periodo que se mira y del
+    // top del ranking: es justo el caso que hay que poder unificar
     const base = statsSeed()
     const data = {
       ...base,
@@ -487,7 +489,7 @@ describe('la aplicacion', () => {
         ...base.expenses,
         {
           id: 'x9',
-          monthId: shiftMonth(monthIdOf(), -1),
+          monthId: shiftMonth(monthIdOf(), -20),
           categoryId: 'eating_out',
           label: 'ubre',
           amount: 2000,
@@ -511,6 +513,8 @@ describe('la aplicacion', () => {
     const guardado = JSON.parse(localStorage.getItem(STORAGE_KEY)!) as AppData
     expect(guardado.expenses.filter((e) => e.label === 'ubre')).toHaveLength(0)
     expect(guardado.expenses.filter((e) => e.label === 'Uber')).toHaveLength(2)
+    // y el de hace veinte meses es el que se ha renombrado
+    expect(guardado.expenses.find((e) => e.id === 'x9')!.label).toBe('Uber')
   })
 
   it('Estadisticas ensena tasa de ahorro, fijos con su subida y ticket por trimestre', async () => {

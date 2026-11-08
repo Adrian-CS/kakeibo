@@ -537,7 +537,51 @@ export function labelSuggestions(data: AppData, categoryId: string, limit = 12):
   return [...groups.values()]
     .sort((a, b) => b.count - a.count || b.last.localeCompare(a.last))
     .slice(0, limit)
-    .map((g) => [...g.bySpelling.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0])
+    .map((g) => bestSpelling(g.bySpelling))
+}
+
+/**
+ * De las formas en que se ha escrito un concepto, la que se enseña: la mas
+ * usada y, a igualdad, la que empieza por mayuscula ("Seiyu" antes que
+ * "seiyu"), que es como lo escribiria uno a proposito. Sin esta regla el
+ * desempate lo decidia el orden alfabetico, que en la practica significaba
+ * quedarse siempre con la minuscula.
+ */
+function bestSpelling(bySpelling: Map<string, number>): string {
+  const capitalized = (x: string) => (x[0] !== undefined && x[0] !== x[0].toLowerCase() ? 0 : 1)
+  return [...bySpelling.entries()].sort(
+    (a, b) => b[1] - a[1] || capitalized(a[0]) - capitalized(b[0]) || a[0].localeCompare(b[0]),
+  )[0][0]
+}
+
+export interface LabelCount {
+  /** la grafia mas usada */
+  label: string
+  /** cuantos apuntes lo llevan, contando todas sus grafias */
+  count: number
+}
+
+/**
+ * TODOS los conceptos del historico, agrupados por `normalizeLabel` y en orden
+ * alfabetico. Para unificar nombres hace falta la lista entera, no el ranking:
+ * el que esta mal escrito suele ser justo el que no sale ahi -uno viejo, de un
+ * mes que ahora no se mira, con dos apuntes de nada-. Y el orden alfabetico
+ * deja "seiyu" y "seyu" pegados, que es lo que ayuda a encontrarlos.
+ */
+export function allLabels(data: AppData): LabelCount[] {
+  const groups = new Map<string, { bySpelling: Map<string, number>; count: number }>()
+  for (const e of data.expenses) {
+    const label = e.label.trim()
+    const key = normalizeLabel(label)
+    if (!key) continue
+    const g = groups.get(key) ?? { bySpelling: new Map<string, number>(), count: 0 }
+    g.bySpelling.set(label, (g.bySpelling.get(label) ?? 0) + 1)
+    g.count += 1
+    groups.set(key, g)
+  }
+  return [...groups.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([, g]) => ({ label: bestSpelling(g.bySpelling), count: g.count }))
 }
 
 /**
@@ -1962,6 +2006,15 @@ export interface RecurringItem {
    * pagado- pero no cuenta en el "al año", que promete lo que te CUESTA.
    */
   stopped: boolean
+  /**
+   * `true` cuando el importe cambia casi cada vez: el 通勤手当 de los trenes
+   * del mes, la luz. No es una suscripcion con su precio, asi que "subio un
+   * 12%" no significa nada y el "al año" se saca de la media, no del ultimo.
+   */
+  variable: boolean
+  /** el mas barato y el mas caro de los vistos, para decir entre que se mueve */
+  minJpy: number
+  maxJpy: number
 }
 
 /**
@@ -2010,8 +2063,14 @@ export function recurringItems(data: AppData, opts: { monthIds?: string[] } = {}
         break
       }
     }
+    // variable: CASI TODAS las apariciones traen un importe distinto. Una
+    // suscripcion repite el mismo numero y cambia de golpe (1490, 1490, 1990:
+    // eso es una subida, no un importe variable); el 通勤手当 de los trenes
+    // del mes no repite casi nunca. Hacen falta tres apariciones: con dos,
+    // "distintos" no dice nada
+    const variable = amounts.length >= 3 && new Set(amounts).size / amounts.length >= 0.8
     const changeRatio =
-      previousAmountJpy !== null && previousAmountJpy !== 0
+      !variable && previousAmountJpy !== null && previousAmountJpy !== 0
         ? amountJpy / previousAmountJpy - 1
         : null
     const firstMonthId = months[0]
@@ -2039,10 +2098,18 @@ export function recurringItems(data: AppData, opts: { monthIds?: string[] } = {}
       lastMonthId,
       everyMonths,
       // sin dos apariciones no se sabe cada cuanto vuelve: se cuenta una al ano
-      yearlyJpy: everyMonths && everyMonths > 0 ? (amountJpy * 12) / everyMonths : amountJpy,
+      // con importe variable manda la media de lo visto, no el ultimo: un mes
+      // de muchos trenes no dice lo que vas a pagar al año
+      yearlyJpy:
+        everyMonths && everyMonths > 0
+          ? ((variable ? sum(amounts) / amounts.length : amountJpy) * 12) / everyMonths
+          : amountJpy,
       totalJpy: sum(amounts),
       monthsSinceLast,
       stopped,
+      variable,
+      minJpy: Math.min(...amounts),
+      maxJpy: Math.max(...amounts),
     })
   }
 

@@ -64,6 +64,7 @@ import {
   topExpenses,
   topLabels,
   accountChangesBetween,
+  allLabels,
   unloggedSpend,
   unloggedSpendSeries,
   upcomingExpenses,
@@ -864,6 +865,29 @@ describe('unificar nombres', () => {
     expect(renameLabelIn(antes, 'seiyu', 'Seiyu')[0]).toBe(antes[0])
   })
 
+  it('para unificar se ofrecen todos los conceptos, no el ranking', () => {
+    const base = emptyData(new Date('2026-11-08T00:00:00'))
+    const data: AppData = {
+      ...base,
+      expenses: [
+        { ...e('1', 'Seiyu'), monthId: '2026-11' },
+        { ...e('2', 'seiyu'), monthId: '2026-11' },
+        // uno viejo y pequeño: el que nunca sale en el ranking y es justo el
+        // que hay que poder elegir
+        { ...e('3', 'seyu'), monthId: '2024-02' },
+        { ...e('4', 'Life'), monthId: '2026-11' },
+        { ...e('5', '  '), monthId: '2026-11' },
+      ],
+    }
+    // alfabetico, para que las grafias parecidas queden pegadas, y con la
+    // cuenta de cada una
+    expect(allLabels(data)).toEqual([
+      { label: 'Life', count: 1 },
+      { label: 'Seiyu', count: 2 },
+      { label: 'seyu', count: 1 },
+    ])
+  })
+
   it('cuenta los apuntes de un concepto en todo el historico', () => {
     const base = emptyData(new Date('2026-11-08T00:00:00'))
     const data: AppData = {
@@ -910,6 +934,20 @@ describe('sugerencias de concepto', () => {
   it('devuelve la grafia mas usada, no la ultima', () => {
     // "seiyu " se escribio despues, pero "Seiyu" va dos a una
     expect(labelSuggestions(data(), 'groceries')[0]).toBe('Seiyu')
+  })
+
+  it('a igualdad gana la que lleva mayuscula', () => {
+    const base = emptyData(new Date('2026-11-08T00:00:00'))
+    const una = (id: string, label: string) => ({
+      id,
+      monthId: '2026-10',
+      categoryId: 'groceries',
+      label,
+      amount: 1000,
+      kind: 'normal' as const,
+    })
+    const empate: AppData = { ...base, expenses: [una('1', 'seiyu'), una('2', 'Seiyu')] }
+    expect(labelSuggestions(empate, 'groceries')).toEqual(['Seiyu'])
   })
 
   it('no mezcla categorias ni ofrece conceptos en blanco', () => {
@@ -2179,6 +2217,60 @@ describe('fijos y suscripciones', () => {
     expect(seguro.yearlyJpy).toBe(30000 * 4)
     expect(seguro.raised).toBe(false)
     expect(seguro.changeRatio).toBeNull()
+  })
+
+  it('un recurrente de importe variable no es una subida de precio', () => {
+    const base = emptyData(new Date('2026-11-08T00:00:00'))
+    const r = (id: string, monthId: string, amount: number) => ({
+      id,
+      monthId,
+      categoryId: 'fixed_transport',
+      label: '通勤手当',
+      amount,
+      kind: 'recurring' as const,
+    })
+    // los trenes del mes: nunca el mismo numero dos veces
+    const data: AppData = {
+      ...base,
+      expenses: [
+        r('1', '2026-08', -11200),
+        r('2', '2026-09', -15300),
+        r('3', '2026-10', -13550),
+        r('4', '2026-11', -12800),
+      ],
+    }
+    const item = recurringItems(data)[0]
+    expect(item.variable).toBe(true)
+    // nada de "subio un 13%": con un importe que baila, eso no dice nada
+    expect(item.changeRatio).toBeNull()
+    expect(item.raised).toBe(false)
+    expect(item.minJpy).toBe(-15300)
+    expect(item.maxJpy).toBe(-11200)
+    // el año sale de la MEDIA de lo visto, no del ultimo mes
+    const media = (-11200 - 15300 - 13550 - 12800) / 4
+    expect(item.yearlyJpy).toBeCloseTo(media * 12, 6)
+  })
+
+  it('una subida de precio no se confunde con un importe variable', () => {
+    const base = emptyData(new Date('2026-11-08T00:00:00'))
+    const r = (id: string, monthId: string, amount: number) => ({
+      id,
+      monthId,
+      categoryId: 'fixed_transport',
+      label: 'Netflix',
+      amount,
+      kind: 'recurring' as const,
+    })
+    // repite precio y luego sube: eso es una suscripcion, no algo variable
+    const data: AppData = {
+      ...base,
+      expenses: [r('1', '2026-09', 1490), r('2', '2026-10', 1490), r('3', '2026-11', 1990)],
+    }
+    const item = recurringItems(data)[0]
+    expect(item.variable).toBe(false)
+    expect(item.raised).toBe(true)
+    // y aqui el año si sale del precio de ahora, no de la media
+    expect(item.yearlyJpy).toBe(1990 * 12)
   })
 
   it('una que se dio de baja deja de contar en el "al año"', () => {

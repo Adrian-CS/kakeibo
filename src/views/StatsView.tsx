@@ -14,6 +14,7 @@ import {
   noCostItems,
   projectMonth,
   quarterlyTicket,
+  allLabels,
   labelOccurrences,
   normalizeLabel,
   recurringItems,
@@ -81,21 +82,13 @@ type BiggestScope = 'period' | 'month'
  * comercios. Esto los junta renombrandolos de verdad, en todos sus apuntes,
  * en vez de montar una capa de alias que luego haya que mantener.
  */
-function RenameLabel({ labels }: { labels: string[] }) {
+function RenameLabel() {
   const { data, dispatch, t } = useStore()
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
-  // todos los conceptos del historico, no solo los del periodo que se ve: la
-  // grafia buena puede estar en un mes que ahora mismo no se esta mirando
-  const all = useMemo(() => {
-    const seen = new Map<string, string>()
-    for (const e of data.expenses) {
-      const label = e.label.trim()
-      const key = normalizeLabel(label)
-      if (key && !seen.has(key)) seen.set(key, label)
-    }
-    return [...seen.values()].sort((a, b) => a.localeCompare(b))
-  }, [data.expenses])
+  // el historico ENTERO, no el ranking del periodo: el mal escrito suele ser
+  // justo el que no sale ahi, uno viejo con dos apuntes de nada
+  const all = useMemo(() => allLabels(data), [data])
 
   const count = from ? labelOccurrences(data, from) : 0
   const clean = to.trim()
@@ -112,9 +105,10 @@ function RenameLabel({ labels }: { labels: string[] }) {
           ariaLabel={t('stats.renameFrom')}
           value={from}
           onChange={setFrom}
+          className="max-w-[11rem]"
           options={[
             { value: '', label: t('stats.renamePick') },
-            ...labels.map((l) => ({ value: l, label: l || '—' })),
+            ...all.map((l) => ({ value: l.label, label: `${l.label} (${l.count})` })),
           ]}
         />
         <TextInput
@@ -127,7 +121,7 @@ function RenameLabel({ labels }: { labels: string[] }) {
         />
         <datalist id="rename-to">
           {all.map((l) => (
-            <option key={l} value={l} />
+            <option key={l.label} value={l.label} />
           ))}
         </datalist>
         <Button
@@ -767,7 +761,7 @@ export function StatsView({
               ])}
             />
           )}
-          {labels.length > 0 && <RenameLabel labels={labels.map((l) => l.label)} />}
+          <RenameLabel />
         </Collapsible>
       </div>
 
@@ -874,6 +868,15 @@ export function StatsView({
                             })}
                       {' · '}
                       {compact(r.yearlyJpy)} ¥ {t('stats.perYear')}
+                      {r.variable && (
+                        <>
+                          {' · '}
+                          {t('stats.variable', {
+                            min: compact(r.minJpy),
+                            max: compact(r.maxJpy),
+                          })}
+                        </>
+                      )}
                     </span>
                     {/* una sola aparicion casi nunca es un fijo: suele ser un
                         apunte marcado como recurrente sin querer. Con un toque
