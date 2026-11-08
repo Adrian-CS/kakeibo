@@ -165,6 +165,8 @@ const es = {
   'stats.lowered': 'bajó {pct}',
   'stats.wasBefore': 'antes {amount}',
   'stats.recurringYearTotal': 'Todo junto, al año',
+  'stats.recurringCreditsOnce':
+    'De {names} solo hay un apunte, así que no se puede decir cuánto entra al año: con una sola aparición no se sabe si es de cada mes o de una vez. Apúntalo también en otro mes y se calcula solo.',
   'stats.recurringCredits':
     'Aparte, {amount} al año que entran de forma fija ({names}): eso no cuesta, paga.',
   'stats.ticket': 'Ticket medio por trimestre',
@@ -676,6 +678,8 @@ const ja: Partial<Record<Key, string>> = {
   'stats.lowered': '{pct} 下がった',
   'stats.wasBefore': '以前は {amount}',
   'stats.recurringYearTotal': '全部で年間',
+  'stats.recurringCreditsOnce':
+    '{names}は記録が1件しかないので、年にいくら入るかは言えません。1回だけでは毎月なのか一度きりなのか分かりません。別の月にも記録すれば自動で計算します。',
   'stats.recurringCredits':
     '別に、年間{amount}が定額で入ってきます（{names}）：費用ではなく収入です。',
   'stats.ticket': '四半期ごとの平均単価',
@@ -1172,6 +1176,8 @@ const en: Partial<Record<Key, string>> = {
   'stats.lowered': 'down {pct}',
   'stats.wasBefore': 'was {amount}',
   'stats.recurringYearTotal': 'All together, a year',
+  'stats.recurringCreditsOnce':
+    'There is only one entry for {names}, so there is no saying how much comes in per year: one sighting cannot tell monthly from one-off. Log it in another month too and it works itself out.',
   'stats.recurringCredits':
     'Separately, {amount} a year comes in on a fixed basis ({names}): that pays, it does not cost.',
   'stats.ticket': 'Average ticket by quarter',

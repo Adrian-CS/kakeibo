@@ -220,9 +220,15 @@ export function StatsView({
   // las dadas de baja salen aparte: siguen estando (lo pagado es pagado) pero
   // no cuentan en el "al año", que promete lo que te CUESTA, no lo que te
   // costaba
+  // los que solo se han visto una vez no se anualizan: "una vez = una al año"
+  // es una suposicion, y en un abono mensual del que solo hay un apunte se
+  // queda a un doceavo de la verdad sin decirlo
   const recurringOut = recurring.filter((r) => r.yearlyJpy > 0 && !r.stopped)
   const recurringStopped = recurring.filter((r) => r.yearlyJpy > 0 && r.stopped)
-  const recurringCredits = recurring.filter((r) => r.yearlyJpy < 0 && !r.stopped)
+  const recurringCredits = recurring.filter(
+    (r) => r.yearlyJpy < 0 && !r.stopped && r.everyMonths !== null,
+  )
+  const recurringCreditsOnce = recurring.filter((r) => r.yearlyJpy < 0 && r.everyMonths === null)
   const recurringYearlyJpy = sum(recurringOut.map((r) => r.yearlyJpy))
   const recurringCreditYearlyJpy = -sum(recurringCredits.map((r) => r.yearlyJpy))
   // el comercio del ticket medio: el elegido si sigue en la lista, y si no
@@ -868,6 +874,16 @@ export function StatsView({
               />
             )}
           </>
+        )}
+        {recurringCreditsOnce.length > 0 && (
+          <p className="mt-3 text-[11px] text-muted">
+            {t('stats.recurringCreditsOnce', {
+              names: recurringCreditsOnce
+                .map((r) => `${r.label || '—'} (${jpy(Math.abs(r.amountJpy))})`)
+                .slice(0, 3)
+                .join(', '),
+            })}
+          </p>
         )}
         {recurringCredits.length > 0 && (
           <p className="mt-3 text-[11px]" style={{ color: 'var(--good-text)' }}>

@@ -410,6 +410,36 @@ describe('la aplicacion', () => {
   })
 
 
+  it('un abono visto dos veces ya se puede anualizar; visto una sola, no', async () => {
+    const user = userEvent.setup()
+    const base = statsSeed()
+    // el mismo abono en dos meses: ahora si se sabe que es de cada mes
+    const data = {
+      ...base,
+      expenses: [
+        ...base.expenses,
+        {
+          id: 'r4',
+          monthId: shiftMonth(monthIdOf(), -2),
+          categoryId: 'fixed_transport',
+          label: '通勤手当',
+          amount: -13550,
+          kind: 'recurring' as const,
+        },
+      ],
+    }
+    window.location.hash = `#/month/${monthIdOf()}`
+    render(<App initial={data} />)
+    await user.click(screen.getAllByRole('button', { name: /Estadísticas/ })[0])
+
+    const fijos = screen.getByRole('button', { name: /Fijos y suscripciones/ }).closest('section')!
+    // 13.550 cada mes son 162.600 al año
+    expect(
+      within(fijos).getByText(/162[.,\s]?600 ¥ al año que entran de forma fija \(通勤手当\)/),
+    ).toBeInTheDocument()
+    expect(within(fijos).queryByText(/solo hay un apunte/)).not.toBeInTheDocument()
+  })
+
   it('Estadisticas ensena tasa de ahorro, fijos con su subida y ticket por trimestre', async () => {
     const user = userEvent.setup()
     window.location.hash = `#/month/${monthIdOf()}`
@@ -434,7 +464,10 @@ describe('la aplicacion', () => {
     // total, dicho aparte
     const fijos = screen.getByRole('button', { name: /Fijos y suscripciones/ }).closest('section')!
     expect(within(fijos).queryByText('通勤手当')).not.toBeInTheDocument()
-    expect(within(fijos).getByText(/al año que entran de forma fija \(通勤手当\)/)).toBeInTheDocument()
+    // de este solo hay un apunte, asi que no se anualiza: "una vez" no dice
+    // si es de cada mes o de una sola vez, y el 通勤手当 es mensual
+    expect(within(fijos).getByText(/solo hay un apunte/)).toBeInTheDocument()
+    expect(within(fijos).queryByText(/al año que entran de forma fija/)).not.toBeInTheDocument()
     // y tampoco es un "comercio" del ranking de gasto
     expect(screen.queryByRole('option', { name: '通勤手当' })).not.toBeInTheDocument()
 
