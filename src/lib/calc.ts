@@ -1511,19 +1511,37 @@ export interface SavingsBandPoint {
   monthId: string
   /** meses desde hoy (1, 2, 3...) */
   months: number
-  /** gastando como en un mes barato (p25): el borde de arriba de la banda */
+  /** el borde de arriba de la banda: le va bien al gasto */
   highJpy: number
-  /** gastando como en un mes tipico (p50) */
+  /** el camino central: gastando como en un mes tipico (p50) todos los meses */
   medianJpy: number
-  /** gastando como en un mes caro (p75): el borde de abajo */
+  /** el borde de abajo de la banda: le va mal al gasto */
   lowJpy: number
 }
 
 /**
- * Patrimonio proyectado mes a mes desde la ultima foto, con banda: cada mes
- * suma los ingresos menos el gasto del percentil correspondiente. El gasto
- * bajo (p25) da el borde de arriba y el alto (p75) el de abajo, porque
- * gastar menos deja mas patrimonio.
+ * Patrimonio proyectado mes a mes desde la ultima foto, con banda alrededor.
+ *
+ * El camino central es gastar como en un mes tipico (p50) cada mes. La banda
+ * se abre a su alrededor con la RAIZ de los meses, no con los meses.
+ *
+ * Abrirla de forma lineal -restar el p75 entero cada mes- es decir "los k
+ * meses caen todos en el cuarto caro": a un mes vista eso pasa una de cada
+ * cuatro veces, pero a dos anos es 0,25^24, que no es un escenario
+ * pesimista sino uno que no va a ocurrir. Y con el gasto sesgado (unos
+ * pocos meses muy caros tiran del p75 mucho mas de lo que el p25 tira por
+ * abajo) el borde de abajo se desploma hasta numeros que no significan
+ * nada. Si los meses son mas o menos independientes, lo que crece con la
+ * raiz de k es la desviacion del acumulado, y eso es lo que debe ensanchar
+ * el cono.
+ *
+ * A un mes vista (k = 1, raiz 1) sale exactamente lo mismo que antes: la
+ * banda sigue siendo "un mes barato / un mes caro" de los tuyos. Lo que
+ * cambia es que a 24 meses no se multiplica por 24, sino por 4,9.
+ *
+ * Los bordes siguen siendo asimetricos a proposito: si tus meses caros se
+ * van mas lejos que los baratos, el cono baja mas de lo que sube, porque
+ * asi es tu gasto. Lo que se corrige es la escala, no la forma.
  *
  * A diferencia de `projectSavings` (tres escenarios sueltos a plazos
  * concretos), esto es la serie continua que se dibuja: por eso devuelve un
@@ -1544,12 +1562,14 @@ export function projectSavingsBands(
   const from = monthIdOfDate(today)
   const out: SavingsBandPoint[] = []
   for (let k = 1; k <= horizonMonths; k++) {
+    const spread = Math.sqrt(k)
+    const medianJpy = last.netJpy + (income - p.p50) * k
     out.push({
       monthId: shiftMonth(from, k),
       months: k,
-      highJpy: last.netJpy + (income - p.p25) * k,
-      medianJpy: last.netJpy + (income - p.p50) * k,
-      lowJpy: last.netJpy + (income - p.p75) * k,
+      highJpy: medianJpy + (p.p50 - p.p25) * spread,
+      medianJpy,
+      lowJpy: medianJpy - (p.p75 - p.p50) * spread,
     })
   }
   return out

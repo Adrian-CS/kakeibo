@@ -798,6 +798,9 @@ export function SavingsView() {
                     })}
                   </p>
                 )}
+                <p className="mt-1 text-[11px] text-muted">
+                  {t('forecast.bandNote', { n: bands.length })}
+                </p>
               </>
             ) : (
               <p className="text-sm text-muted">{t('forecast.noData')}</p>

@@ -406,7 +406,7 @@ describe('la aplicacion', () => {
     await user.click(screen.getAllByRole('button', { name: /Ahorros/ })[0])
 
     // las cuatro filas de escenarios, incluidas las dos que ya existian
-    for (const row of ['Ritmo real', 'Banda p25–p75', 'Hasta el límite', 'Topes por categoría']) {
+    for (const row of ['Ritmo real', 'Horquilla probable', 'Hasta el límite', 'Topes por categoría']) {
       expect(screen.getByRole('rowheader', { name: row })).toBeInTheDocument()
     }
     // y los tres plazos

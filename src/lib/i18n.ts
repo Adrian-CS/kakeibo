@@ -252,7 +252,7 @@ const es = {
   'savings.monthsUnknownHint': 'Aún no hay ningún mes con gasto real del que sacar el ritmo',
   'savings.forecast': 'Previsión de ahorro',
   'savings.forecastHint':
-    'Desde tu última foto: la banda es lo que sueles gastar entre un mes barato y uno caro, y las líneas son tu ritmo medio y tu meta',
+    'Desde tu última foto: la banda es la horquilla donde deberían caer la mayoría de los meses, y las líneas son tu ritmo medio y tu meta',
   'savings.forecastIn': 'Dentro de {n} meses',
   'savings.rate': 'Tasa de ahorro',
   'savings.rateHint': 'De cada 100 ¥ que entran, lo que no se gasta',
@@ -317,14 +317,16 @@ const es = {
 
   'forecast.chart': 'Lo vivido y lo previsto',
   'forecast.chartHint':
-    'Desde tu última foto: la banda es el margen entre un mes barato y uno caro de los tuyos',
+    'Desde tu última foto: la banda es la horquilla probable, y se abre despacio porque un mes caro no arrastra a los siguientes',
   'forecast.today': 'hoy',
   'forecast.actual': 'Patrimonio real',
   'forecast.median': 'Previsión (mes típico)',
   'forecast.pace': 'A tu ritmo medio',
-  'forecast.band': 'Entre mes barato y mes caro',
+  'forecast.band': 'Horquilla probable',
   'forecast.goal': 'Meta',
   'forecast.percentiles': 'Con {n} meses cerrados: mes barato {p25}, mes típico {p50}, mes caro {p75}',
+  'forecast.bandNote':
+    'La horquilla se ensancha con la raíz de los meses, no con los meses: que el mes que viene salga caro es uno de cada cuatro, pero que salgan caros los {n} seguidos no va a pasar.',
   'forecast.noData':
     'Para prever algo hacen falta una foto de ahorros, ingresos previstos en Ajustes y al menos un mes cerrado con gasto apuntado.',
   'forecast.scenarios': 'Escenarios',
@@ -333,7 +335,7 @@ const es = {
   'forecast.horizon12': '1 año',
   'forecast.horizon24': '2 años',
   'forecast.rowReal': 'Ritmo real',
-  'forecast.rowBand': 'Banda p25–p75',
+  'forecast.rowBand': 'Horquilla probable',
   'forecast.rowLimit': 'Hasta el límite',
   'forecast.rowCategoryLimits': 'Topes por categoría',
   'forecast.ceilingNote':
@@ -793,7 +795,7 @@ const ja: Partial<Record<Key, string>> = {
   'savings.monthsUnknownHint': '実際の出費がある月がまだ無い',
   'savings.forecast': '貯金の見込み',
   'savings.forecastHint':
-    '最後の記録から。帯は安い月と高い月のあいだの普段の出費、線は平均ペースと目標',
+    '最後の記録から。帯はたいていの月が収まる幅、線は平均ペースと目標',
   'savings.forecastIn': '{n}か月後',
   'savings.rate': '貯蓄率',
   'savings.rateHint': '入ってくる100円のうち使わない分',
@@ -856,14 +858,16 @@ const ja: Partial<Record<Key, string>> = {
   'fields.goalMonthsHintFixed': '決めた日から何ヶ月か',
 
   'forecast.chart': '実績と見込み',
-  'forecast.chartHint': '最後の記録から。帯は安い月と高い月のあいだ',
+  'forecast.chartHint': '最後の記録から。帯はありそうな幅。高い月が次の月に続くわけではないので、ゆっくり広がる',
   'forecast.today': '今日',
   'forecast.actual': '実際の純資産',
   'forecast.median': '見込み（普通の月）',
   'forecast.pace': '平均ペースなら',
-  'forecast.band': '安い月から高い月まで',
+  'forecast.band': 'ありそうな幅',
   'forecast.goal': '目標',
   'forecast.percentiles': '締めた{n}ヶ月：安い月 {p25}、普通の月 {p50}、高い月 {p75}',
+  'forecast.bandNote':
+    '幅は月数ではなく月数の平方根で広がります。来月が高くなるのは4回に1回ですが、{n}ヶ月とも高くなることはありません。',
   'forecast.noData': '見込みを出すには、記録・見込み収入・出費のある締めた月が最低一つずつ必要です。',
   'forecast.scenarios': 'シナリオ',
   'forecast.scenario': 'シナリオ',
@@ -871,7 +875,7 @@ const ja: Partial<Record<Key, string>> = {
   'forecast.horizon12': '1年',
   'forecast.horizon24': '2年',
   'forecast.rowReal': '普段のペース',
-  'forecast.rowBand': '帯 p25–p75',
+  'forecast.rowBand': 'ありそうな幅',
   'forecast.rowLimit': '上限まで',
   'forecast.rowCategoryLimits': 'カテゴリの上限',
   'forecast.ceilingNote':
@@ -1322,7 +1326,7 @@ const en: Partial<Record<Key, string>> = {
   'savings.monthsUnknownHint': "No month with real spending yet to base this on",
   'savings.forecast': 'Savings forecast',
   'savings.forecastHint':
-    'From your last snapshot: the band spans what you usually spend between a cheap month and an expensive one, and the lines are your average pace and your goal',
+    'From your last snapshot: the band is where most months should land, and the lines are your average pace and your goal',
   'savings.forecastIn': 'In {n} months',
   'savings.rate': 'Savings rate',
   'savings.rateHint': "Of every 100 ¥ coming in, what you don't spend",
@@ -1387,14 +1391,16 @@ const en: Partial<Record<Key, string>> = {
 
   'forecast.chart': 'What happened and what is coming',
   'forecast.chartHint':
-    'From your last snapshot: the band spans a cheap month and an expensive one, as yours go',
+    'From your last snapshot: the band is the likely range, and it widens slowly because one expensive month does not drag the next ones with it',
   'forecast.today': 'today',
   'forecast.actual': 'Actual net worth',
   'forecast.median': 'Forecast (typical month)',
   'forecast.pace': 'At your average pace',
-  'forecast.band': 'Between a cheap and an expensive month',
+  'forecast.band': 'Likely range',
   'forecast.goal': 'Goal',
   'forecast.percentiles': 'Over {n} closed months: cheap month {p25}, typical {p50}, expensive {p75}',
+  'forecast.bandNote':
+    'The range widens with the square root of the months, not with the months: next month coming out expensive is a one-in-four, but all {n} of them coming out expensive will not happen.',
   'forecast.noData':
     'Forecasting needs a savings snapshot, expected income in Settings and at least one closed month with spending logged.',
   'forecast.scenarios': 'Scenarios',
@@ -1403,7 +1409,7 @@ const en: Partial<Record<Key, string>> = {
   'forecast.horizon12': '1 year',
   'forecast.horizon24': '2 years',
   'forecast.rowReal': 'Your real pace',
-  'forecast.rowBand': 'Band p25–p75',
+  'forecast.rowBand': 'Likely range',
   'forecast.rowLimit': 'Up to the limit',
   'forecast.rowCategoryLimits': 'Category caps',
   'forecast.ceilingNote':

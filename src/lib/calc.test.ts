@@ -1403,10 +1403,50 @@ describe('prevision', () => {
   describe('projectSavingsBands', () => {
     it('proyecta mes a mes: p25 arriba, p75 abajo', () => {
       const points = projectSavingsBands(forecastSeed(), 2, 12, today)
-      expect(points).toEqual([
-        { monthId: '2026-09', months: 1, highJpy: 647500, medianJpy: 635000, lowJpy: 622500 },
-        { monthId: '2026-10', months: 2, highJpy: 795000, medianJpy: 770000, lowJpy: 745000 },
-      ])
+      // a un mes vista la banda es literalmente "un mes barato / un mes caro"
+      expect(points[0]).toEqual({
+        monthId: '2026-09',
+        months: 1,
+        highJpy: 647500,
+        medianJpy: 635000,
+        lowJpy: 622500,
+      })
+      // a dos, el centro avanza dos meses pero la banda se abre solo raiz(2)
+      expect(points[1].monthId).toBe('2026-10')
+      expect(points[1].medianJpy).toBe(770000)
+      expect(points[1].highJpy).toBeCloseTo(770000 + 12500 * Math.SQRT2, 6)
+      expect(points[1].lowJpy).toBeCloseTo(770000 - 12500 * Math.SQRT2, 6)
+    })
+
+    it('la banda se abre con la raiz de los meses, no con los meses', () => {
+      // abrirla lineal es decir "los 24 meses caen todos en el cuarto caro",
+      // que es 0,25^24: no un escenario malo, uno imposible
+      const points = projectSavingsBands(forecastSeed(), 24, 12, today)
+      const first = points[0]
+      const last = points[23]
+      const anchoPrimero = first.medianJpy - first.lowJpy
+      const anchoUltimo = last.medianJpy - last.lowJpy
+      expect(anchoUltimo / anchoPrimero).toBeCloseTo(Math.sqrt(24), 6)
+      // y no 24 veces, que es lo que hacia antes
+      expect(anchoUltimo / anchoPrimero).toBeLessThan(5)
+    })
+
+    it('con el gasto sesgado el cono sigue bajando mas de lo que sube', () => {
+      // cuatro meses normales y dos carisimos: el p75 se va mucho mas lejos
+      // del p50 que el p25. La forma del cono es asi porque el gasto es asi;
+      // lo que se corrige es la escala, no la asimetria
+      const seed = forecastSeed()
+      const caros: Record<string, number> = { '2026-05': 230000, '2026-07': 260000 }
+      const sesgado: AppData = {
+        ...seed,
+        expenses: seed.expenses.map((e) =>
+          caros[e.monthId] ? { ...e, amount: caros[e.monthId] } : e,
+        ),
+      }
+      const p = percentiles(sesgado, 12, today)!
+      expect(p.p75 - p.p50).toBeGreaterThan(p.p50 - p.p25)
+      const last = projectSavingsBands(sesgado, 24, 12, today)[23]
+      expect(last.medianJpy - last.lowJpy).toBeGreaterThan(last.highJpy - last.medianJpy)
     })
 
     it('gastar menos deja mas patrimonio: la banda nunca sale del reves', () => {
