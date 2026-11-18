@@ -327,6 +327,13 @@ const es = {
   'forecast.percentiles': 'Con {n} meses cerrados: mes barato {p25}, mes típico {p50}, mes caro {p75}',
   'forecast.bandNote':
     'La horquilla se ensancha con la raíz de los meses, no con los meses: que el mes que viene salga caro es uno de cada cuatro, pero que salgan caros los {n} seguidos no va a pasar.',
+  'forecast.extras': '{n} gastos extraordinarios',
+  'forecast.extraOne': 'un gasto extraordinario',
+  'forecast.excludeOn': 'Sin {x}',
+  'forecast.excludeOff': 'Contando {x}',
+  'forecast.excludeNone': 'No tienes ninguno marcado como extraordinario',
+  'forecast.excludeHint':
+    'Solo cambia lo que se prevé aquí. El patrimonio, la tasa de ahorro, la fuga y el colchón son medidas, y no se tocan.',
   'forecast.noData':
     'Para prever algo hacen falta una foto de ahorros, ingresos previstos en Ajustes y al menos un mes cerrado con gasto apuntado.',
   'forecast.scenarios': 'Escenarios',
@@ -868,6 +875,12 @@ const ja: Partial<Record<Key, string>> = {
   'forecast.percentiles': '締めた{n}ヶ月：安い月 {p25}、普通の月 {p50}、高い月 {p75}',
   'forecast.bandNote':
     '幅は月数ではなく月数の平方根で広がります。来月が高くなるのは4回に1回ですが、{n}ヶ月とも高くなることはありません。',
+  'forecast.extras': '{n}件の臨時の出費',
+  'forecast.extraOne': '臨時の出費 1件',
+  'forecast.excludeOn': '{x}を除く',
+  'forecast.excludeOff': '{x}を含む',
+  'forecast.excludeNone': '臨時にした出費はありません',
+  'forecast.excludeHint': 'ここの予測だけが変わります。資産・貯蓄率・漏れ・生活可能月数は実測なのでそのままです。',
   'forecast.noData': '見込みを出すには、記録・見込み収入・出費のある締めた月が最低一つずつ必要です。',
   'forecast.scenarios': 'シナリオ',
   'forecast.scenario': 'シナリオ',
@@ -1401,6 +1414,13 @@ const en: Partial<Record<Key, string>> = {
   'forecast.percentiles': 'Over {n} closed months: cheap month {p25}, typical {p50}, expensive {p75}',
   'forecast.bandNote':
     'The range widens with the square root of the months, not with the months: next month coming out expensive is a one-in-four, but all {n} of them coming out expensive will not happen.',
+  'forecast.extras': '{n} extraordinary expenses',
+  'forecast.extraOne': 'one extraordinary expense',
+  'forecast.excludeOn': 'Leaving out {x}',
+  'forecast.excludeOff': 'Counting {x}',
+  'forecast.excludeNone': 'Nothing of yours is marked as extraordinary',
+  'forecast.excludeHint':
+    'Only what is forecast here changes. Net worth, savings rate, leak and runway are measurements, and stay put.',
   'forecast.noData':
     'Forecasting needs a savings snapshot, expected income in Settings and at least one closed month with spending logged.',
   'forecast.scenarios': 'Scenarios',

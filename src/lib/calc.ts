@@ -403,6 +403,27 @@ function filtered(data: AppData, opts: StatsOptions): AppData {
   return expenses.length === data.expenses.length ? data : { ...data, expenses }
 }
 
+/**
+ * El mismo documento sin los gastos extraordinarios, para pasarselo a las
+ * funciones que no tienen (ni necesitan) una opcion propia para excluirlos:
+ * percentiles, banda, escenarios, meta y examen del modelo.
+ *
+ * Un vuelo o una deuda saldada hinchan el "mes caro" y la prevision acaba
+ * dando por hecho que eso pasa todos los meses. Esto deja verlo sin ellos.
+ *
+ * Devuelve el MISMO objeto si no habia ninguno, para no obligar a recalcular
+ * a quien lo tenga en un `useMemo`.
+ */
+export function withoutExtraordinary(data: AppData): AppData {
+  const expenses = data.expenses.filter((e) => e.kind !== 'extraordinary')
+  return expenses.length === data.expenses.length ? data : { ...data, expenses }
+}
+
+/** Cuantos gastos extraordinarios hay, para decir que se esta dejando fuera. */
+export function extraordinaryCount(data: AppData): number {
+  return data.expenses.filter((e) => e.kind === 'extraordinary').length
+}
+
 export function computeStats(data: AppData, opts: StatsOptions = {}): Stats {
   const src = filtered(data, opts)
   const today = opts.today ?? new Date()

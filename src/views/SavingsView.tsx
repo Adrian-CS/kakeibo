@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../state/store'
 import {
   backtestForecast,
+  extraordinaryCount,
   categoryLimitsJpy,
   computeStats,
   debtAccounts,
@@ -36,6 +37,7 @@ import {
   sum,
   sumPercentiles,
   upcomingExpenses,
+  withoutExtraordinary,
 } from '../lib/calc'
 import { combinedProjectSavings, combinedSnapshotSeries, combinedStats } from '../lib/householdCalc'
 import { emptyData } from '../lib/defaults'
@@ -65,6 +67,7 @@ import {
   Select,
   StatTile,
   TextInput,
+  Toggle,
 } from '../components/ui'
 import { BandLines, DataTable, Lines, type LinePoint } from '../components/charts'
 import { uid } from '../lib/id'
@@ -255,6 +258,10 @@ export function SavingsView() {
   const lang = data.settings.lang
   const cur = data.settings.secondaryCurrency
   const [tables, setTables] = useState(false)
+  // deja mirar la prevision sin los extraordinarios: un vuelo o una deuda
+  // saldada hinchan el "mes caro" y el modelo acaba dando por hecho que eso
+  // pasa todos los meses
+  const [excludeExtra, setExcludeExtra] = useState(false)
   const [scope, setScope] = useState<HouseholdViewScope>('mine')
 
   const links = data.settings.householdCategoryLinks
@@ -265,6 +272,14 @@ export function SavingsView() {
   // lectura) de la pareja, igual que en Estadisticas.
   const source = isPartner ? (household.partnerData ?? emptyData()) : data
   const partnerMissing = isPartner && !household.partnerData
+  // el mismo documento que todo lo demas, pero el que entra en la prevision
+  // (percentiles, banda, escenarios, meta y examen del modelo). Lo medido
+  // -patrimonio, tasa de ahorro, fuga, colchon- no se toca: son hechos, no
+  // previsiones, y un interruptor no deberia poder cambiarlos
+  const fcSource = useMemo(
+    () => (excludeExtra ? withoutExtraordinary(source) : source),
+    [excludeExtra, source],
+  )
 
   const series = useMemo(
     () => (isTogether ? combinedSnapshotSeries(data, household.partnerData) : snapshotSeries(source)),
@@ -280,8 +295,8 @@ export function SavingsView() {
   const last = series.at(-1)
   const payday = data.settings.paydayOfMonth ?? 0
   const recentAverageJpy = useMemo(
-    () => (isTogether ? null : recentActiveAverageJpy(source, 6)),
-    [isTogether, source],
+    () => (isTogether ? null : recentActiveAverageJpy(fcSource, 6)),
+    [isTogether, fcSource],
   )
   // los documentos que entran en las cifras de arriba: en "Juntos", el mio y
   // el de mi pareja (cada uno con sus ingresos, su gasto y su tipo de cambio,
@@ -293,6 +308,12 @@ export function SavingsView() {
         : [source],
     [isTogether, data, household.partnerData, source],
   )
+  const fcSides = useMemo(
+    () => (excludeExtra ? sides.map(withoutExtraordinary) : sides),
+    [excludeExtra, sides],
+  )
+  /** cuantos extraordinarios se estan dejando fuera ahora mismo */
+  const extraCount = useMemo(() => sum(sides.map(extraordinaryCount)), [sides])
   // mes de referencia de "tasa de ahorro" y "fuga": el ultimo ya cerrado, que
   // el mes en curso esta a medias y daria una tasa inmejorable el dia 2
   const refMonthId = useMemo(() => lastClosedMonthId(sides[0]), [sides])
@@ -350,9 +371,10 @@ export function SavingsView() {
   const projection = useMemo(
     () =>
       isTogether
-        ? combinedProjectSavings(data, household.partnerData, HORIZONS)
-        : projectSavings(source, HORIZONS),
-    [isTogether, data, household.partnerData, source],
+        // en "Juntos", fcSides es [el mio, el de mi pareja] ya filtrados
+        ? combinedProjectSavings(fcSides[0], fcSides[1] ?? null, HORIZONS)
+        : projectSavings(fcSource, HORIZONS),
+    [isTogether, fcSides, fcSource],
   )
 
   /* --- prevision: banda, ritmo medio y meta ------------------------- */
@@ -410,20 +432,20 @@ export function SavingsView() {
   }, [data.snapshots])
 
   const bands = useMemo(
-    () => mergeSavingsBands(sides.map((d) => projectSavingsBands(d, BAND_MONTHS))),
-    [sides],
+    () => mergeSavingsBands(fcSides.map((d) => projectSavingsBands(d, BAND_MONTHS))),
+    [fcSides],
   )
-  const pcts = useMemo(() => sumPercentiles(sides.map((d) => percentiles(d))), [sides])
+  const pcts = useMemo(() => sumPercentiles(fcSides.map((d) => percentiles(d))), [fcSides])
   // el ahorro mensual al ritmo medio: la misma cuenta que el escenario
   // "realista" de projectSavings, pero mes a mes para poder dibujarlo
   const paceDeltaJpy = useMemo(() => {
-    const deltas = sides.map((d) => {
+    const deltas = fcSides.map((d) => {
       const average = recentActiveAverageJpy(d, 6)
       const income = forecastIncomeJpy(d)
       return average === null || income <= 0 ? null : income - average
     })
     return deltas.some((x) => x === null) ? null : sum(deltas as number[])
-  }, [sides])
+  }, [fcSides])
   // la meta es de una persona, no de dos: en "Juntos" no se dibuja, porque
   // mezclarla con el patrimonio de los dos diria algo que no es
   // lo que el patrimonio ha subido de verdad al mes, medido ciclo a ciclo. No
@@ -433,9 +455,11 @@ export function SavingsView() {
     () => netWorthMonthly(source, new Date(), payday),
     [source, payday],
   )
+  // el ritmo medido (`sourceMonthly`) sale de las fotos, asi que no cambia con
+  // el interruptor: lo unico que se mueve es la parte de modelo de la meta
   const goal = useMemo(
-    () => (isTogether ? null : savingsGoal(source, new Date(), 12, sourceMonthly)),
-    [isTogether, source, sourceMonthly],
+    () => (isTogether ? null : savingsGoal(fcSource, new Date(), 12, sourceMonthly)),
+    [isTogether, fcSource, sourceMonthly],
   )
   // el veredicto sale del ritmo medido cuando lo hay; el del modelo se queda
   // de reserva para cuando todavia no hay dos ciclos que comparar
@@ -501,7 +525,7 @@ export function SavingsView() {
     () => (isTogether ? null : currentCycle(source, sourceMonthly, new Date(), payday)),
     [isTogether, source, sourceMonthly, payday],
   )
-  const backtest = useMemo(() => backtestForecast(source), [source])
+  const backtest = useMemo(() => backtestForecast(fcSource), [fcSource])
   // los apuntes futuros de los dos: `upcomingExpenses` solo mira `expenses`,
   // asi que juntarlos aqui basta para la vista combinada
   const upcoming = useMemo(
@@ -757,6 +781,28 @@ export function SavingsView() {
           </Card>
 
           <Card title={t('savings.forecast')} hint={t('savings.forecastHint')}>
+            {/* el interruptor va dentro de la tarjeta a proposito: solo afecta
+                a lo que se preve aqui, no a lo medido de mas arriba */}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Toggle
+                checked={excludeExtra}
+                onChange={setExcludeExtra}
+                label={t('stats.excludeExtraordinary')}
+              />
+              <span className="text-[11px] text-muted">
+                {extraCount === 0
+                  ? t('forecast.excludeNone')
+                  : t(excludeExtra ? 'forecast.excludeOn' : 'forecast.excludeOff', {
+                      x:
+                        extraCount === 1
+                          ? t('forecast.extraOne')
+                          : t('forecast.extras', { n: String(extraCount) }),
+                    })}
+              </span>
+            </div>
+            {excludeExtra && (
+              <p className="mb-3 text-[11px] text-muted">{t('forecast.excludeHint')}</p>
+            )}
             {chart ? (
               <>
                 <BandLines

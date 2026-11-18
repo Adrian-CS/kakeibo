@@ -38,6 +38,8 @@ import {
   percentiles,
   periodSplit,
   projectSavingsBands,
+  withoutExtraordinary,
+  extraordinaryCount,
   quarterOf,
   quarterlyTicket,
   recentActiveAverageJpy,
@@ -1397,6 +1399,64 @@ describe('prevision', () => {
 
     it('sin historial no hay percentiles', () => {
       expect(percentiles(emptyData(today), 12, today)).toBeNull()
+    })
+  })
+
+  describe('withoutExtraordinary', () => {
+    it('quita los extraordinarios y deja el resto intacto', () => {
+      const seed = forecastSeed()
+      const conVuelo: AppData = {
+        ...seed,
+        expenses: [
+          ...seed.expenses,
+          {
+            id: 'vuelo',
+            monthId: '2026-06',
+            categoryId: 'eating_out',
+            label: 'vuelo',
+            amount: 200000,
+            kind: 'extraordinary',
+          },
+        ],
+      }
+      expect(extraordinaryCount(conVuelo)).toBe(1)
+      const sin = withoutExtraordinary(conVuelo)
+      expect(sin.expenses.map((e) => e.id)).toEqual(seed.expenses.map((e) => e.id))
+      // lo demas del documento no se toca: las fotos siguen ahi
+      expect(sin.snapshots).toBe(conVuelo.snapshots)
+    })
+
+    it('sin extraordinarios devuelve el mismo objeto, para no recalcular de mas', () => {
+      const seed = forecastSeed()
+      expect(extraordinaryCount(seed)).toBe(0)
+      expect(withoutExtraordinary(seed)).toBe(seed)
+    })
+
+    it('un mes carisimo por un extraordinario deja de tirar del mes caro', () => {
+      const seed = forecastSeed()
+      const conVuelo: AppData = {
+        ...seed,
+        expenses: [
+          ...seed.expenses,
+          {
+            id: 'vuelo',
+            monthId: '2026-06',
+            categoryId: 'eating_out',
+            label: 'vuelo',
+            amount: 200000,
+            kind: 'extraordinary',
+          },
+        ],
+      }
+      const con = percentiles(conVuelo, 12, today)!
+      const sin = percentiles(withoutExtraordinary(conVuelo), 12, today)!
+      expect(con.p75).toBeGreaterThan(sin.p75)
+      expect(sin).toEqual(percentiles(seed, 12, today))
+      // y la banda se estrecha con el, porque sale de los mismos percentiles
+      const ancho = (b: { medianJpy: number; lowJpy: number }) => b.medianJpy - b.lowJpy
+      expect(ancho(projectSavingsBands(conVuelo, 12, 12, today)[11])).toBeGreaterThan(
+        ancho(projectSavingsBands(withoutExtraordinary(conVuelo), 12, 12, today)[11]),
+      )
     })
   })
 
